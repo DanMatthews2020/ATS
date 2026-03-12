@@ -124,3 +124,108 @@ export interface SelectOption {
   value: string;
   label: string;
 }
+
+// ─── Job Postings ─────────────────────────────────────────────────────────────
+
+export interface JobPostingFormData {
+  title: string;
+  description: string;
+  criteria: string;
+}
+
+export interface ApplicationStatusEntry {
+  id: string;
+  jobTitle: string;
+  appliedAgo: string;
+  candidateName: string;
+  candidateId: string;
+}
+
+// ─── People Search ────────────────────────────────────────────────────────────
+
+export interface CriteriaWeight {
+  key: string;
+  label: string;
+  value: number;
+}
+
+export interface ParsedSearchCriteria {
+  role: string;
+  location: string;
+  yearsOfExperience: string;
+  skills: string;
+  industry: string;
+}
+
+export interface SearchFilterChip {
+  id: string;
+  label: string;
+  removable: boolean;
+}
+
+export interface SearchResultPerson {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  location: string;
+  yearsExp: number;
+  matchPercent: number;
+  isLocked: boolean;
+  savedToShortlist: boolean;
+}
+
+// ─── Candidate Profile ────────────────────────────────────────────────────────
+
+export type ProfileTab =
+  | 'overview'
+  | 'experience'
+  | 'skills'
+  | 'interview-feedback'
+  | 'notes'
+  | 'activity';
+
+export interface WorkExperienceEntry {
+  id: string;
+  company: string;
+  role: string;
+  period: string;
+  description: string;
+}
+
+export interface CandidateQuickStats {
+  yearsOfExperience: string;
+  location: string;
+  availability: string;
+  salaryExpectation: string;
+}
+
+export interface CandidateInterviewFeedback {
+  rating: number;
+  ratingLabel: string;
+  summary: string;
+  lead: string;
+  updatedAt: string;
+}
+
+export interface CandidatePipelineStatus {
+  appliedAt: string;
+  currentStage: string;
+}
+
+export interface CandidateSource {
+  label: string;
+  href: string;
+}
+
+export interface CandidateProfileData {
+  id: string;
+  name: string;
+  title: string;
+  matchPercent: number;
+  sources: CandidateSource[];
+  quickStats: CandidateQuickStats;
+  interviewFeedback: CandidateInterviewFeedback;
+  pipelineStatus: CandidatePipelineStatus;
+  workExperience: WorkExperienceEntry[];
+}
