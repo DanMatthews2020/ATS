@@ -124,3 +124,19 @@ export interface SelectOption {
   value: string;
   label: string;
 }
+
+// ─── Job Postings ─────────────────────────────────────────────────────────────
+
+export interface JobPostingFormData {
+  title: string;
+  description: string;
+  criteria: string;
+}
+
+export interface ApplicationStatusEntry {
+  id: string;
+  jobTitle: string;
+  appliedAgo: string;
+  candidateName: string;
+  candidateId: string;
+}

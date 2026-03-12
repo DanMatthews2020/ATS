@@ -6,6 +6,7 @@ import type {
   User,
   StatCard,
   SelectOption,
+  ApplicationStatusEntry,
 } from '@/types';
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
@@ -325,4 +326,37 @@ export const LOGIN_FEATURES: string[] = [
   'Automated pipeline management',
   'Real-time talent insights',
   'Collaborative hiring workflows',
+];
+
+// ─── Job Postings — Applications Status ──────────────────────────────────────
+
+export const MOCK_APPLICATION_STATUSES: ApplicationStatusEntry[] = [
+  {
+    id: '1',
+    jobTitle: 'Software Engineer',
+    appliedAgo: 'Applied 2 days ago',
+    candidateName: 'Alex Martinez',
+    candidateId: 'alex-martinez',
+  },
+  {
+    id: '2',
+    jobTitle: 'Product Designer',
+    appliedAgo: 'Applied 5 days ago',
+    candidateName: 'Sofia Patel',
+    candidateId: 'sofia-patel',
+  },
+  {
+    id: '3',
+    jobTitle: 'Data Analyst',
+    appliedAgo: 'Applied 1 week ago',
+    candidateName: "Michael O'Connor",
+    candidateId: 'michael-oconnor',
+  },
+  {
+    id: '4',
+    jobTitle: 'QA Engineer',
+    appliedAgo: 'Applied 3 weeks ago',
+    candidateName: 'Lina Rodriguez',
+    candidateId: 'lina-rodriguez',
+  },
 ];
