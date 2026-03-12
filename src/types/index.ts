@@ -63,6 +63,24 @@ export interface Candidate {
   jobId: string;
 }
 
+// ─── Candidate Profile (extended, for Candidates page) ───────────────────────
+
+export interface CandidateProfile {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  location: string;
+  status: CandidateStatus;
+  appliedAt: string;
+  jobTitle: string;
+  skills: string[];
+  experience: string;
+  education?: string;
+  notes?: string;
+}
+
 // ─── Pipeline ─────────────────────────────────────────────────────────────────
 
 export type PipelineStage =
