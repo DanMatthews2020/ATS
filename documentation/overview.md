@@ -30,6 +30,7 @@ Open **http://localhost:3000** — you'll land on the login page. Enter **any em
 | **Job Postings** | `/job-postings` | List of all job postings with filter tabs, stats, and applications sidebar. |
 | **Create Job Posting** | `/job-postings/create` | Form to post a new job with a contextual applications sidebar. |
 | **Onboarding** | `/onboarding` | 3-step onboarding wizard with profile form, task sections, and checklist sidebar. |
+| **Talent Insights** | `/talent-insights` | Analytics dashboard: time-to-hire/fill line chart, source effectiveness donut, pipeline activity stacked bar, source per hire horizontal bar, saved reports table. |
 
 ---
 

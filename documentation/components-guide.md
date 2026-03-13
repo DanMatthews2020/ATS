@@ -344,6 +344,88 @@ A small stat tile used at the top of summary pages. Currently used in **Job Post
 
 ---
 
+### `InsightStatCard` (inline — Talent Insights)
+
+A stat tile with a trend indicator (up/down arrow + coloured delta). Defined inside `talent-insights/page.tsx`.
+
+**Props:**
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `label` | `string` | Small muted label above the number |
+| `value` | `string` | Large bold metric value |
+| `change` | `string` | Delta string, e.g. `"-3d"` or `"+5%"` |
+| `positive` | `boolean` | `true` = green TrendingUp · `false` = red TrendingDown |
+| `icon` | `React.ReactNode` | Icon shown in the top-right corner |
+
+**Usage:**
+```tsx
+<InsightStatCard
+  label="Avg. Time to Hire"
+  value="24d"
+  change="-3d"
+  positive={true}
+  icon={<Clock size={14} />}
+/>
+```
+
+**HTML structure:**
+```tsx
+<div className="bg-white border border-[var(--color-border)] rounded-2xl p-4 shadow-card">
+  <div className="flex items-center justify-between mb-1">
+    <p className="text-xs text-[var(--color-text-muted)]">{label}</p>
+    <span className="text-[var(--color-text-muted)]">{icon}</span>
+  </div>
+  <p className="text-2xl font-bold text-[var(--color-text-primary)] leading-tight">{value}</p>
+  <div className="flex items-center gap-1 mt-1">
+    {positive ? <TrendingUp size={11} className="text-emerald-500" /> : <TrendingDown size={11} className="text-red-500" />}
+    <p className={`text-xs ${positive ? 'text-emerald-600' : 'text-red-600'}`}>{change}</p>
+  </div>
+</div>
+```
+
+---
+
+### `ChartCard` (inline — Talent Insights)
+
+A white card wrapper for recharts chart components. Defined inside `talent-insights/page.tsx`.
+
+**Props:**
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `title` | `string` | Card heading |
+| `subtitle` | `string` (optional) | Muted sub-heading beneath the title |
+| `aside` | `React.ReactNode` (optional) | Content rendered top-right (e.g. a legend) |
+| `children` | `React.ReactNode` | The chart itself |
+
+**Usage:**
+```tsx
+<ChartCard title="Time to Hire vs Fill" subtitle="Rolling 12 months">
+  <ResponsiveContainer width="100%" height={220}>
+    <LineChart data={COMBINED_TREND_DATA}>
+      {/* ... */}
+    </LineChart>
+  </ResponsiveContainer>
+</ChartCard>
+```
+
+**HTML structure:**
+```tsx
+<div className="bg-white border border-[var(--color-border)] rounded-2xl p-5 shadow-card">
+  <div className="flex items-start justify-between mb-4">
+    <div>
+      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h3>
+      {subtitle && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{subtitle}</p>}
+    </div>
+    {aside && <div>{aside}</div>}
+  </div>
+  {children}
+</div>
+```
+
+---
+
 ### `TaskSection` (inline — Onboarding)
 
 A task list block with a title, description, progress bar, and checkbox rows with due dates and priority badges. Defined inside `onboarding/page.tsx`.
@@ -654,6 +736,83 @@ Used by: Job Postings sidebar, Create Job Posting sidebar. A `<ul>` with divider
 
 ---
 
+### Pattern 13 — Analytics / Charts Page
+
+Used by: Talent Insights. A full-width page with a stats row followed by a grid of `ChartCard` components.
+
+```tsx
+// Stats row (same as Pattern 9, but using InsightStatCard with trend indicator)
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <InsightStatCard label="Avg. Time to Hire" value="24d" change="-3d" positive={true} icon={<Clock size={14} />} />
+  {/* ... */}
+</div>
+
+// Chart grid
+<div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+  <ChartCard title="Time to Hire vs Fill" subtitle="Rolling 12 months">
+    <ResponsiveContainer width="100%" height={220}>
+      <LineChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} />
+        <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke={GRID_COLOR} />
+        <YAxis tick={{ fontSize: 11 }} stroke={GRID_COLOR} unit="d" />
+        <Tooltip />
+        <Line type="monotone" dataKey="timeToHire" stroke="#0A0A0A" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="timeToFill" stroke="#F97316" strokeWidth={2} dot={false} />
+      </LineChart>
+    </ResponsiveContainer>
+  </ChartCard>
+</div>
+```
+
+**Key recharts rules for this project:**
+- Always wrap charts in `<ResponsiveContainer width="100%" height={N}>` — never set pixel widths
+- Use `stroke={GRID_COLOR}` (`'#E5E5E3'`) for `CartesianGrid` and axis lines
+- Use `stroke="#0A0A0A"` (primary) and `stroke="#F97316"` (accent) for data series colours — Tailwind classes don't apply inside SVG
+- Use `tick={{ fontSize: 11 }}` on all axis ticks for consistent sizing
+- `Tooltip` and `Legend` work without props; customise with `formatter` if needed
+- For donut charts: `<Pie innerRadius={55} outerRadius={85} ...>` with `RADIAN` label render
+
+---
+
+### Pattern 14 — Saved Reports Table
+
+Used by: Talent Insights. A full-width `<table>` inside a `ChartCard` with action buttons per row. Rows are deletable via `useState`.
+
+```tsx
+const [reports, setReports] = useState(SAVED_REPORTS);
+
+<table className="w-full text-sm">
+  <thead>
+    <tr className="border-b border-[var(--color-border)]">
+      <th className="text-left pb-3 text-xs font-medium text-[var(--color-text-muted)]">Report</th>
+      <th className="text-left pb-3 text-xs font-medium text-[var(--color-text-muted)]">Type</th>
+      <th className="text-left pb-3 text-xs font-medium text-[var(--color-text-muted)]">Last Run</th>
+      <th className="pb-3" />
+    </tr>
+  </thead>
+  <tbody className="divide-y divide-[var(--color-border)]">
+    {reports.map((r) => (
+      <tr key={r.id} className="group">
+        <td className="py-3 font-medium text-[var(--color-text-primary)]">{r.name}</td>
+        <td className="py-3 text-[var(--color-text-muted)]">{r.type}</td>
+        <td className="py-3 text-[var(--color-text-muted)]">{r.lastRun}</td>
+        <td className="py-3">
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" size="sm">View</Button>
+            <Button variant="secondary" size="sm">Export</Button>
+            <Button variant="danger" size="sm" onClick={() => setReports(reports.filter((x) => x.id !== r.id))}>
+              Delete
+            </Button>
+          </div>
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+```
+
+---
+
 ## Status Label Mappings
 
 ### Candidate status
@@ -705,6 +864,7 @@ import { Users, Plus, Search, X, Mail, Phone, MapPin } from 'lucide-react';
 - Pipeline: `LayoutGrid`, `List`, `SlidersHorizontal`
 - Job Postings: `Briefcase`, `Plus`, `MapPin`, `Users`, `Clock`, `ChevronRight`, `TrendingUp`, `BarChart2`
 - Onboarding: `ClipboardList`, `ChevronRight`, `Check`, `Upload`, `Download`, `HelpCircle`, `Monitor`, `UserCheck`, `Users`
+- Talent Insights: `BarChart2`, `Clock`, `TrendingUp`, `TrendingDown`, `Users`, `Target`, `BookOpen`, `Trash2`, `Download`
 - Login: `Users`, `ArrowRight`, `Sparkles`, `CheckCircle2`
 
 ---
