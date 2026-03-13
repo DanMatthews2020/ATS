@@ -158,3 +158,20 @@ export interface ApplicationStatusEntry {
   candidateName: string;
   candidateId: string;
 }
+
+// ─── People Search ────────────────────────────────────────────────────────────
+
+export interface PersonResult {
+  id: string;
+  name: string;
+  title: string;
+  company: string;
+  location: string;
+  yearsExp: number;
+  matchScore: number;
+  skills: string[];
+  industry: string;
+  avatarUrl: string;
+  locked?: boolean;
+  savedToShortlist?: boolean;
+}
