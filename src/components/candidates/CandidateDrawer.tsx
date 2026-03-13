@@ -54,7 +54,7 @@ export function CandidateDrawer({ candidate, onClose }: CandidateDrawerProps) {
         className={[
           'fixed right-0 top-0 h-full w-[440px] bg-white z-50 shadow-2xl flex flex-col',
           'transition-transform duration-300 ease-in-out',
-          isOpen ? 'translate-x-0' : 'translate-x-full',
+          isOpen ? 'translate-x-0' : 'translate-x-full invisible',
         ].join(' ')}
       >
         {candidate && (
