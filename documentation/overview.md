@@ -27,7 +27,9 @@ Open **http://localhost:3000** — you'll land on the login page. Enter **any em
 | **Dashboard** | `/dashboard` | Home after login. Stats, open job listings, recent candidates. |
 | **Candidates** | `/candidates` | Full candidate list with search, status filters, and a slide-over detail drawer. |
 | **Pipeline** | `/pipeline` | Candidates filtered by job. Toggle between grid and list view. |
+| **Job Postings** | `/job-postings` | List of all job postings with filter tabs, stats, and applications sidebar. |
 | **Create Job Posting** | `/job-postings/create` | Form to post a new job with a contextual applications sidebar. |
+| **Onboarding** | `/onboarding` | 3-step onboarding wizard with profile form, task sections, and checklist sidebar. |
 
 ---
 

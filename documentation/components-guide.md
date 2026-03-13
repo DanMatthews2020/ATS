@@ -290,9 +290,73 @@ const [selected, setSelected] = useState<CandidateProfile | null>(null);
 
 ---
 
+## Page-level Sub-components
+
+These components are defined inside their page files. If a third page needs them, extract to `src/components/ui/`.
+
+---
+
+### `StatCard` (inline)
+
+A small stat tile used at the top of summary pages. Currently used in **Job Postings** and **Onboarding**.
+
+**Props:**
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `label` | `string` | Small muted label above the number |
+| `value` | `string` | Large bold number or text |
+| `sub` | `string` | Small muted supporting text below |
+| `icon` | `React.ReactNode` | Optional icon shown top-right (Job Postings variant) |
+| `color` | `string` | Tailwind text colour class for the value (Onboarding variant) |
+
+**Usage (Job Postings variant):**
+```tsx
+<StatCard
+  label="Open Positions"
+  value="6"
+  sub="+2 this week"
+  icon={<Briefcase size={14} />}
+/>
+```
+
+**Usage (Onboarding variant — coloured value):**
+```tsx
+<StatCard
+  label="Profile Completion"
+  value="46%"
+  sub="Add photo, documents"
+  color="text-amber-600"
+/>
+```
+
+**HTML structure (copy for new pages):**
+```tsx
+<div className="bg-white border border-[var(--color-border)] rounded-2xl p-4 shadow-card">
+  <div className="flex items-center justify-between mb-1">
+    <p className="text-xs text-[var(--color-text-muted)]">{label}</p>
+    <span className="text-[var(--color-text-muted)]">{icon}</span>
+  </div>
+  <p className="text-2xl font-bold text-[var(--color-text-primary)] leading-tight">{value}</p>
+  <p className="text-xs text-[var(--color-text-muted)] mt-1">{sub}</p>
+</div>
+```
+
+---
+
+### `TaskSection` (inline — Onboarding)
+
+A task list block with a title, description, progress bar, and checkbox rows with due dates and priority badges. Defined inside `onboarding/page.tsx`.
+
+**Props:** `icon`, `title`, `description`, `tasks: Task[]`, `onToggle`, `countColor`
+
+Reuse by copying `TaskSection` and the `Task` interface if you need task lists on another page.
+
+---
+
 ## Page Patterns
 
-These are recurring layout patterns used across the 4 pages. Follow these exactly when building new pages to keep the design consistent.
+These are recurring layout patterns used across all pages. Follow these exactly when building new pages to keep the design consistent.
 
 ---
 
@@ -487,7 +551,112 @@ The sidebar uses `Card` with `padding="md"` and shows related contextual info (e
 
 ---
 
-## Status Label Mapping
+### Pattern 9 — Stats Row
+
+Used by: Job Postings, Onboarding. A 4-column grid of `StatCard` tiles shown beneath the page header.
+
+```tsx
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <StatCard label="Open Positions" value="6"   sub="+2 this week"        icon={<Briefcase size={14} />} />
+  <StatCard label="Applicants"     value="139" sub="Across all roles"    icon={<Users size={14} />} />
+  <StatCard label="Time to Fill"   value="18d" sub="−3 from last month"  icon={<Clock size={14} />} />
+  <StatCard label="Offer Rate"     value="78%" sub="+5% this quarter"    icon={<TrendingUp size={14} />} />
+</div>
+```
+
+---
+
+### Pattern 10 — Job / Item List Row
+
+Used by: Job Postings. A horizontal card row with metadata icons and action buttons on the right.
+
+```tsx
+<ul className="space-y-3">
+  {items.map((item) => (
+    <li key={item.id}>
+      <div className="bg-white border border-[var(--color-border)] rounded-2xl px-5 py-4 shadow-card hover:shadow-card-hover hover:border-neutral-300 transition-all duration-150">
+        <div className="flex items-start justify-between gap-4">
+          {/* Left: title + badge + description + metadata */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{item.title}</h3>
+              <Badge variant="success">Open</Badge>
+              <span className="text-xs px-2 py-0.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-muted)]">
+                Full-time
+              </span>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)] line-clamp-2 mb-3">{item.description}</p>
+            <div className="flex items-center flex-wrap gap-4">
+              <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                <MapPin size={11} />{item.location}
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                <Users size={11} />{item.applicantCount} applicants
+              </span>
+            </div>
+          </div>
+          {/* Right: action button */}
+          <Button variant="secondary" size="sm">
+            View <ChevronRight size={12} />
+          </Button>
+        </div>
+      </div>
+    </li>
+  ))}
+</ul>
+```
+
+---
+
+### Pattern 11 — Two-column Page (List + Sidebar)
+
+Used by: Job Postings. A responsive grid with a wide list area on the left and a fixed-width sidebar on the right. The sidebar uses `Card` for each panel.
+
+```tsx
+<div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6 items-start">
+
+  {/* Left — main list content */}
+  <div>
+    {/* Filter tabs go here */}
+    {/* Item list goes here */}
+  </div>
+
+  {/* Right — sidebar panels */}
+  <div className="space-y-4">
+    <Card padding="md">
+      <h2 className="text-base font-semibold text-[var(--color-primary)] mb-4">Panel Title</h2>
+      {/* Sidebar content */}
+    </Card>
+  </div>
+
+</div>
+```
+
+---
+
+### Pattern 12 — Divider List (Sidebar)
+
+Used by: Job Postings sidebar, Create Job Posting sidebar. A `<ul>` with dividers between each item and two columns of content per row.
+
+```tsx
+<ul className="divide-y divide-[var(--color-border)]" role="list">
+  {entries.map((entry) => (
+    <li key={entry.id} className="py-3 flex items-start justify-between gap-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-[var(--color-primary)] truncate">{entry.title}</p>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{entry.subtitle}</p>
+      </div>
+      <span className="text-sm font-medium text-blue-600 whitespace-nowrap">{entry.action}</span>
+    </li>
+  ))}
+</ul>
+```
+
+---
+
+## Status Label Mappings
+
+### Candidate status
 
 When displaying `CandidateStatus` values as human-readable labels, use this mapping consistently:
 
@@ -499,6 +668,24 @@ When displaying `CandidateStatus` values as human-readable labels, use this mapp
 | `offer` | Offer Sent | `success` |
 | `hired` | Hired | `success` |
 | `rejected` | Rejected | `error` |
+
+### Job status
+
+When displaying `JobStatus` values, use this mapping:
+
+| Status value | Display label | Badge variant |
+|---|---|---|
+| `open` | Open | `success` |
+| `draft` | Draft | `default` |
+| `closed` | Closed | `error` |
+
+### Task priority (Onboarding)
+
+| Priority | Badge variant |
+|---|---|
+| `high` | `error` |
+| `medium` | `warning` |
+| `low` | `default` |
 
 ---
 
@@ -516,6 +703,8 @@ import { Users, Plus, Search, X, Mail, Phone, MapPin } from 'lucide-react';
 - Sidebar: `LayoutDashboard`, `Search`, `Users`, `Layers`, `Briefcase`, `BarChart2`, `ClipboardList`, `Star`, `FileText`, `Settings`
 - Candidates: `Users`, `Plus`, `Search`, `X`, `Mail`, `Phone`, `MapPin`, `Calendar`, `Briefcase`, `Clock`
 - Pipeline: `LayoutGrid`, `List`, `SlidersHorizontal`
+- Job Postings: `Briefcase`, `Plus`, `MapPin`, `Users`, `Clock`, `ChevronRight`, `TrendingUp`, `BarChart2`
+- Onboarding: `ClipboardList`, `ChevronRight`, `Check`, `Upload`, `Download`, `HelpCircle`, `Monitor`, `UserCheck`, `Users`
 - Login: `Users`, `ArrowRight`, `Sparkles`, `CheckCircle2`
 
 ---
