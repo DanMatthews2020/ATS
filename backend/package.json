@@ -4,8 +4,8 @@
   "description": "TeamTalent ATS/HRIS Backend API",
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "npx prisma generate && npx tsc",
-    "start": "node dist/server.js",
+    "build": "npx prisma generate",
+    "start": "npx tsx server.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -28,10 +28,9 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "prisma": "^5.14.0",
+    "tsx": "^4.15.7",
     "typescript": "^5.4.5",
     "zod": "^3.23.8"
   },
-  "devDependencies": {
-    "tsx": "^4.15.7"
-  }
+  "devDependencies": {}
 }
