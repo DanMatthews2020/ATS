@@ -4,7 +4,7 @@
   "description": "TeamTalent ATS/HRIS Backend API",
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "npx prisma generate",
+    "build": "NODE_ENV=development npm install && npx prisma generate",
     "start": "npx tsx server.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

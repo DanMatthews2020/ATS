@@ -3,7 +3,7 @@ services:
     name: teamtalent-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npx prisma generate
+    buildCommand: NODE_ENV=development npm install && npx prisma generate
     startCommand: npx tsx server.ts
     envVars:
       - key: NODE_ENV
