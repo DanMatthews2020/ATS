@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  HR
+  MANAGER
+  INTERVIEWER
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ON_HOLD
+}
+
+enum CandidateSource {
+  REFERRAL
+  JOB_BOARD
+  DIRECT
+  AGENCY
+  AI_SOURCED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+enum InterviewType {
+  PHONE
+  VIDEO
+  ON_SITE
+  TECHNICAL
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum OfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+enum OnboardingCategory {
+  HR
+  IT
+  MANAGER
+  NEW_HIRE
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(HR)
+  firstName    String
+  lastName     String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdJobs      JobPosting[]        @relation("CreatedBy")
+  interviewSlots   InterviewsOnUsers[]
+  assignedTasks    OnboardingTask[]    @relation("AssignedTo")
+  employee         Employee?           @relation("UserEmployee")
+  refreshTokens    RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model JobPosting {
+  id           String     @id @default(uuid())
+  title        String
+  department   String
+  location     String
+  type         JobType
+  status       JobStatus  @default(DRAFT)
+  description  String
+  requirements String?
+  salaryMin    Decimal?   @db.Decimal(12, 2)
+  salaryMax    Decimal?   @db.Decimal(12, 2)
+  openedAt     DateTime?
+  closedAt     DateTime?
+  createdById  String
+  createdBy    User       @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  applications Application[]
+}
+
+model Candidate {
+  id          String          @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String          @unique
+  phone       String?
+  cvUrl       String?
+  linkedInUrl String?
+  source      CandidateSource @default(JOB_BOARD)
+  skills      String[]
+  location    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  applications Application[]
+  employee     Employee?
+}
+
+model Application {
+  id           String            @id @default(uuid())
+  candidateId  String
+  candidate    Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobPostingId String
+  jobPosting   JobPosting        @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  status       ApplicationStatus @default(APPLIED)
+  stage        String?
+  notes        String?
+  appliedAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  interviews Interview[]
+  offer      Offer?
+
+  @@unique([candidateId, jobPostingId])
+}
+
+model Interview {
+  id            String          @id @default(uuid())
+  applicationId String
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scheduledAt   DateTime
+  duration      Int             // minutes
+  type          InterviewType
+  status        InterviewStatus @default(SCHEDULED)
+  feedback      String?
+  rating        Int?            // 1–5
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  interviewers InterviewsOnUsers[]
+}
+
+model InterviewsOnUsers {
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([interviewId, userId])
+}
+
+model Offer {
+  id            String      @id @default(uuid())
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  salary        Decimal     @db.Decimal(12, 2)
+  currency      String      @default("USD")
+  status        OfferStatus @default(DRAFT)
+  sentAt        DateTime?
+  expiresAt     DateTime?
+  acceptedAt    DateTime?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Employee {
+  id             String         @id @default(uuid())
+  userId         String?        @unique
+  user           User?          @relation("UserEmployee", fields: [userId], references: [id])
+  candidateId    String?        @unique
+  candidate      Candidate?     @relation(fields: [candidateId], references: [id])
+  employeeNumber String         @unique
+  department     String
+  jobTitle       String
+  managerId      String?
+  manager        Employee?      @relation("Reports", fields: [managerId], references: [id])
+  reports        Employee[]     @relation("Reports")
+  startDate      DateTime
+  employmentType EmploymentType
+  workLocation   String?
+  status         EmployeeStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  onboardingTasks OnboardingTask[]
+}
+
+model OnboardingTask {
+  id           String             @id @default(uuid())
+  employeeId   String
+  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  title        String
+  category     OnboardingCategory
+  status       TaskStatus         @default(TODO)
+  assignedToId String?
+  assignedTo   User?              @relation("AssignedTo", fields: [assignedToId], references: [id])
+  dueDate      DateTime?
+  completedAt  DateTime?
+  notes        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}

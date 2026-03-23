@@ -7,58 +7,49 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
+import { authApi } from '@/lib/api';
+import type { ApiUser } from '@/lib/api';
 import type { AuthContextValue, User } from '@/types';
-import { MOCK_USER } from '@/lib/constants';
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_KEY = 'teamtalent_session';
-
-interface AuthProviderProps {
-  children: ReactNode;
+// Maps the backend ApiUser shape → frontend User type
+function toUser(apiUser: ApiUser): User {
+  return {
+    id: apiUser.id,
+    email: apiUser.email,
+    name: `${apiUser.firstName} ${apiUser.lastName}`,
+    role: apiUser.role,
+    avatarUrl: apiUser.avatarUrl ?? '',
+  };
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // On mount: silently restore session via httpOnly cookie → GET /auth/me
   useEffect(() => {
+    authApi
+      .getMe()
+      .then(({ user: apiUser }) => setUser(toUser(apiUser)))
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const login = useCallback(async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
     try {
-      const stored = sessionStorage.getItem(SESSION_KEY);
-      if (stored) {
-        setUser(JSON.parse(stored) as User);
-      }
-    } catch {
-      // sessionStorage not available (e.g. SSR context)
+      const { user: apiUser } = await authApi.login(email, password);
+      setUser(toUser(apiUser));
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const login = useCallback(
-    async (email: string, _password: string): Promise<void> => {
-      setIsLoading(true);
-      // Simulate network latency
-      await new Promise<void>((resolve) => setTimeout(resolve, 700));
-      const authedUser: User = { ...MOCK_USER, email };
-      setUser(authedUser);
-      try {
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(authedUser));
-      } catch {
-        // sessionStorage write failed — silently continue
-      }
-      setIsLoading(false);
-    },
-    [],
-  );
-
   const logout = useCallback((): void => {
-    setUser(null);
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-    } catch {
-      // sessionStorage not available
-    }
+    // Fire-and-forget: clear server-side cookies then wipe local state
+    authApi.logout().catch(() => {}).finally(() => setUser(null));
   }, []);
 
   return (
