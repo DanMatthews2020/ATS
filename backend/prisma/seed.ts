@@ -1,4 +1,10 @@
 import 'dotenv/config';
+
+// Seed uses the direct (session-mode) URL to avoid pgBouncer prepared-statement limits
+const prismaOptions = process.env.DIRECT_URL
+  ? { datasources: { db: { url: process.env.DIRECT_URL } } }
+  : {};
+
 import {
   PrismaClient,
   UserRole,
@@ -12,7 +18,7 @@ import {
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(prismaOptions);
 
 async function main() {
   console.log('🌱  Seeding database…\n');
@@ -32,26 +38,24 @@ async function main() {
   // ── Users (2) ─────────────────────────────────────────────────────────────
   const passwordHash = await bcrypt.hash('Admin123!', 12);
 
-  const [admin, hrManager] = await Promise.all([
-    prisma.user.create({
-      data: {
-        email: 'admin@teamtalent.com',
-        passwordHash,
-        role: UserRole.ADMIN,
-        firstName: 'John',
-        lastName: 'Doe',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: 'hr@teamtalent.com',
-        passwordHash,
-        role: UserRole.HR,
-        firstName: 'Sarah',
-        lastName: 'Williams',
-      },
-    }),
-  ]);
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@teamtalent.com',
+      passwordHash,
+      role: UserRole.ADMIN,
+      firstName: 'John',
+      lastName: 'Doe',
+    },
+  });
+  const hrManager = await prisma.user.create({
+    data: {
+      email: 'hr@teamtalent.com',
+      passwordHash,
+      role: UserRole.HR,
+      firstName: 'Sarah',
+      lastName: 'Williams',
+    },
+  });
 
   console.log('  ✓ Users created');
 
@@ -138,13 +142,10 @@ async function main() {
     },
   ];
 
-  const jobs = await Promise.all(
-    jobData.map((d) =>
-      prisma.jobPosting.create({
-        data: { ...d, createdById: admin.id },
-      }),
-    ),
-  );
+  const jobs = [];
+  for (const d of jobData) {
+    jobs.push(await prisma.jobPosting.create({ data: { ...d, createdById: admin.id } }));
+  }
 
   console.log('  ✓ Job postings created');
 
@@ -172,9 +173,10 @@ async function main() {
     { firstName: 'Zara',    lastName: 'Ahmed',     email: 'zara.a@example.com',         location: 'Dubai, UAE',        skills: ['Marketing', 'SEO', 'Content Strategy'],   source: CandidateSource.AI_SOURCED },
   ];
 
-  const candidates = await Promise.all(
-    candidateData.map((d) => prisma.candidate.create({ data: d })),
-  );
+  const candidates = [];
+  for (const d of candidateData) {
+    candidates.push(await prisma.candidate.create({ data: d }));
+  }
 
   console.log('  ✓ Candidates created');
 
@@ -217,18 +219,17 @@ async function main() {
     { candidateIdx: 13, jobIdx: 2, status: ApplicationStatus.SCREENING,  appliedAt: new Date('2026-02-18') },
   ];
 
-  const applications = await Promise.all(
-    applicationSpecs.map((s) =>
-      prisma.application.create({
-        data: {
-          candidateId:  candidates[s.candidateIdx].id,
-          jobPostingId: jobs[s.jobIdx].id,
-          status:       s.status,
-          appliedAt:    s.appliedAt,
-        },
-      }),
-    ),
-  );
+  const applications = [];
+  for (const s of applicationSpecs) {
+    applications.push(await prisma.application.create({
+      data: {
+        candidateId:  candidates[s.candidateIdx].id,
+        jobPostingId: jobs[s.jobIdx].id,
+        status:       s.status,
+        appliedAt:    s.appliedAt,
+      },
+    }));
+  }
 
   console.log('  ✓ Applications created');
 
@@ -256,22 +257,21 @@ async function main() {
     { appIdx: 8, scheduledAt: new Date('2026-03-25T14:00:00Z'), type: InterviewType.TECHNICAL,  status: InterviewStatus.SCHEDULED,  duration: 90 },
   ];
 
-  await Promise.all(
-    interviewData.map((d, i) =>
-      prisma.interview.create({
-        data: {
-          applicationId: interviewableApps[Math.min(d.appIdx, interviewableApps.length - 1)].id,
-          scheduledAt:   d.scheduledAt,
-          type:          d.type,
-          status:        d.status,
-          duration:      d.duration,
-          interviewers: {
-            create: [{ userId: i % 2 === 0 ? admin.id : hrManager.id }],
-          },
+  for (let i = 0; i < interviewData.length; i++) {
+    const d = interviewData[i];
+    await prisma.interview.create({
+      data: {
+        applicationId: interviewableApps[Math.min(d.appIdx, interviewableApps.length - 1)].id,
+        scheduledAt:   d.scheduledAt,
+        type:          d.type,
+        status:        d.status,
+        duration:      d.duration,
+        interviewers: {
+          create: [{ userId: i % 2 === 0 ? admin.id : hrManager.id }],
         },
-      }),
-    ),
-  );
+      },
+    });
+  }
 
   console.log('  ✓ Interviews created');
 
@@ -326,21 +326,19 @@ async function main() {
     },
   ];
 
-  await Promise.all(
-    offerSpecs.map((s) =>
-      prisma.offer.create({
-        data: {
-          applicationId: offerApps[Math.min(s.appIdx, offerApps.length - 1)].id,
-          salary: s.salary,
-          currency: 'USD',
-          status: s.status,
-          sentAt: s.sentAt,
-          expiresAt: s.expiresAt,
-          acceptedAt: s.acceptedAt,
-        },
-      }),
-    ),
-  );
+  for (const s of offerSpecs) {
+    await prisma.offer.create({
+      data: {
+        applicationId: offerApps[Math.min(s.appIdx, offerApps.length - 1)].id,
+        salary: s.salary,
+        currency: 'USD',
+        status: s.status,
+        sentAt: s.sentAt,
+        expiresAt: s.expiresAt,
+        acceptedAt: s.acceptedAt,
+      },
+    });
+  }
 
   console.log('  ✓ Offers created');
   console.log('\n✅  Seed complete!\n');

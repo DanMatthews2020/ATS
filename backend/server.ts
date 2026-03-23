@@ -1,3 +1,14 @@
+/**
+ * @file server.ts
+ * @description Express application entry point.
+ *
+ * Bootstraps the TeamTalent API server with:
+ *  - CORS restricted to the configured frontend origin
+ *  - JSON + URL-encoded body parsing
+ *  - Cookie parsing (required for httpOnly auth tokens)
+ *  - All API routes mounted at /api
+ *  - Global 404 and error-handler middleware
+ */
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';

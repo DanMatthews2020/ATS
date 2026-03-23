@@ -1,3 +1,13 @@
+/**
+ * @file auth.service.ts
+ * @description Authentication business logic.
+ *
+ * Responsibilities:
+ *  - Validate credentials and issue JWT token pairs
+ *  - Rotate refresh tokens on each use (prevents token reuse attacks)
+ *  - Revoke tokens on logout
+ *  - Return safe user profile objects (no password hashes)
+ */
 import { authRepository } from '../repositories/auth.repository';
 import { verifyPassword, hashPassword } from '../utils/password';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt';

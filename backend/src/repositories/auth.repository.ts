@@ -1,3 +1,10 @@
+/**
+ * @file auth.repository.ts
+ * @description Database access layer for authentication.
+ *
+ * Handles all Prisma queries related to Users and RefreshTokens.
+ * The service layer owns business logic; this file owns only data access.
+ */
 import { prisma } from '../lib/prisma';
 import type { User } from '@prisma/client';
 

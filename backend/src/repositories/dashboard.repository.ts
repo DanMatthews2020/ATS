@@ -1,3 +1,10 @@
+/**
+ * @file dashboard.repository.ts
+ * @description Database queries for the main dashboard KPI stats.
+ *
+ * Runs four count queries in parallel to minimise latency — each
+ * count targets a different model/status combination.
+ */
 import { prisma } from '../lib/prisma';
 
 export const dashboardRepository = {

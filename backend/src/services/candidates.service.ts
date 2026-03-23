@@ -1,3 +1,11 @@
+/**
+ * @file candidates.service.ts
+ * @description Candidate tracking business logic.
+ *
+ * Fetches applications with their related candidate and job data, then
+ * maps Prisma's ApplicationStatus enum to the frontend CandidateStatus
+ * string literals used by the UI components.
+ */
 import { candidatesRepository } from '../repositories/candidates.repository';
 import type { ApplicationStatus } from '@prisma/client';
 import type { PaginatedResponse } from '../types';

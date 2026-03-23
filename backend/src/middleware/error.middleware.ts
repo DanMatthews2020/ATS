@@ -1,3 +1,13 @@
+/**
+ * @file error.middleware.ts
+ * @description Global Express error handling middleware.
+ *
+ * `errorHandler` — catches errors thrown by route handlers and services,
+ *   normalises them into the standard error envelope, and hides internal
+ *   details for 500-level errors.
+ *
+ * `notFound` — fallback handler for any route that didn't match, returns 404.
+ */
 import type { Request, Response, NextFunction } from 'express';
 
 export interface AppError extends Error {

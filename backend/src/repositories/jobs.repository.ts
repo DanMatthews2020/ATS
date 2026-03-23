@@ -1,3 +1,10 @@
+/**
+ * @file jobs.repository.ts
+ * @description Database access layer for job postings.
+ *
+ * All queries include `_count.applications` so the service layer can
+ * surface applicant counts without a separate query.
+ */
 import { prisma } from '../lib/prisma';
 import type { Prisma } from '@prisma/client';
 

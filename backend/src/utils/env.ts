@@ -1,5 +1,16 @@
+/**
+ * @file env.ts
+ * @description Validated, typed environment configuration.
+ *
+ * Reads process.env at startup and throws immediately if any required
+ * variable is missing, preventing silent misconfiguration at runtime.
+ */
 import 'dotenv/config';
 
+/**
+ * Asserts that an environment variable exists and returns its value.
+ * Throws at startup if the variable is absent — fail fast, fail loudly.
+ */
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) throw new Error(`Missing required environment variable: ${key}`);

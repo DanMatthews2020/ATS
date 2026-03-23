@@ -1,3 +1,11 @@
+/**
+ * @file auth.controller.ts
+ * @description HTTP request handlers for authentication endpoints.
+ *
+ * All tokens are stored as httpOnly cookies (not returned in the response body)
+ * to prevent JavaScript access. The `secure` flag is set only in production.
+ * Cookie options are defined once in COOKIE_BASE and extended per-cookie.
+ */
 import type { Request, Response } from 'express';
 import type { AuthRequest } from '../types';
 import { authService } from '../services/auth.service';

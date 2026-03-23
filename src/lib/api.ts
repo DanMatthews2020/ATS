@@ -1,8 +1,16 @@
-// ─── API client ───────────────────────────────────────────────────────────────
-// Centralised fetch wrapper that:
-//  • Sends credentials (httpOnly cookies) on every request
-//  • Automatically retries once after a 401 by attempting token refresh
-//  • Throws typed ApiError for non-2xx responses
+/**
+ * @file api.ts
+ * @description Centralised HTTP client for all backend communication.
+ *
+ * Features:
+ *  - Sends `credentials: 'include'` on every request so httpOnly cookies
+ *    are forwarded automatically by the browser
+ *  - On a 401 response, attempts a silent token refresh then retries the
+ *    original request once before throwing SESSION_EXPIRED
+ *  - Throws a typed `ApiError` for all non-2xx responses
+ *  - Typed API modules (authApi, dashboardApi, jobsApi, candidatesApi)
+ *    provide a clean interface for each domain
+ */
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';

@@ -1,3 +1,11 @@
+/**
+ * @file jobs.service.ts
+ * @description Job postings business logic.
+ *
+ * Maps Prisma enum values (FULL_TIME, OPEN, etc.) to the lowercase,
+ * hyphenated strings expected by the frontend components (full-time, open).
+ * Returns paginated DTOs rather than raw Prisma models.
+ */
 import { jobsRepository } from '../repositories/jobs.repository';
 import type { PaginatedResponse } from '../types';
 

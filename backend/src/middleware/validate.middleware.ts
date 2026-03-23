@@ -1,3 +1,14 @@
+/**
+ * @file validate.middleware.ts
+ * @description Zod request validation middleware factory.
+ *
+ * Usage: `router.post('/login', validate(LoginSchema), handler)`
+ *
+ * Validates `req.body`, `req.query`, or `req.params` against the given Zod
+ * schema. On success, replaces the target with the parsed (coerced) value so
+ * handlers receive clean, typed data. On failure, responds with 422 and a
+ * structured list of field errors.
+ */
 import type { Request, Response, NextFunction } from 'express';
 import type { ZodSchema } from 'zod';
 import { sendError } from '../utils/response';

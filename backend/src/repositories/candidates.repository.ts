@@ -1,3 +1,11 @@
+/**
+ * @file candidates.repository.ts
+ * @description Database access layer for candidate applications.
+ *
+ * Fetches applications with joined candidate and job posting data.
+ * Supports optional filtering by status or job posting, and
+ * returns the total count alongside items for pagination.
+ */
 import { prisma } from '../lib/prisma';
 import type { ApplicationStatus } from '@prisma/client';
 
