@@ -3,7 +3,7 @@ import 'dotenv/config';
 // Seed uses the direct (session-mode) URL to avoid pgBouncer prepared-statement limits
 const prismaOptions = process.env.DIRECT_URL
   ? { datasources: { db: { url: process.env.DIRECT_URL } } }
-  : {};
+  : undefined;
 
 import {
   PrismaClient,
