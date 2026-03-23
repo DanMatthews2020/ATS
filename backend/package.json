@@ -4,7 +4,7 @@
   "description": "TeamTalent ATS/HRIS Backend API",
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "npm install --include=dev && prisma generate && tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
