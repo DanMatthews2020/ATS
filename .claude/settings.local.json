@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(cd /Users/danielbridges-matthews/Documents/Coding/ATS/backend && npx prisma migrate dev --name init 2>&1)",
+      "Bash(cd /Users/danielbridges-matthews/Documents/Coding/ATS/backend && npm run build 2>&1)",
+      "Bash(git push:*)",
+      "Bash(cd /Users/danielbridges-matthews/Documents/Coding/ATS/backend && npx tsc --noEmit 2>&1 | head -30)",
+      "Bash(npx tsc:*)",
+      "Bash(ls -la /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/)",
+      "Bash(mkdir -p /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/cycles/\\\\[id\\\\]\nmkdir -p /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/employees/\\\\[id\\\\])",
+      "Bash(git commit:*)"
     ]
   }
 }
