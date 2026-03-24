@@ -8,17 +8,29 @@ import onboardingRoutes from './onboarding.routes';
 import performanceRoutes from './performance.routes';
 import insightsRoutes from './insights.routes';
 import reportsRoutes from './reports.routes';
+import settingsRoutes from './settings.routes';
+import teamRoutes from './team.routes';
+import interviewsRoutes from './interviews.routes';
+import offersRoutes from './offers.routes';
+import employeesRoutes from './employees.routes';
+import notificationsRoutes from './notifications.routes';
 
 const router = Router();
 
-router.use('/auth', authRoutes);
-router.use('/dashboard', dashboardRoutes);
-router.use('/jobs', jobsRoutes);
-router.use('/candidates', candidatesRoutes);
-router.use('/applications', applicationsRoutes);
-router.use('/onboarding', onboardingRoutes);
-router.use('/performance', performanceRoutes);
-router.use('/insights',   insightsRoutes);
-router.use('/reports',    reportsRoutes);
+router.use('/auth',          authRoutes);
+router.use('/dashboard',     dashboardRoutes);
+router.use('/jobs',          jobsRoutes);
+router.use('/candidates',    candidatesRoutes);
+router.use('/applications',  applicationsRoutes);
+router.use('/onboarding',    onboardingRoutes);
+router.use('/performance',   performanceRoutes);
+router.use('/insights',      insightsRoutes);
+router.use('/reports',       reportsRoutes);
+router.use('/settings',      settingsRoutes);
+router.use('/team',          teamRoutes);
+router.use('/interviews',    interviewsRoutes);
+router.use('/offers',        offersRoutes);
+router.use('/employees',     employeesRoutes);
+router.use('/notifications', notificationsRoutes);
 
 export default router;

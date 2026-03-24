@@ -10,7 +10,11 @@ export type IconName =
   | 'ClipboardList'
   | 'Star'
   | 'FileText'
-  | 'Settings';
+  | 'Settings'
+  | 'Calendar'
+  | 'FileCheck'
+  | 'Building2'
+  | 'Bell';
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
 

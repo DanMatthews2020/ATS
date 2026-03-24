@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Search,
@@ -13,10 +14,14 @@ import {
   Star,
   FileText,
   Settings,
+  Calendar,
+  FileCheck,
+  Building2,
+  Bell,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { NAV_ITEMS, SETTINGS_NAV_ITEM } from '@/lib/constants';
+import { NAV_ITEMS, SETTINGS_NAV_ITEM, INBOX_NAV_ITEM } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
 import type { IconName } from '@/types';
 
@@ -33,6 +38,10 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   Star,
   FileText,
   Settings,
+  Calendar,
+  FileCheck,
+  Building2,
+  Bell,
 };
 
 function NavIcon({ name }: { name: IconName }) {
@@ -40,11 +49,38 @@ function NavIcon({ name }: { name: IconName }) {
   return <Icon size={15} strokeWidth={1.75} aria-hidden="true" />;
 }
 
+// ─── Unread count hook ────────────────────────────────────────────────────────
+
+function useUnreadCount() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+
+    async function fetch_() {
+      try {
+        const res = await fetch(`${BASE}/notifications/unread-count`, { credentials: 'include' });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        setCount(json?.data?.count ?? 0);
+      } catch { /* ignore */ }
+    }
+
+    fetch_();
+    const id = setInterval(fetch_, 30_000); // refresh every 30s
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  return count;
+}
+
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
-  const pathname = usePathname();
+  const pathname    = usePathname();
   const { user, logout } = useAuth();
+  const unreadCount = useUnreadCount();
 
   function isActive(href: string, exact = false): boolean {
     if (exact) return pathname === href;
@@ -126,6 +162,40 @@ export function Sidebar() {
 
       {/* ── Bottom section ──────────────────────────────────────────────── */}
       <div className="flex-shrink-0 border-t border-[var(--color-border)] px-2.5 py-2.5 space-y-0.5">
+
+        {/* Inbox with unread badge */}
+        <Link
+          href={INBOX_NAV_ITEM.href}
+          className={[
+            'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors duration-100 outline-none',
+            'focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30',
+            isActive(INBOX_NAV_ITEM.href)
+              ? 'bg-[var(--color-primary)] text-white'
+              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-current={isActive(INBOX_NAV_ITEM.href) ? 'page' : undefined}
+        >
+          <div className="relative">
+            <NavIcon name={INBOX_NAV_ITEM.icon} />
+            {unreadCount > 0 && (
+              <span className={[
+                'absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full text-[9px] font-bold leading-[14px] text-center',
+                isActive(INBOX_NAV_ITEM.href) ? 'bg-white text-[var(--color-primary)]' : 'bg-red-500 text-white',
+              ].join(' ')}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </div>
+          {INBOX_NAV_ITEM.label}
+          {unreadCount > 0 && !isActive(INBOX_NAV_ITEM.href) && (
+            <span className="ml-auto text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full leading-none">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </Link>
+
         {/* Settings */}
         <Link
           href={SETTINGS_NAV_ITEM.href}

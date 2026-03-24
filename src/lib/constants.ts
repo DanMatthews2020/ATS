@@ -40,6 +40,16 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'Layers',
   },
   {
+    label: 'Interviews',
+    href: '/interviews',
+    icon: 'Calendar',
+  },
+  {
+    label: 'Offers',
+    href: '/offers',
+    icon: 'FileCheck',
+  },
+  {
     label: 'Job Postings',
     href: '/job-postings',
     icon: 'Briefcase',
@@ -55,6 +65,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'ClipboardList',
   },
   {
+    label: 'Employees',
+    href: '/employees',
+    icon: 'Building2',
+  },
+  {
     label: 'Performance',
     href: '/performance',
     icon: 'Star',
@@ -65,6 +80,12 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'FileText',
   },
 ];
+
+export const INBOX_NAV_ITEM: NavItem = {
+  label: 'Inbox',
+  href: '/inbox',
+  icon: 'Bell',
+};
 
 export const SETTINGS_NAV_ITEM: NavItem = {
   label: 'Settings',

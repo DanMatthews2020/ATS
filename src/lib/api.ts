@@ -662,6 +662,299 @@ export const performanceApi = {
     api.get<{ users: { id: string; name: string; role: string; department: string }[] }>('/performance/users'),
 };
 
+// Interviews
+export type InterviewType   = 'Phone' | 'Video' | 'On-site' | 'Technical';
+export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+export type Recommendation  = 'hire' | 'no-hire' | 'maybe';
+
+export interface InterviewerDto { id: string; name: string; role: string }
+
+export interface FeedbackEntryDto {
+  rating:         number;
+  recommendation: Recommendation;
+  notes:          string;
+  submittedAt:    string;
+}
+
+export interface InterviewDto {
+  id:            string;
+  candidateId:   string;
+  candidateName: string;
+  jobId:         string;
+  jobTitle:      string;
+  interviewers:  InterviewerDto[];
+  type:          InterviewType;
+  status:        InterviewStatus;
+  scheduledAt:   string;
+  duration:      number;
+  meetingLink:   string | null;
+  location:      string | null;
+  feedback:      FeedbackEntryDto | null;
+  notes:         string;
+  createdAt:     string;
+}
+
+export const interviewsApi = {
+  getAll: (from?: string, to?: string) =>
+    api.get<{ interviews: InterviewDto[] }>(`/interviews${from || to ? `?${from ? `from=${from}` : ''}${from && to ? '&' : ''}${to ? `to=${to}` : ''}` : ''}`),
+  getById: (id: string) =>
+    api.get<{ interview: InterviewDto }>(`/interviews/${id}`),
+  create: (data: {
+    candidateId: string; candidateName: string;
+    jobId: string; jobTitle: string;
+    interviewers: InterviewerDto[];
+    type: InterviewType; scheduledAt: string; duration: number;
+    meetingLink?: string; location?: string; notes?: string;
+  }) => api.post<{ interview: InterviewDto }>('/interviews', data),
+  update: (id: string, data: Partial<InterviewDto>) =>
+    api.patch<{ interview: InterviewDto }>(`/interviews/${id}`, data),
+  cancel: (id: string) =>
+    api.patch<{ interview: InterviewDto }>(`/interviews/${id}/cancel`),
+  submitFeedback: (id: string, data: { rating: number; recommendation: Recommendation; notes: string }) =>
+    api.post<{ interview: InterviewDto }>(`/interviews/${id}/feedback`, data),
+};
+
+// Offers
+export type OfferStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+
+export interface OfferDto {
+  id:            string;
+  candidateId:   string;
+  candidateName: string;
+  jobId:         string;
+  jobTitle:      string;
+  department:    string;
+  salary:        number;
+  currency:      string;
+  startDate:     string;
+  expiryDate:    string;
+  equity:        string | null;
+  benefits:      string;
+  notes:         string;
+  status:        OfferStatus;
+  sentAt:        string | null;
+  respondedAt:   string | null;
+  signatureUrl:  string | null;
+  createdAt:     string;
+  createdBy:     string;
+}
+
+export interface OfferStatsDto {
+  total: number; draft: number; sent: number;
+  accepted: number; rejected: number; expired: number;
+  acceptanceRate: number;
+}
+
+export const offersApi = {
+  getAll: (status?: OfferStatus) =>
+    api.get<{ offers: OfferDto[]; stats: OfferStatsDto }>(`/offers${status ? `?status=${status}` : ''}`),
+  getById: (id: string) =>
+    api.get<{ offer: OfferDto }>(`/offers/${id}`),
+  create: (data: {
+    candidateId: string; candidateName: string;
+    jobId: string; jobTitle: string; department: string;
+    salary: number; currency: string;
+    startDate: string; expiryDate: string;
+    equity?: string; benefits: string; notes?: string;
+  }) => api.post<{ offer: OfferDto }>('/offers', data),
+  send: (id: string) =>
+    api.post<{ offer: OfferDto }>(`/offers/${id}/send`),
+  updateStatus: (id: string, status: OfferStatus) =>
+    api.patch<{ offer: OfferDto }>(`/offers/${id}/status`, { status }),
+  update: (id: string, data: Partial<OfferDto>) =>
+    api.patch<{ offer: OfferDto }>(`/offers/${id}`, data),
+};
+
+// Employees
+export type EmployeeStatus = 'active' | 'on-leave' | 'terminated';
+
+export interface EmployeeDto {
+  id:          string;
+  firstName:   string;
+  lastName:    string;
+  email:       string;
+  phone:       string | null;
+  title:       string;
+  department:  string;
+  location:    string;
+  status:      EmployeeStatus;
+  hireDate:    string;
+  managerId:   string | null;
+  managerName: string | null;
+  skills:      string[];
+  avatarUrl:   string | null;
+  bio:         string | null;
+}
+
+const BASE_URL_DIRECT = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+
+export const employeesApi = {
+  getAll: (params?: { search?: string; department?: string; location?: string; status?: EmployeeStatus }) => {
+    const q = new URLSearchParams();
+    if (params?.search)     q.set('search',     params.search);
+    if (params?.department) q.set('department', params.department);
+    if (params?.location)   q.set('location',   params.location);
+    if (params?.status)     q.set('status',     params.status);
+    const qs = q.toString();
+    return api.get<{ employees: EmployeeDto[]; departments: string[]; locations: string[]; total: number }>(`/employees${qs ? `?${qs}` : ''}`);
+  },
+  getById: (id: string) =>
+    api.get<{ employee: EmployeeDto }>(`/employees/${id}`),
+  create: (data: {
+    firstName: string; lastName: string; email: string; phone?: string;
+    title: string; department: string; location: string;
+    hireDate: string; managerId?: string; skills?: string[]; bio?: string;
+  }) => api.post<{ employee: EmployeeDto }>('/employees', data),
+  update: (id: string, data: Partial<EmployeeDto>) =>
+    api.patch<{ employee: EmployeeDto }>(`/employees/${id}`, data),
+  exportCsv: async () => {
+    const res = await fetch(`${BASE_URL_DIRECT}/employees/export`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+};
+
+// Notifications
+export type NotificationType = 'interview' | 'offer' | 'application' | 'task' | 'review';
+
+export interface NotificationDto {
+  id:        string;
+  type:      NotificationType;
+  title:     string;
+  message:   string;
+  read:      boolean;
+  href:      string;
+  createdAt: string;
+}
+
+export const notificationsApi = {
+  getAll: (type?: NotificationType) =>
+    api.get<{ notifications: NotificationDto[]; unreadCount: number }>(`/notifications${type ? `?type=${type}` : ''}`),
+  getUnreadCount: () =>
+    api.get<{ count: number }>('/notifications/unread-count'),
+  markRead: (id: string) =>
+    api.patch<{ read: boolean; unreadCount: number }>(`/notifications/${id}/read`),
+  markAllRead: () =>
+    api.post<{ marked: number; unreadCount: number }>('/notifications/mark-all-read'),
+};
+
+// Settings
+
+export type TeamRole = 'admin' | 'recruiter' | 'hiring_manager' | 'viewer';
+export type MemberStatus = 'active' | 'pending';
+export type NotifKey = 'newApplication' | 'interviewScheduled' | 'offerAccepted' | 'onboardingTaskDue' | 'reviewCycleStarting';
+
+export interface UserProfileDto {
+  firstName:  string;
+  lastName:   string;
+  email:      string;
+  timezone:   string;
+  language:   string;
+  avatarUrl:  string | null;
+}
+
+export interface TeamMemberDto {
+  id:         string;
+  name:       string;
+  email:      string;
+  role:       TeamRole;
+  department: string;
+  joinedAt:   string;
+  avatarUrl:  string | null;
+  status:     MemberStatus;
+}
+
+export interface IntegrationDto {
+  key:         string;
+  name:        string;
+  description: string;
+  category:    string;
+  connected:   boolean;
+  lastSync:    string | null;
+}
+
+export interface NotificationSettingsDto {
+  email: Record<NotifKey, boolean>;
+  inApp: Record<NotifKey, boolean>;
+}
+
+export interface BillingInfoDto {
+  plan:            string;
+  planDescription: string;
+  creditsUsed:     number;
+  creditsTotal:    number;
+  seatsUsed:       number;
+  seatsTotal:      number;
+  paymentLast4:    string;
+  paymentBrand:    string;
+  nextBillingDate: string;
+  monthlyAmount:   number;
+}
+
+export interface ActiveSessionDto {
+  id:         string;
+  device:     string;
+  browser:    string;
+  location:   string;
+  ip:         string;
+  lastActive: string;
+  current:    boolean;
+}
+
+export interface LoginHistoryEntryDto {
+  id:     string;
+  at:     string;
+  ip:     string;
+  device: string;
+  status: 'success' | 'failed';
+}
+
+export interface SecurityDto {
+  security:     { twoFactorEnabled: boolean };
+  sessions:     ActiveSessionDto[];
+  loginHistory: LoginHistoryEntryDto[];
+}
+
+export const settingsApi = {
+  getProfile: () =>
+    api.get<{ profile: UserProfileDto }>('/settings/profile'),
+  updateProfile: (data: Partial<UserProfileDto>) =>
+    api.patch<{ profile: UserProfileDto }>('/settings/profile', data),
+  getIntegrations: () =>
+    api.get<{ integrations: IntegrationDto[] }>('/settings/integrations'),
+  toggleIntegration: (key: string) =>
+    api.patch<{ integration: IntegrationDto }>(`/settings/integrations/${key}`),
+  getNotifications: () =>
+    api.get<{ notifications: NotificationSettingsDto }>('/settings/notifications'),
+  updateNotifications: (data: { email?: Partial<Record<NotifKey, boolean>>; inApp?: Partial<Record<NotifKey, boolean>> }) =>
+    api.patch<{ notifications: NotificationSettingsDto }>('/settings/notifications', data),
+  getBilling: () =>
+    api.get<{ billing: BillingInfoDto }>('/settings/billing'),
+  getSecurity: () =>
+    api.get<SecurityDto>('/settings/security'),
+  updateSecurity: (data: { twoFactorEnabled?: boolean }) =>
+    api.patch<{ security: { twoFactorEnabled: boolean } }>('/settings/security', data),
+  revokeSession: (id: string) =>
+    api.delete<{ revoked: boolean }>(`/settings/security/sessions/${id}`),
+};
+
+export const teamApi = {
+  getAll: () =>
+    api.get<{ members: TeamMemberDto[] }>('/team'),
+  invite: (email: string, role: TeamRole, department?: string) =>
+    api.post<{ member: TeamMemberDto }>('/team/invite', { email, role, department }),
+  updateRole: (id: string, role: TeamRole) =>
+    api.patch<{ member: TeamMemberDto }>(`/team/${id}/role`, { role }),
+  remove: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/team/${id}`),
+};
+
 export const applicationsApi = {
   createApplication: (data: { candidateId: string; jobPostingId: string; status?: string }) =>
     api.post<{ application: { id: string; candidateId: string; candidateName: string; candidateEmail: string; skills: string[]; jobPostingId: string; status: string; appliedAt: string; lastUpdated: string } }>(
