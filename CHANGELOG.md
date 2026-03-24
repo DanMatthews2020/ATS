@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] — 2026-03-23
+
+### Added
+- **Render deployment** — Backend deployed to `https://teamtalent-backend.onrender.com`
+- **Vercel deployment** — Frontend live at `https://teamtalentats.vercel.app`
+- **render.yaml** — Render service configuration file (`buildCommand`, `startCommand`, `NODE_ENV`)
+- **Health endpoint** — `GET /health` returns `{ status: "ok", timestamp }` for uptime monitoring
+- **.npmrc** — Forces full dependency install regardless of `NODE_ENV` on Render
+
+### Fixed
+- **Render build: devDependencies skipped** — Moved all `@types/*`, `prisma`, and `typescript` to `dependencies` so they install under `NODE_ENV=production`
+- **Render build: tsc compilation** — Replaced `tsc` compile step with `tsx` runtime to eliminate TypeScript build errors on Render
+- **Seed script type error** — Fixed `prismaOptions` type (`{}` → `undefined`) which caused `TS2345` on strict TypeScript builds
+- **CORS mismatch** — Updated `FRONTEND_URL` from `localhost:3000` to match actual Vercel deployment URL
+- **Parallel seed inserts** — Converted all `Promise.all` bulk inserts to sequential `for...of` loops to avoid Supabase session pooler `MaxClientsInSessionMode` error
+
+---
+
 ## [1.0.0] — 2026-03-23
 
 ### Added
