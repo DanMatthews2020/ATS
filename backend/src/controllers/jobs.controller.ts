@@ -4,6 +4,15 @@ import { jobsService } from '../services/jobs.service';
 import { sendSuccess, sendError } from '../utils/response';
 
 export const jobsController = {
+  async getStats(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const stats = await jobsService.getStats();
+      sendSuccess(res, stats);
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch job stats');
+    }
+  },
+
   async getJobs(req: AuthRequest, res: Response): Promise<void> {
     try {
       const page = Math.max(1, Number(req.query.page ?? 1));
@@ -39,6 +48,24 @@ export const jobsController = {
       sendSuccess(res, { job }, 201);
     } catch {
       sendError(res, 500, 'CREATE_ERROR', 'Failed to create job posting');
+    }
+  },
+
+  async updateJob(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { status } = req.body as { status?: string };
+      if (!status) {
+        sendError(res, 400, 'INVALID_BODY', 'status is required');
+        return;
+      }
+      const job = await jobsService.updateJobStatus(req.params.id, status);
+      if (!job) {
+        sendError(res, 404, 'NOT_FOUND', 'Job posting not found');
+        return;
+      }
+      sendSuccess(res, { job });
+    } catch {
+      sendError(res, 500, 'UPDATE_ERROR', 'Failed to update job posting');
     }
   },
 };

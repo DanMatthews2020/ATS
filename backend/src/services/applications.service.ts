@@ -12,4 +12,15 @@ export const applicationsService = {
       updatedAt: updated.updatedAt.toISOString(),
     };
   },
+
+  async updateNotes(id: string, notes: string) {
+    const app = await applicationsRepository.findById(id);
+    if (!app) return null;
+    const updated = await applicationsRepository.updateNotes(id, notes);
+    return {
+      id: updated.id,
+      notes: updated.notes ?? '',
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  },
 };

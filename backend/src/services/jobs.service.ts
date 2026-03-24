@@ -8,6 +8,7 @@
  */
 import { jobsRepository } from '../repositories/jobs.repository';
 import type { PaginatedResponse } from '../types';
+import type { JobStatus } from '@prisma/client';
 
 // Maps Prisma enum values to frontend-compatible strings
 function mapJobType(type: string): string {
@@ -29,6 +30,18 @@ function mapJobStatus(status: string): string {
   return map[status] ?? status.toLowerCase();
 }
 
+function mapApplicationStatus(status: string): string {
+  const map: Record<string, string> = {
+    APPLIED:   'applied',
+    SCREENING: 'screening',
+    INTERVIEW: 'interview',
+    OFFER:     'offer',
+    HIRED:     'hired',
+    REJECTED:  'rejected',
+  };
+  return map[status] ?? status.toLowerCase();
+}
+
 export interface JobListingDto {
   id: string;
   title: string;
@@ -41,12 +54,33 @@ export interface JobListingDto {
   postedAt: string;
 }
 
+export interface JobApplicantDto {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  status: string;
+  stage: string | null;
+  appliedAt: string;
+  lastUpdated: string;
+  interviewCount: number;
+  offerStatus: string | null;
+}
+
 export interface JobDetailDto extends JobListingDto {
   requirements?: string;
   salaryMin?: number;
   salaryMax?: number;
   createdByName: string;
   createdAt: string;
+  applications: JobApplicantDto[];
+}
+
+export interface JobStatsDto {
+  openPositions: number;
+  totalApplicants: number;
+  interviewsThisWeek: number;
+  offersExtended: number;
 }
 
 export const jobsService = {
@@ -91,6 +125,18 @@ export const jobsService = {
       postedAt: (job.openedAt ?? job.createdAt).toISOString(),
       createdByName: `${job.createdBy.firstName} ${job.createdBy.lastName}`,
       createdAt: job.createdAt.toISOString(),
+      applications: job.applications.map((app) => ({
+        id: app.id,
+        candidateId: app.candidate.id,
+        candidateName: `${app.candidate.firstName} ${app.candidate.lastName}`,
+        candidateEmail: app.candidate.email,
+        status: mapApplicationStatus(app.status),
+        stage: app.stage,
+        appliedAt: app.appliedAt.toISOString(),
+        lastUpdated: app.updatedAt.toISOString(),
+        interviewCount: app._count.interviews,
+        offerStatus: app.offer ? mapApplicationStatus(app.offer.status) : null,
+      })),
     };
   },
 
@@ -133,6 +179,24 @@ export const jobsService = {
       postedAt: (job.openedAt ?? job.createdAt).toISOString(),
       createdByName: '',
       createdAt: job.createdAt.toISOString(),
+      applications: [],
     };
+  },
+
+  async updateJobStatus(id: string, status: string): Promise<JobDetailDto | null> {
+    const existing = await jobsRepository.findById(id);
+    if (!existing) return null;
+    const updateData: import('@prisma/client').Prisma.JobPostingUpdateInput = {
+      status: status as JobStatus,
+      updatedAt: new Date(),
+    };
+    if (status === 'OPEN' && !existing.openedAt) updateData.openedAt = new Date();
+    if (status === 'CLOSED') updateData.closedAt = new Date();
+    await jobsRepository.update(id, updateData);
+    return jobsService.getJobById(id);
+  },
+
+  async getStats(): Promise<JobStatsDto> {
+    return jobsRepository.getStats();
   },
 };

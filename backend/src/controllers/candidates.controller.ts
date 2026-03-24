@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { candidatesService } from '../services/candidates.service';
+import { parseCvBuffer } from '../services/cv-parser.service';
 import { sendSuccess, sendError } from '../utils/response';
 import type { ApplicationStatus, CandidateSource } from '@prisma/client';
 
@@ -61,6 +62,33 @@ export const candidatesController = {
         return;
       }
       sendError(res, 500, 'CREATE_ERROR', 'Failed to create candidate');
+    }
+  },
+
+  // POST /candidates/parse-cv — parse an uploaded CV with Claude
+  async parseCv(req: Request, res: Response): Promise<void> {
+    try {
+      const file = (req as Request & { file?: Express.Multer.File }).file;
+      if (!file) {
+        sendError(res, 400, 'NO_FILE', 'No file uploaded. Send a PDF or plain-text CV as the "cv" field.');
+        return;
+      }
+
+      const allowed = ['application/pdf', 'text/plain'];
+      if (!allowed.includes(file.mimetype)) {
+        sendError(res, 415, 'UNSUPPORTED_TYPE', 'Only PDF and plain-text files are supported.');
+        return;
+      }
+
+      const parsed = await parseCvBuffer(file.buffer, file.mimetype);
+      sendSuccess(res, { parsed });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'CV parsing failed';
+      if (msg.includes('ANTHROPIC_API_KEY')) {
+        sendError(res, 503, 'CV_PARSE_UNAVAILABLE', msg);
+      } else {
+        sendError(res, 500, 'CV_PARSE_ERROR', 'Failed to parse CV. Please fill in the details manually.');
+      }
     }
   },
 

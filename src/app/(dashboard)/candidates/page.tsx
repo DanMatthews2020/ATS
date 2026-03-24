@@ -1,13 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import {
+  useState, useEffect, useCallback, useRef,
+  type FormEvent, type DragEvent,
+} from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Plus, Search, X, Loader2 } from 'lucide-react';
+import {
+  Users, Plus, Search, X, Loader2, Upload,
+  FileText, CheckCircle2, AlertCircle, ChevronDown,
+} from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { candidatesApi, type CandidateListDto } from '@/lib/api';
+import { candidatesApi, type CandidateListDto, type ParsedCvData } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { CandidateStatus, BadgeVariant } from '@/types';
 
@@ -34,21 +40,26 @@ const FILTER_TABS: { key: FilterKey; label: string }[] = [
   { key: 'rejected',  label: 'Rejected' },
 ];
 
+const SELECT_CLASS =
+  'w-full h-10 px-3.5 text-sm rounded-xl border border-[var(--color-border)] bg-white ' +
+  'text-[var(--color-text-primary)] focus:outline-none focus:ring-2 ' +
+  'focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow appearance-none';
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CandidatesPage() {
-  const router  = useRouter();
+  const router        = useRouter();
   const { showToast } = useToast();
 
-  const [candidates, setCandidates]   = useState<CandidateListDto[]>([]);
-  const [isLoading, setIsLoading]     = useState(true);
-  const [error, setError]             = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [candidates, setCandidates]     = useState<CandidateListDto[]>([]);
+  const [isLoading, setIsLoading]       = useState(true);
+  const [error, setError]               = useState('');
+  const [searchInput, setSearchInput]   = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDrawer, setShowDrawer]     = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Fetch candidates ────────────────────────────────────────────────────────
+  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchCandidates = useCallback(async (search?: string) => {
     setIsLoading(true);
     setError('');
@@ -64,37 +75,33 @@ export default function CandidatesPage() {
 
   useEffect(() => { fetchCandidates(); }, [fetchCandidates]);
 
-  function handleSearch() {
-    setSearchQuery(searchInput);
-    fetchCandidates(searchInput.trim() || undefined);
+  // ── Debounced search ──────────────────────────────────────────────────────
+  function handleSearchChange(value: string) {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value === '') { fetchCandidates(undefined); return; }
+    debounceRef.current = setTimeout(() => {
+      fetchCandidates(value.trim() || undefined);
+    }, 400);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') handleSearch();
-  }
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
-  function handleClearSearch() {
-    setSearchInput('');
-    setSearchQuery('');
-    fetchCandidates(undefined);
-  }
-
-  // ── Filter ──────────────────────────────────────────────────────────────────
+  // ── Filter ────────────────────────────────────────────────────────────────
   const filtered = candidates.filter((c) => {
     if (activeFilter === 'all') return true;
     return (c.latestStatus as CandidateStatus | undefined) === activeFilter;
   });
 
-  function tabCount(key: FilterKey): number {
+  function tabCount(key: FilterKey) {
     if (key === 'all') return candidates.length;
     return candidates.filter((c) => (c.latestStatus as CandidateStatus | undefined) === key).length;
   }
 
-  // ── After add ───────────────────────────────────────────────────────────────
   function handleCandidateAdded() {
-    setShowAddModal(false);
+    setShowDrawer(false);
     showToast('Candidate added successfully');
-    fetchCandidates(searchQuery || undefined);
+    fetchCandidates(searchInput.trim() || undefined);
   }
 
   return (
@@ -117,40 +124,27 @@ export default function CandidatesPage() {
                 </p>
               </div>
             </div>
-            <Button variant="primary" size="md" onClick={() => setShowAddModal(true)}>
+            <Button variant="primary" size="md" onClick={() => setShowDrawer(true)}>
               <Plus size={15} />
               Add Candidate
             </Button>
           </div>
 
-          {/* Search bar */}
-          <div className="flex gap-2.5 mb-5">
-            <div className="relative flex-1">
-              <Search
-                size={15}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none"
-              />
-              <input
-                type="text"
-                placeholder="Search by name or email…"
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  if (e.target.value === '') handleClearSearch();
-                }}
-                onKeyDown={handleKeyDown}
-                className="w-full h-10 pl-9 pr-4 text-sm rounded-xl border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow"
-              />
-            </div>
-            <Button variant="primary" size="md" onClick={handleSearch}>
-              Search
-            </Button>
+          {/* Search bar — debounced */}
+          <div className="relative mb-5">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name or email…"
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full h-10 pl-9 pr-4 text-sm rounded-xl border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-shadow"
+            />
           </div>
 
           {/* Filter tabs */}
           <div className="flex items-center gap-0.5 mb-6 border-b border-[var(--color-border)]">
             {FILTER_TABS.map((tab) => {
-              const count = tabCount(tab.key);
               const isActive = activeFilter === tab.key;
               return (
                 <button
@@ -165,14 +159,14 @@ export default function CandidatesPage() {
                 >
                   {tab.label}
                   <span className={['ml-1.5 text-xs tabular-nums', isActive ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-text-muted)]/60'].join(' ')}>
-                    {count}
+                    {tabCount(tab.key)}
                   </span>
                 </button>
               );
             })}
           </div>
 
-          {/* States */}
+          {/* Content */}
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 size={24} className="animate-spin text-[var(--color-text-muted)]" />
@@ -188,40 +182,26 @@ export default function CandidatesPage() {
             <ul className="space-y-3">
               {filtered.map((candidate) => {
                 const statusKey = candidate.latestStatus as CandidateStatus | undefined;
-                const status = statusKey ? STATUS_CONFIG[statusKey] : null;
+                const status    = statusKey ? STATUS_CONFIG[statusKey] : null;
                 return (
                   <li key={candidate.id}>
                     <button
                       onClick={() => router.push(`/candidates/${candidate.id}`)}
-                      className="w-full text-left bg-white border border-[var(--color-border)] rounded-2xl px-5 py-4 flex items-center gap-5 shadow-card hover:shadow-card-hover hover:border-neutral-300 transition-all duration-150 group"
+                      className="w-full text-left bg-white border border-[var(--color-border)] rounded-2xl px-5 py-4 flex items-center gap-5 shadow-card hover:shadow-card-hover hover:border-neutral-300 transition-all duration-150"
                     >
                       <Avatar name={candidate.name} size="md" />
-
-                      {/* Name + role */}
                       <div className="w-48 flex-shrink-0">
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                          {candidate.name}
-                        </p>
-                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                          {candidate.latestJobTitle ?? 'No applications yet'}
-                        </p>
+                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{candidate.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{candidate.latestJobTitle ?? 'No applications yet'}</p>
                       </div>
-
-                      {/* Email */}
                       <div className="flex-1 min-w-0">
-                        <a
-                          href={`mailto:${candidate.email}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm text-blue-600 hover:underline truncate block"
-                        >
+                        <a href={`mailto:${candidate.email}`} onClick={(e) => e.stopPropagation()} className="text-sm text-blue-600 hover:underline truncate block">
                           {candidate.email}
                         </a>
                         {candidate.location && (
                           <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{candidate.location}</p>
                         )}
                       </div>
-
-                      {/* Skills */}
                       {candidate.skills.length > 0 && (
                         <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
                           {candidate.skills.slice(0, 3).map((skill) => (
@@ -234,14 +214,8 @@ export default function CandidatesPage() {
                           )}
                         </div>
                       )}
-
-                      {/* Status badge */}
                       <div className="flex-shrink-0">
-                        {status ? (
-                          <Badge variant={status.variant}>{status.label}</Badge>
-                        ) : (
-                          <span className="text-xs text-[var(--color-text-muted)]">—</span>
-                        )}
+                        {status ? <Badge variant={status.variant}>{status.label}</Badge> : <span className="text-xs text-[var(--color-text-muted)]">—</span>}
                       </div>
                     </button>
                   </li>
@@ -255,62 +229,154 @@ export default function CandidatesPage() {
               </div>
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">No candidates found</p>
               <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                {searchQuery ? 'Try adjusting your search' : 'Add your first candidate to get started'}
+                {searchInput ? 'Try a different search term' : 'Add your first candidate to get started'}
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Add Candidate Modal */}
-      {showAddModal && (
-        <AddCandidateModal
-          onClose={() => setShowAddModal(false)}
-          onSuccess={handleCandidateAdded}
-        />
-      )}
+      {/* Add Candidate Drawer */}
+      <AddCandidateDrawer
+        open={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        onSuccess={handleCandidateAdded}
+      />
     </>
   );
 }
 
-// ─── Add Candidate Modal ──────────────────────────────────────────────────────
+// ─── Add Candidate Drawer ────────────────────────────────────────────────────
 
-interface AddCandidateModalProps {
+interface DrawerProps {
+  open: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function AddCandidateModal({ onClose, onSuccess }: AddCandidateModalProps) {
-  const { showToast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    firstName: '', lastName: '', email: '',
-    phone: '', location: '', skills: '',
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+interface ManualForm {
+  firstName: string; lastName: string; email: string;
+  phone: string; linkedInUrl: string; location: string;
+  title: string; company: string;
+  skills: string; source: string; notes: string;
+}
 
-  function update(field: string, value: string) {
+const EMPTY_FORM: ManualForm = {
+  firstName: '', lastName: '', email: '',
+  phone: '', linkedInUrl: '', location: '',
+  title: '', company: '',
+  skills: '', source: 'JOB_BOARD', notes: '',
+};
+
+type UploadState = 'idle' | 'dragging' | 'parsing' | 'success' | 'error';
+
+function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
+  const { showToast } = useToast();
+  const [activeTab, setActiveTab]     = useState<'cv' | 'manual'>('cv');
+  const [form, setForm]               = useState<ManualForm>(EMPTY_FORM);
+  const [errors, setErrors]           = useState<Partial<ManualForm>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // CV upload state
+  const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [parseErrorMsg, setParseErrorMsg] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset when drawer closes
+  useEffect(() => {
+    if (!open) {
+      setTimeout(() => {
+        setActiveTab('cv');
+        setForm(EMPTY_FORM);
+        setErrors({});
+        setUploadState('idle');
+        setUploadedFile(null);
+        setParseErrorMsg('');
+      }, 300);
+    }
+  }, [open]);
+
+  function updateField(field: keyof ManualForm, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
   }
 
+  // ── CV parsing ─────────────────────────────────────────────────────────────
+  async function handleFileSelected(file: File) {
+    const allowed = ['application/pdf', 'text/plain'];
+    if (!allowed.includes(file.type)) {
+      setParseErrorMsg('Only PDF and plain-text files are supported.');
+      setUploadState('error');
+      return;
+    }
+    setUploadedFile(file);
+    setUploadState('parsing');
+    setParseErrorMsg('');
+    try {
+      const result = await candidatesApi.parseCv(file);
+      const p: ParsedCvData = result.parsed;
+      setForm((prev) => ({
+        ...prev,
+        firstName:   p.firstName   ?? prev.firstName,
+        lastName:    p.lastName    ?? prev.lastName,
+        email:       p.email       ?? prev.email,
+        phone:       p.phone       ?? prev.phone,
+        linkedInUrl: p.linkedInUrl ?? prev.linkedInUrl,
+        location:    p.location    ?? prev.location,
+        title:       p.title       ?? prev.title,
+        company:     p.company     ?? prev.company,
+        skills:      p.skills.length ? p.skills.join(', ') : prev.skills,
+        source:      'AI_SOURCED',
+      }));
+      setUploadState('success');
+      setActiveTab('manual');
+      showToast('CV parsed — review the auto-filled details below');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Parsing failed';
+      if (msg.includes('ANTHROPIC_API_KEY') || msg.includes('not configured')) {
+        setParseErrorMsg('CV parsing is not configured on this server. Please fill in the details manually.');
+      } else {
+        setParseErrorMsg('Could not parse this CV. Please fill in the details manually.');
+      }
+      setUploadState('error');
+      setActiveTab('manual');
+    }
+  }
+
+  function handleDragOver(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setUploadState('dragging');
+  }
+  function handleDragLeave() {
+    if (uploadState === 'dragging') setUploadState('idle');
+  }
+  function handleDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelected(file);
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const newErrors: Record<string, string> = {};
-    if (!form.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!form.lastName.trim())  newErrors.lastName  = 'Last name is required';
-    if (!form.email.trim())     newErrors.email     = 'Email is required';
-    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    const newErrors: Partial<ManualForm> = {};
+    if (!form.firstName.trim()) newErrors.firstName = 'Required';
+    if (!form.lastName.trim())  newErrors.lastName  = 'Required';
+    if (!form.email.trim())     newErrors.email     = 'Required';
+    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
 
     setIsSubmitting(true);
     try {
       await candidatesApi.createCandidate({
-        firstName: form.firstName.trim(),
-        lastName:  form.lastName.trim(),
-        email:     form.email.trim(),
-        phone:     form.phone.trim() || undefined,
-        location:  form.location.trim() || undefined,
-        skills:    form.skills ? form.skills.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        firstName:   form.firstName.trim(),
+        lastName:    form.lastName.trim(),
+        email:       form.email.trim(),
+        phone:       form.phone.trim()       || undefined,
+        linkedInUrl: form.linkedInUrl.trim() || undefined,
+        location:    form.location.trim()    || undefined,
+        source:      form.source             || undefined,
+        skills:      form.skills ? form.skills.split(',').map((s) => s.trim()).filter(Boolean) : [],
       });
       onSuccess();
     } catch (err: unknown) {
@@ -321,89 +387,235 @@ function AddCandidateModal({ onClose, onSuccess }: AddCandidateModalProps) {
     }
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]"
-        onClick={onClose}
         aria-hidden="true"
+        className={[
+          'fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300',
+          open ? 'opacity-100' : 'opacity-0 pointer-events-none',
+        ].join(' ')}
+        onClick={onClose}
       />
 
-      {/* Panel */}
+      {/* Drawer */}
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Add Candidate"
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-white rounded-2xl shadow-2xl"
+        className={[
+          'fixed right-0 top-0 h-full w-[540px] bg-white z-50 shadow-2xl flex flex-col',
+          'transition-transform duration-300 ease-in-out',
+          open ? 'translate-x-0' : 'translate-x-full',
+        ].join(' ')}
       >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)] flex-shrink-0">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Add Candidate</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors" aria-label="Close">
             <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="First Name"
-              placeholder="Jane"
-              value={form.firstName}
-              onChange={(e) => update('firstName', e.target.value)}
-              error={errors.firstName}
-            />
-            <Input
-              label="Last Name"
-              placeholder="Smith"
-              value={form.lastName}
-              onChange={(e) => update('lastName', e.target.value)}
-              error={errors.lastName}
-            />
-          </div>
-          <Input
-            label="Email"
-            type="email"
-            placeholder="jane@example.com"
-            value={form.email}
-            onChange={(e) => update('email', e.target.value)}
-            error={errors.email}
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Phone (optional)"
-              placeholder="+1 555 0123"
-              value={form.phone}
-              onChange={(e) => update('phone', e.target.value)}
-            />
-            <Input
-              label="Location (optional)"
-              placeholder="New York, NY"
-              value={form.location}
-              onChange={(e) => update('location', e.target.value)}
-            />
-          </div>
-          <Input
-            label="Skills (optional, comma-separated)"
-            placeholder="React, TypeScript, Node.js"
-            value={form.skills}
-            onChange={(e) => update('skills', e.target.value)}
-          />
+        {/* Tabs */}
+        <div className="flex border-b border-[var(--color-border)] flex-shrink-0">
+          {(['cv', 'manual'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={[
+                'flex-1 py-3 text-sm font-medium border-b-2 -mb-px transition-colors',
+                activeTab === tab
+                  ? 'border-[var(--color-primary)] text-[var(--color-text-primary)]'
+                  : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]',
+              ].join(' ')}
+            >
+              {tab === 'cv' ? 'Upload CV' : 'Manual Entry'}
+            </button>
+          ))}
+        </div>
 
-          <div className="flex gap-2.5 pt-1">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'cv' ? (
+            <CvUploadTab
+              uploadState={uploadState}
+              uploadedFile={uploadedFile}
+              parseErrorMsg={parseErrorMsg}
+              fileInputRef={fileInputRef}
+              onFileSelected={handleFileSelected}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onSwitchToManual={() => setActiveTab('manual')}
+            />
+          ) : (
+            <form id="manual-form" onSubmit={handleSubmit} noValidate className="p-6 space-y-4">
+              {uploadState === 'success' && (
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                  <CheckCircle2 size={15} className="flex-shrink-0 text-emerald-600" />
+                  CV parsed — fields auto-filled. Review and confirm below.
+                </div>
+              )}
+              {uploadState === 'error' && parseErrorMsg && (
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                  <AlertCircle size={15} className="flex-shrink-0 text-amber-600" />
+                  {parseErrorMsg}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="First Name *" placeholder="Jane" value={form.firstName} onChange={(e) => updateField('firstName', e.target.value)} error={errors.firstName} />
+                <Input label="Last Name *"  placeholder="Smith" value={form.lastName}  onChange={(e) => updateField('lastName',  e.target.value)} error={errors.lastName}  />
+              </div>
+              <Input label="Email *" type="email" placeholder="jane@example.com" value={form.email} onChange={(e) => updateField('email', e.target.value)} error={errors.email} />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Phone" placeholder="+1 555 0123" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} />
+                <Input label="Location" placeholder="New York, NY" value={form.location} onChange={(e) => updateField('location', e.target.value)} />
+              </div>
+              <Input label="LinkedIn URL" placeholder="https://linkedin.com/in/…" value={form.linkedInUrl} onChange={(e) => updateField('linkedInUrl', e.target.value)} />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Current Title" placeholder="Senior Engineer" value={form.title} onChange={(e) => updateField('title', e.target.value)} hint="Display only — not saved to profile yet" />
+                <Input label="Current Company" placeholder="Acme Corp" value={form.company} onChange={(e) => updateField('company', e.target.value)} hint="Display only — not saved to profile yet" />
+              </div>
+              <Input label="Skills (comma-separated)" placeholder="React, TypeScript, Node.js" value={form.skills} onChange={(e) => updateField('skills', e.target.value)} />
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">Source</label>
+                <select value={form.source} onChange={(e) => updateField('source', e.target.value)} className={SELECT_CLASS}>
+                  <option value="JOB_BOARD">Job Board</option>
+                  <option value="REFERRAL">Referral</option>
+                  <option value="DIRECT">Direct</option>
+                  <option value="AGENCY">Agency</option>
+                  <option value="AI_SOURCED">AI Sourced</option>
+                </select>
+              </div>
+              <Input label="Notes" multiline rows={3} placeholder="Any relevant notes about this candidate…" value={form.notes} onChange={(e) => updateField('notes', e.target.value)} hint="Attached to their first application when one is created." />
+            </form>
+          )}
+        </div>
+
+        {/* Footer */}
+        {activeTab === 'manual' && (
+          <div className="p-6 border-t border-[var(--color-border)] flex gap-3 flex-shrink-0">
             <Button type="button" variant="secondary" size="md" className="flex-1 justify-center" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="md" className="flex-1 justify-center" isLoading={isSubmitting}>
+            <Button type="submit" form="manual-form" variant="primary" size="md" className="flex-1 justify-center" isLoading={isSubmitting}>
               Add Candidate
             </Button>
           </div>
-        </form>
+        )}
       </div>
     </>
+  );
+}
+
+// ─── CV Upload Tab ────────────────────────────────────────────────────────────
+
+interface CvUploadTabProps {
+  uploadState: UploadState;
+  uploadedFile: File | null;
+  parseErrorMsg: string;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  onFileSelected: (f: File) => void;
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void;
+  onDragLeave: () => void;
+  onDrop: (e: DragEvent<HTMLDivElement>) => void;
+  onSwitchToManual: () => void;
+}
+
+function CvUploadTab({
+  uploadState, uploadedFile, parseErrorMsg,
+  fileInputRef, onFileSelected, onDragOver, onDragLeave, onDrop, onSwitchToManual,
+}: CvUploadTabProps) {
+  const isDragging = uploadState === 'dragging';
+  const isParsing  = uploadState === 'parsing';
+  const isSuccess  = uploadState === 'success';
+  const isError    = uploadState === 'error';
+
+  return (
+    <div className="p-6 space-y-5">
+      <p className="text-sm text-[var(--color-text-muted)]">
+        Upload a CV to automatically extract candidate information. Supports PDF and plain text files up to 5 MB.
+      </p>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onClick={() => !isParsing && fileInputRef.current?.click()}
+        className={[
+          'relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12',
+          'transition-colors duration-150 cursor-pointer select-none',
+          isDragging  ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5' : '',
+          isParsing   ? 'border-[var(--color-border)] bg-[var(--color-surface)] cursor-wait' : '',
+          isSuccess   ? 'border-emerald-300 bg-emerald-50' : '',
+          isError     ? 'border-red-300 bg-red-50' : '',
+          !isDragging && !isParsing && !isSuccess && !isError
+            ? 'border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5'
+            : '',
+        ].join(' ')}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.txt"
+          className="sr-only"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelected(f); }}
+        />
+
+        {isParsing ? (
+          <>
+            <Loader2 size={32} className="animate-spin text-[var(--color-primary)] mb-3" />
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">Parsing CV with Claude…</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">This usually takes a few seconds</p>
+          </>
+        ) : isSuccess ? (
+          <>
+            <CheckCircle2 size={32} className="text-emerald-500 mb-3" />
+            <p className="text-sm font-medium text-emerald-800">Parsed successfully</p>
+            <p className="text-xs text-emerald-600 mt-1">{uploadedFile?.name}</p>
+          </>
+        ) : isError ? (
+          <>
+            <AlertCircle size={32} className="text-red-400 mb-3" />
+            <p className="text-sm font-medium text-red-700">Parsing failed</p>
+            {uploadedFile && <p className="text-xs text-red-500 mt-0.5">{uploadedFile.name}</p>}
+            <p className="text-xs text-[var(--color-text-muted)] mt-2 text-center">{parseErrorMsg}</p>
+          </>
+        ) : (
+          <>
+            <div className={['w-12 h-12 rounded-xl flex items-center justify-center mb-3', isDragging ? 'bg-[var(--color-primary)]' : 'bg-white border border-[var(--color-border)] shadow-card'].join(' ')}>
+              <Upload size={20} className={isDragging ? 'text-white' : 'text-[var(--color-text-muted)]'} />
+            </div>
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">
+              {isDragging ? 'Drop to upload' : 'Drag & drop a CV here'}
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">or click to browse — PDF or TXT, up to 5 MB</p>
+          </>
+        )}
+      </div>
+
+      {uploadedFile && !isParsing && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-white border border-[var(--color-border)] rounded-xl text-sm">
+          <FileText size={15} className="text-[var(--color-text-muted)] flex-shrink-0" />
+          <span className="flex-1 truncate text-[var(--color-text-primary)]">{uploadedFile.name}</span>
+          <span className="text-xs text-[var(--color-text-muted)]">{(uploadedFile.size / 1024).toFixed(0)} KB</span>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-[var(--color-border)]" />
+        <span className="text-xs text-[var(--color-text-muted)]">or</span>
+        <div className="flex-1 h-px bg-[var(--color-border)]" />
+      </div>
+
+      <Button variant="secondary" size="md" className="w-full justify-center" onClick={onSwitchToManual}>
+        Fill in manually
+      </Button>
+    </div>
   );
 }

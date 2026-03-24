@@ -7,5 +7,6 @@ import { UpdateApplicationStageSchema } from '../types/schemas';
 const router = Router();
 
 router.patch('/:id/stage', authenticate, validate(UpdateApplicationStageSchema), applicationsController.updateStage);
+router.patch('/:id/notes', authenticate, applicationsController.updateNotes);
 
 export default router;

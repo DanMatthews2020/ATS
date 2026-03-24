@@ -5,20 +5,20 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Briefcase, Plus, MapPin, Users, Clock,
-  ChevronRight, TrendingUp, Loader2,
+  ChevronRight, TrendingUp, Loader2, Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { jobsApi, type JobListingDto } from '@/lib/api';
+import { jobsApi, type JobListingDto, type JobStatsDto } from '@/lib/api';
 import type { JobStatus, BadgeVariant } from '@/types';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
-  open:    { label: 'Open',    variant: 'success' },
-  draft:   { label: 'Draft',   variant: 'default' },
-  closed:  { label: 'Closed',  variant: 'error' },
+  open:      { label: 'Open',    variant: 'success' },
+  draft:     { label: 'Draft',   variant: 'default' },
+  closed:    { label: 'Closed',  variant: 'error' },
   'on-hold': { label: 'On Hold', variant: 'warning' },
 };
 
@@ -46,16 +46,21 @@ function formatDate(dateStr: string) {
 export default function JobPostingsPage() {
   const router = useRouter();
   const [jobs, setJobs]           = useState<JobListingDto[]>([]);
+  const [stats, setStats]         = useState<JobStatsDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError]         = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
-  const fetchJobs = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
-      const result = await jobsApi.getJobs(1, 100);
-      setJobs(result.items);
+      const [jobsResult, statsResult] = await Promise.all([
+        jobsApi.getJobs(1, 100),
+        jobsApi.getStats(),
+      ]);
+      setJobs(jobsResult.items);
+      setStats(statsResult);
     } catch {
       setError('Failed to load job postings.');
     } finally {
@@ -63,7 +68,7 @@ export default function JobPostingsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchJobs(); }, [fetchJobs]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const filtered = activeFilter === 'all' ? jobs : jobs.filter((j) => j.status === activeFilter);
 
@@ -71,8 +76,6 @@ export default function JobPostingsPage() {
     if (key === 'all') return jobs.length;
     return jobs.filter((j) => j.status === key).length;
   }
-
-  const totalApplicants = jobs.reduce((sum, j) => sum + j.applicantCount, 0);
 
   return (
     <div className="p-8 flex-1">
@@ -102,10 +105,30 @@ export default function JobPostingsPage() {
 
       {/* ── Stats row ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Open Positions"   value={isLoading ? '…' : String(tabCount('open'))} sub="Active roles" icon={<Briefcase size={14} />} />
-        <StatCard label="Total Applicants" value={isLoading ? '…' : String(totalApplicants)}  sub="Across all roles" icon={<Users size={14} />} />
-        <StatCard label="Avg. Time to Fill" value="18d" sub="−3 from last month" icon={<Clock size={14} />} />
-        <StatCard label="Offer Acceptance"  value="78%" sub="+5% this quarter"   icon={<TrendingUp size={14} />} />
+        <StatCard
+          label="Open Positions"
+          value={isLoading ? '…' : String(stats?.openPositions ?? tabCount('open'))}
+          sub="Active roles"
+          icon={<Briefcase size={14} />}
+        />
+        <StatCard
+          label="Total Applicants"
+          value={isLoading ? '…' : String(stats?.totalApplicants ?? 0)}
+          sub="Across all roles"
+          icon={<Users size={14} />}
+        />
+        <StatCard
+          label="Interviews This Week"
+          value={isLoading ? '…' : String(stats?.interviewsThisWeek ?? 0)}
+          sub="Scheduled"
+          icon={<Calendar size={14} />}
+        />
+        <StatCard
+          label="Offers Extended"
+          value={isLoading ? '…' : String(stats?.offersExtended ?? 0)}
+          sub="Total sent"
+          icon={<TrendingUp size={14} />}
+        />
       </div>
 
       {/* ── Main layout ─────────────────────────────────────────────────── */}
@@ -144,7 +167,7 @@ export default function JobPostingsPage() {
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <p className="text-sm text-red-600 mb-3">{error}</p>
-              <Button variant="secondary" size="sm" onClick={fetchJobs}>Retry</Button>
+              <Button variant="secondary" size="sm" onClick={fetchData}>Retry</Button>
             </div>
           ) : filtered.length > 0 ? (
             <ul className="space-y-3">
@@ -211,10 +234,10 @@ export default function JobPostingsPage() {
             <h2 className="text-base font-semibold text-[var(--color-primary)] mb-4">Pipeline Overview</h2>
             <ul className="space-y-3">
               {[
-                { label: 'Active pipelines',     value: isLoading ? '…' : String(tabCount('open')) },
-                { label: 'Total applicants',      value: isLoading ? '…' : String(totalApplicants) },
-                { label: 'Interviews this week',  value: '—' },
-                { label: 'Offers extended',       value: '—' },
+                { label: 'Active pipelines',    value: isLoading ? '…' : String(stats?.openPositions ?? tabCount('open')) },
+                { label: 'Total applicants',     value: isLoading ? '…' : String(stats?.totalApplicants ?? 0) },
+                { label: 'Interviews this week', value: isLoading ? '…' : String(stats?.interviewsThisWeek ?? 0) },
+                { label: 'Offers extended',      value: isLoading ? '…' : String(stats?.offersExtended ?? 0) },
               ].map(({ label, value }) => (
                 <li key={label} className="flex items-center justify-between">
                   <span className="text-sm text-[var(--color-text-muted)]">{label}</span>

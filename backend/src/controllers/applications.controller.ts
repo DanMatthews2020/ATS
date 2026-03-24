@@ -18,4 +18,22 @@ export const applicationsController = {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update application stage');
     }
   },
+
+  async updateNotes(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { notes } = req.body as { notes: string };
+      if (typeof notes !== 'string') {
+        sendError(res, 400, 'INVALID_BODY', 'notes must be a string');
+        return;
+      }
+      const result = await applicationsService.updateNotes(req.params.id, notes);
+      if (!result) {
+        sendError(res, 404, 'NOT_FOUND', 'Application not found');
+        return;
+      }
+      sendSuccess(res, result);
+    } catch {
+      sendError(res, 500, 'UPDATE_ERROR', 'Failed to update notes');
+    }
+  },
 };

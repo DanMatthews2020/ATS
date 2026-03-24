@@ -18,4 +18,11 @@ export const applicationsRepository = {
       data: { status, updatedAt: new Date() },
     });
   },
+
+  async updateNotes(id: string, notes: string) {
+    return prisma.application.update({
+      where: { id },
+      data: { notes, updatedAt: new Date() },
+    });
+  },
 };

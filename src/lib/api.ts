@@ -76,6 +76,40 @@ async function request<T>(endpoint: string, options: FetchOptions = {}): Promise
   return data.data as T;
 }
 
+// ── Multipart upload (FormData) — does NOT set Content-Type, lets browser add boundary ──
+
+async function uploadFile<T>(endpoint: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (response.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      const retry = await fetch(`${BASE_URL}${endpoint}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!retry.ok) {
+        const errData = await retry.json().catch(() => null);
+        throw new ApiError(retry.status, errData?.error?.message ?? 'Upload failed', errData?.error?.code);
+      }
+      return ((await retry.json()).data) as T;
+    }
+    throw new ApiError(401, 'Session expired. Please log in again.', 'SESSION_EXPIRED');
+  }
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => null);
+    throw new ApiError(response.status, errData?.error?.message ?? 'Upload failed', errData?.error?.code);
+  }
+
+  return ((await response.json()).data) as T;
+}
+
 async function tryRefreshToken(): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/auth/refresh`, {
@@ -147,12 +181,33 @@ export interface JobListingDto {
   postedAt: string;
 }
 
+export interface JobApplicantDto {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  status: string;
+  stage: string | null;
+  appliedAt: string;
+  lastUpdated: string;
+  interviewCount: number;
+  offerStatus: string | null;
+}
+
 export interface JobDetailDto extends JobListingDto {
   requirements?: string;
   salaryMin?: number;
   salaryMax?: number;
   createdByName: string;
   createdAt: string;
+  applications: JobApplicantDto[];
+}
+
+export interface JobStatsDto {
+  openPositions: number;
+  totalApplicants: number;
+  interviewsThisWeek: number;
+  offersExtended: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -164,6 +219,8 @@ export interface PaginatedResponse<T> {
 }
 
 export const jobsApi = {
+  getStats: () =>
+    api.get<JobStatsDto>('/jobs/stats'),
   getJobs: (page = 1, limit = 20) =>
     api.get<PaginatedResponse<JobListingDto>>(`/jobs?page=${page}&limit=${limit}`),
   getJob: (id: string) =>
@@ -179,6 +236,8 @@ export const jobsApi = {
     salaryMin?: number;
     salaryMax?: number;
   }) => api.post<{ job: JobDetailDto }>('/jobs', data),
+  updateJobStatus: (id: string, status: string) =>
+    api.patch<{ job: JobDetailDto }>(`/jobs/${id}`, { status }),
 };
 
 // Candidates
@@ -253,6 +312,19 @@ export interface CandidateTrackingDto {
   lastUpdated: string;
 }
 
+// CV parsing
+export interface ParsedCvData {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  linkedInUrl?: string;
+  location?: string;
+  title?: string;
+  company?: string;
+  skills: string[];
+}
+
 export const candidatesApi = {
   getTracking: (page = 1, limit = 20) =>
     api.get<PaginatedResponse<CandidateTrackingDto>>(
@@ -269,9 +341,16 @@ export const candidatesApi = {
     lastName: string;
     email: string;
     phone?: string;
+    linkedInUrl?: string;
     location?: string;
+    source?: string;
     skills?: string[];
   }) => api.post<{ candidate: CandidateDetailDto }>('/candidates', data),
+  parseCv: (file: File) => {
+    const fd = new FormData();
+    fd.append('cv', file);
+    return uploadFile<{ parsed: ParsedCvData }>('/candidates/parse-cv', fd);
+  },
 };
 
 // Applications
@@ -280,5 +359,10 @@ export const applicationsApi = {
     api.patch<{ id: string; status: string; updatedAt: string }>(
       `/applications/${id}/stage`,
       { status },
+    ),
+  updateNotes: (id: string, notes: string) =>
+    api.patch<{ id: string; notes: string; updatedAt: string }>(
+      `/applications/${id}/notes`,
+      { notes },
     ),
 };
