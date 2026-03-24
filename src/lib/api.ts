@@ -141,10 +141,18 @@ export interface JobListingDto {
   department: string;
   location: string;
   type: string;   // 'full-time' | 'part-time' | 'contract'
-  status: string; // 'open' | 'closed' | 'draft'
+  status: string; // 'open' | 'closed' | 'draft' | 'on-hold'
   description: string;
   applicantCount: number;
   postedAt: string;
+}
+
+export interface JobDetailDto extends JobListingDto {
+  requirements?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  createdByName: string;
+  createdAt: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -158,7 +166,78 @@ export interface PaginatedResponse<T> {
 export const jobsApi = {
   getJobs: (page = 1, limit = 20) =>
     api.get<PaginatedResponse<JobListingDto>>(`/jobs?page=${page}&limit=${limit}`),
+  getJob: (id: string) =>
+    api.get<{ job: JobDetailDto }>(`/jobs/${id}`),
+  createJob: (data: {
+    title: string;
+    department: string;
+    location: string;
+    type: string;
+    status?: string;
+    description: string;
+    requirements?: string;
+    salaryMin?: number;
+    salaryMax?: number;
+  }) => api.post<{ job: JobDetailDto }>('/jobs', data),
 };
+
+// Candidates
+export interface CandidateListDto {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  location?: string;
+  source: string;
+  skills: string[];
+  latestJobTitle?: string;
+  latestStatus?: string;
+  latestAppliedAt?: string;
+  createdAt: string;
+}
+
+export interface CandidateDetailDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  linkedInUrl?: string;
+  cvUrl?: string;
+  location?: string;
+  source: string;
+  skills: string[];
+  createdAt: string;
+  applications: {
+    id: string;
+    status: string;
+    stage?: string;
+    notes?: string;
+    appliedAt: string;
+    lastUpdated: string;
+    jobId: string;
+    jobTitle: string;
+    jobDepartment: string;
+    jobLocation: string;
+    interviews: {
+      id: string;
+      scheduledAt: string;
+      type: string;
+      status: string;
+      feedback?: string;
+      rating?: number;
+      duration: number;
+    }[];
+    offer?: {
+      id: string;
+      salary: string;
+      currency: string;
+      status: string;
+      sentAt?: string;
+      expiresAt?: string;
+    } | null;
+  }[];
+}
 
 // Candidates / tracking
 export interface CandidateTrackingDto {
@@ -178,5 +257,28 @@ export const candidatesApi = {
   getTracking: (page = 1, limit = 20) =>
     api.get<PaginatedResponse<CandidateTrackingDto>>(
       `/candidates/tracking?page=${page}&limit=${limit}`,
+    ),
+  getCandidates: (page = 1, limit = 50, search?: string) =>
+    api.get<PaginatedResponse<CandidateListDto>>(
+      `/candidates?page=${page}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+    ),
+  getCandidate: (id: string) =>
+    api.get<{ candidate: CandidateDetailDto }>(`/candidates/${id}`),
+  createCandidate: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    location?: string;
+    skills?: string[];
+  }) => api.post<{ candidate: CandidateDetailDto }>('/candidates', data),
+};
+
+// Applications
+export const applicationsApi = {
+  updateStage: (id: string, status: string) =>
+    api.patch<{ id: string; status: string; updatedAt: string }>(
+      `/applications/${id}/stage`,
+      { status },
     ),
 };

@@ -40,6 +40,27 @@ export const PaginationSchema = z.object({
     .pipe(z.number().int().min(1).max(100)),
 });
 
+// ─── Candidates ───────────────────────────────────────────────────────────────
+
+export const CreateCandidateSchema = z.object({
+  firstName:    z.string().min(1, 'First name is required'),
+  lastName:     z.string().min(1, 'Last name is required'),
+  email:        z.string().email('Invalid email address'),
+  phone:        z.string().optional(),
+  linkedInUrl:  z.string().optional(),
+  location:     z.string().optional(),
+  source:       z.enum(['REFERRAL', 'JOB_BOARD', 'DIRECT', 'AGENCY', 'AI_SOURCED']).default('JOB_BOARD'),
+  skills:       z.array(z.string()).default([]),
+});
+
+// ─── Applications ─────────────────────────────────────────────────────────────
+
+export const UpdateApplicationStageSchema = z.object({
+  status: z.enum(['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED']),
+});
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;
+export type CreateCandidateInput = z.infer<typeof CreateCandidateSchema>;
+export type UpdateApplicationStageInput = z.infer<typeof UpdateApplicationStageSchema>;

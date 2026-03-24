@@ -1,9 +1,10 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { AuthRequest } from '../types';
 import { jobsService } from '../services/jobs.service';
 import { sendSuccess, sendError } from '../utils/response';
 
 export const jobsController = {
-  async getJobs(req: Request, res: Response): Promise<void> {
+  async getJobs(req: AuthRequest, res: Response): Promise<void> {
     try {
       const page = Math.max(1, Number(req.query.page ?? 1));
       const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 20)));
@@ -11,6 +12,33 @@ export const jobsController = {
       sendSuccess(res, result);
     } catch {
       sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch job postings');
+    }
+  },
+
+  async getJob(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const job = await jobsService.getJobById(req.params.id);
+      if (!job) {
+        sendError(res, 404, 'NOT_FOUND', 'Job posting not found');
+        return;
+      }
+      sendSuccess(res, { job });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch job posting');
+    }
+  },
+
+  async createJob(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        sendError(res, 401, 'UNAUTHORIZED', 'Authentication required');
+        return;
+      }
+      const job = await jobsService.createJob({ ...req.body as Record<string, unknown>, createdById: userId } as Parameters<typeof jobsService.createJob>[0]);
+      sendSuccess(res, { job }, 201);
+    } catch {
+      sendError(res, 500, 'CREATE_ERROR', 'Failed to create job posting');
     }
   },
 };

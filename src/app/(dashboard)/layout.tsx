@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/layout/Sidebar';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 export default function DashboardLayout({
   children,
@@ -6,14 +7,16 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-[var(--color-surface)]">
-      <Sidebar />
-      <main
-        style={{ marginLeft: 'var(--sidebar-width)' }}
-        className="min-h-screen flex flex-col"
-      >
-        {children}
-      </main>
-    </div>
+    <ToastProvider>
+      <div className="min-h-screen bg-[var(--color-surface)]">
+        <Sidebar />
+        <main
+          style={{ marginLeft: 'var(--sidebar-width)' }}
+          className="min-h-screen flex flex-col"
+        >
+          {children}
+        </main>
+      </div>
+    </ToastProvider>
   );
 }
