@@ -25,4 +25,17 @@ export const applicationsRepository = {
       data: { notes, updatedAt: new Date() },
     });
   },
+
+  async create(data: { candidateId: string; jobPostingId: string; status?: ApplicationStatus }) {
+    return prisma.application.create({
+      data: {
+        candidateId:  data.candidateId,
+        jobPostingId: data.jobPostingId,
+        status:       data.status ?? 'APPLIED',
+      },
+      include: {
+        candidate: { select: { id: true, firstName: true, lastName: true, email: true, skills: true } },
+      },
+    });
+  },
 };

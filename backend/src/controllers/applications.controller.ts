@@ -19,6 +19,28 @@ export const applicationsController = {
     }
   },
 
+  async createApplication(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { candidateId, jobPostingId, status } = req.body as {
+        candidateId: string;
+        jobPostingId: string;
+        status?: string;
+      };
+      const result = await applicationsService.createApplication(
+        candidateId,
+        jobPostingId,
+        status ?? 'APPLIED',
+      );
+      if (!result) {
+        sendError(res, 409, 'ALREADY_EXISTS', 'Candidate has already applied to this job');
+        return;
+      }
+      sendSuccess(res, { application: result }, 201);
+    } catch {
+      sendError(res, 500, 'CREATE_ERROR', 'Failed to create application');
+    }
+  },
+
   async updateNotes(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { notes } = req.body as { notes: string };

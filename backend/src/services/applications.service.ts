@@ -1,6 +1,14 @@
 import { applicationsRepository } from '../repositories/applications.repository';
 import type { ApplicationStatus } from '@prisma/client';
 
+function mapStatus(status: string): string {
+  const map: Record<string, string> = {
+    APPLIED: 'applied', SCREENING: 'screening', INTERVIEW: 'interview',
+    OFFER: 'offer', HIRED: 'hired', REJECTED: 'rejected',
+  };
+  return map[status] ?? status.toLowerCase();
+}
+
 export const applicationsService = {
   async updateStage(id: string, status: ApplicationStatus) {
     const app = await applicationsRepository.findById(id);
@@ -22,5 +30,30 @@ export const applicationsService = {
       notes: updated.notes ?? '',
       updatedAt: updated.updatedAt.toISOString(),
     };
+  },
+
+  async createApplication(candidateId: string, jobPostingId: string, status: string) {
+    try {
+      const app = await applicationsRepository.create({
+        candidateId,
+        jobPostingId,
+        status: status as ApplicationStatus,
+      });
+      return {
+        id:          app.id,
+        candidateId: app.candidateId,
+        candidateName: `${app.candidate.firstName} ${app.candidate.lastName}`,
+        candidateEmail: app.candidate.email,
+        skills:      app.candidate.skills,
+        jobPostingId: app.jobPostingId,
+        status:      mapStatus(app.status),
+        appliedAt:   app.appliedAt.toISOString(),
+        lastUpdated: app.updatedAt.toISOString(),
+      };
+    } catch (e: unknown) {
+      const prismaErr = e as { code?: string };
+      if (prismaErr?.code === 'P2002') return null; // unique constraint — already applied
+      throw e;
+    }
   },
 };

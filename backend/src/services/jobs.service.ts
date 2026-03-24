@@ -76,11 +76,42 @@ export interface JobDetailDto extends JobListingDto {
   applications: JobApplicantDto[];
 }
 
+export interface PipelineApplicationDto {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone: string | null;
+  candidateLocation: string | null;
+  cvUrl: string | null;
+  status: string;
+  stage: string | null;
+  notes: string | null;
+  appliedAt: string;
+  lastUpdated: string;
+  skills: string[];
+  interviewCount: number;
+  interviewRatings: (number | null)[];
+  offerStatus: string | null;
+  score: number;
+}
+
 export interface JobStatsDto {
   openPositions: number;
   totalApplicants: number;
   interviewsThisWeek: number;
   offersExtended: number;
+}
+
+function computeMatchScore(appId: string, skillCount: number, ratings: (number | null)[]): number {
+  const hash = appId.replace(/-/g, '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const base = 50 + (hash % 25);
+  const skillBonus = Math.min(15, skillCount * 2);
+  const validRatings = ratings.filter((r): r is number => r !== null);
+  const ratingBonus = validRatings.length > 0
+    ? Math.round(validRatings.reduce((a, r) => a + r, 0) / validRatings.length) * 2
+    : 0;
+  return Math.min(98, base + skillBonus + ratingBonus);
 }
 
 export const jobsService = {
@@ -194,6 +225,32 @@ export const jobsService = {
     if (status === 'CLOSED') updateData.closedAt = new Date();
     await jobsRepository.update(id, updateData);
     return jobsService.getJobById(id);
+  },
+
+  async getJobApplications(jobId: string): Promise<PipelineApplicationDto[]> {
+    const apps = await jobsRepository.findApplicationsByJobId(jobId);
+    return apps.map((app) => {
+      const ratings = app.interviews.map((iv) => iv.rating);
+      return {
+        id:                app.id,
+        candidateId:       app.candidate.id,
+        candidateName:     `${app.candidate.firstName} ${app.candidate.lastName}`,
+        candidateEmail:    app.candidate.email,
+        candidatePhone:    app.candidate.phone ?? null,
+        candidateLocation: app.candidate.location ?? null,
+        cvUrl:             app.candidate.cvUrl ?? null,
+        status:            mapApplicationStatus(app.status),
+        stage:             app.stage,
+        notes:             app.notes ?? null,
+        appliedAt:         app.appliedAt.toISOString(),
+        lastUpdated:       app.updatedAt.toISOString(),
+        skills:            app.candidate.skills,
+        interviewCount:    app._count.interviews,
+        interviewRatings:  ratings,
+        offerStatus:       app.offer ? mapApplicationStatus(app.offer.status) : null,
+        score:             computeMatchScore(app.id, app.candidate.skills.length, ratings),
+      };
+    });
   },
 
   async getStats(): Promise<JobStatsDto> {

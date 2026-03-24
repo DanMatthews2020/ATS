@@ -51,6 +51,15 @@ export const jobsController = {
     }
   },
 
+  async getJobApplications(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const applications = await jobsService.getJobApplications(req.params.id);
+      sendSuccess(res, { applications });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch applications');
+    }
+  },
+
   async updateJob(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { status } = req.body as { status?: string };

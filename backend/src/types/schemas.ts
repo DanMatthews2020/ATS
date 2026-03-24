@@ -59,6 +59,14 @@ export const UpdateApplicationStageSchema = z.object({
   status: z.enum(['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED']),
 });
 
+export const CreateApplicationSchema = z.object({
+  candidateId:  z.string().uuid(),
+  jobPostingId: z.string().uuid(),
+  status: z.enum(['APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED'])
+    .optional()
+    .default('APPLIED'),
+});
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;

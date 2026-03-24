@@ -9,7 +9,8 @@ const router = Router();
 router.get('/stats',  authenticate, jobsController.getStats);
 router.get('/',       authenticate, jobsController.getJobs);
 router.post('/',      authenticate, validate(CreateJobSchema), jobsController.createJob);
-router.get('/:id',    authenticate, jobsController.getJob);
-router.patch('/:id',  authenticate, jobsController.updateJob);
+router.get('/:id',              authenticate, jobsController.getJob);
+router.get('/:id/applications', authenticate, jobsController.getJobApplications);
+router.patch('/:id',            authenticate, jobsController.updateJob);
 
 export default router;

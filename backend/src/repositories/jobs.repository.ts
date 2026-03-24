@@ -55,6 +55,36 @@ export const jobsRepository = {
     return prisma.jobPosting.update({ where: { id }, data });
   },
 
+  async findApplicationsByJobId(jobId: string) {
+    return prisma.application.findMany({
+      where: { jobPostingId: jobId },
+      orderBy: { appliedAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        stage: true,
+        notes: true,
+        appliedAt: true,
+        updatedAt: true,
+        candidate: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            location: true,
+            skills: true,
+            cvUrl: true,
+          },
+        },
+        _count: { select: { interviews: true } },
+        offer: { select: { id: true, status: true } },
+        interviews: { select: { rating: true, status: true } },
+      },
+    });
+  },
+
   async getStats() {
     const now = new Date();
     const startOfWeek = new Date(now);
