@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   X, Mail, Phone, Linkedin, FileText, Star, Plus, Pencil, Trash2,
-  ChevronDown, ExternalLink, MapPin, Briefcase, Tag,
+  ChevronDown, ExternalLink, MapPin, Briefcase, Tag, ClipboardList, Clock, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -12,11 +12,16 @@ import { Avatar } from '@/components/ui/Avatar';
 import {
   candidatesApi,
   candidatePanelApi,
+  workflowsApi,
+  evaluationsApi,
   type CandidateDetailDto,
   type CandidateNoteDto,
   type FeedEventDto,
   type CandidateFeedbackDto,
+  type WorkflowStageDto,
+  type EvaluationDto,
 } from '@/lib/api';
+import ScorecardModal from '@/components/ScorecardModal';
 import { useToast } from '@/contexts/ToastContext';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -24,6 +29,7 @@ import { useToast } from '@/contexts/ToastContext';
 interface CandidatePanelProps {
   candidateId: string | null;
   applicationId?: string;
+  jobId?: string;
   onClose: () => void;
 }
 
@@ -118,7 +124,7 @@ type RightTab = typeof RIGHT_TABS[number];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function CandidatePanel({ candidateId, applicationId, onClose }: CandidatePanelProps) {
+export default function CandidatePanel({ candidateId, applicationId, jobId, onClose }: CandidatePanelProps) {
   const { showToast } = useToast();
 
   // Animation
@@ -165,6 +171,11 @@ export default function CandidatePanel({ candidateId, applicationId, onClose }: 
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackError, setFeedbackError]   = useState('');
 
+  // Scorecard evaluations
+  const [evalStages, setEvalStages]         = useState<WorkflowStageDto[]>([]);
+  const [evaluations, setEvaluations]       = useState<EvaluationDto[]>([]);
+  const [scorecardModalStageId, setScorecardModalStageId] = useState<string | null>(null);
+
   // More dropdown
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -185,6 +196,9 @@ export default function CandidatePanel({ candidateId, applicationId, onClose }: 
       setFeedData(null);
       setNotesData(null);
       setFeedbackData(null);
+      setEvalStages([]);
+      setEvaluations([]);
+      setScorecardModalStageId(null);
       loadedTabs.current.clear();
       setLeftTab('Activities & Progress');
       setRightTab('Feed');
@@ -230,11 +244,21 @@ export default function CandidatePanel({ candidateId, applicationId, onClose }: 
     loadedTabs.current.add('Feedback');
     setFeedbackLoading(true);
     setFeedbackError('');
-    candidatePanelApi.getFeedback(candidateId)
-      .then((res) => setFeedbackData(res.feedback))
+    Promise.all([
+      candidatePanelApi.getFeedback(candidateId),
+      evaluationsApi.getByCandidate(candidateId),
+      jobId ? workflowsApi.getByJobId(jobId).catch(() => null) : Promise.resolve(null),
+    ])
+      .then(([fb, evals, workflow]) => {
+        setFeedbackData(fb.feedback);
+        setEvaluations(evals.evaluations);
+        if (workflow) {
+          setEvalStages(workflow.stages.filter((s) => s.requiresScorecard && s.scorecardId));
+        }
+      })
       .catch(() => { setFeedbackError('Failed to load feedback.'); loadedTabs.current.delete('Feedback'); })
       .finally(() => setFeedbackLoading(false));
-  }, [candidateId]);
+  }, [candidateId, jobId]);
 
   useEffect(() => {
     if (rightTab === 'Feed')     loadFeed();
@@ -464,6 +488,9 @@ export default function CandidatePanel({ candidateId, applicationId, onClose }: 
                       loading={feedbackLoading}
                       error={feedbackError}
                       onRetry={() => { loadedTabs.current.delete('Feedback'); loadFeedback(); }}
+                      evalStages={evalStages}
+                      evaluations={evaluations}
+                      onSubmitFeedback={(stageId) => setScorecardModalStageId(stageId)}
                     />
                   )}
                   {rightTab === 'Emails' && (
@@ -482,6 +509,21 @@ export default function CandidatePanel({ candidateId, applicationId, onClose }: 
           </>
         ) : null}
       </div>
+
+      {/* Scorecard evaluation modal */}
+      {scorecardModalStageId && candidateId && jobId && candidate && (
+        <ScorecardModal
+          candidateId={candidateId}
+          candidateName={`${candidate.firstName} ${candidate.lastName}`}
+          jobId={jobId}
+          initialStageId={scorecardModalStageId}
+          onClose={() => setScorecardModalStageId(null)}
+          onSubmitted={() => {
+            // Refresh evaluations
+            evaluationsApi.getByCandidate(candidateId).then((res) => setEvaluations(res.evaluations)).catch(() => {});
+          }}
+        />
+      )}
     </>
   );
 }
@@ -976,13 +1018,29 @@ function StarRating({ rating }: { rating: number | null }) {
   );
 }
 
+const EVAL_STATUS_CFG: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
+  pending:      { label: 'Pending',     icon: <Clock size={10} />,        cls: 'bg-amber-100 text-amber-700' },
+  'in-progress':{ label: 'In Progress', icon: <AlertCircle size={10} />,  cls: 'bg-blue-100 text-blue-700' },
+  submitted:    { label: 'Submitted',   icon: <CheckCircle2 size={10} />, cls: 'bg-emerald-100 text-emerald-700' },
+};
+
+const REC_LABEL: Record<string, string> = {
+  'strong-yes': 'Strong Yes',
+  'yes':        'Yes',
+  'no':         'No',
+  'strong-no':  'Strong No',
+};
+
 function FeedbackTab({
-  data, loading, error, onRetry,
+  data, loading, error, onRetry, evalStages, evaluations, onSubmitFeedback,
 }: {
   data: CandidateFeedbackDto[] | null;
   loading: boolean;
   error: string;
   onRetry: () => void;
+  evalStages: WorkflowStageDto[];
+  evaluations: EvaluationDto[];
+  onSubmitFeedback: (stageId: string) => void;
 }) {
   if (loading) return <SkeletonCards count={2} />;
   if (error) return (
@@ -991,41 +1049,91 @@ function FeedbackTab({
       <Button variant="secondary" size="sm" onClick={onRetry}>Retry</Button>
     </div>
   );
-  if (!data || data.length === 0) return (
-    <div className="p-6 text-center">
-      <p className="text-sm text-[var(--color-text-muted)]">No feedback submitted yet</p>
-    </div>
-  );
+
+  const hasScorecardsSection = evalStages.length > 0;
 
   return (
-    <div className="p-3 space-y-3">
-      {data.map((fb) => {
-        const recCfg = fb.recommendation ? (REC_BADGE[fb.recommendation] ?? { label: fb.recommendation, cls: 'bg-neutral-100 text-neutral-700' }) : null;
-        return (
-          <div key={fb.id} className="border border-[var(--color-border)] rounded-xl p-3 bg-white">
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
-                {fb.interviewType}
-              </span>
-              {fb.jobTitle && (
-                <span className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[120px]">{fb.jobTitle}</span>
-              )}
-              <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">{formatDate(fb.scheduledAt)}</span>
-            </div>
-            <div className="flex items-center gap-3 mb-2">
-              <StarRating rating={fb.rating} />
-              {recCfg && (
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${recCfg.cls}`}>
-                  {recCfg.label}
-                </span>
-              )}
-            </div>
-            {fb.feedback && (
-              <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">{fb.feedback}</p>
-            )}
+    <div className="p-3 space-y-4">
+      {/* Scorecard evaluation stages */}
+      {hasScorecardsSection && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">Interview Scorecards</p>
+          <div className="space-y-2">
+            {evalStages.map((stage) => {
+              const eval_ = evaluations.find((e) => e.stageId === stage.id);
+              const statusKey = eval_?.status ?? 'pending';
+              const statusCfg = EVAL_STATUS_CFG[statusKey] ?? EVAL_STATUS_CFG.pending;
+              return (
+                <div key={stage.id} className="border border-[var(--color-border)] rounded-xl p-3 bg-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ClipboardList size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-[var(--color-text-primary)] truncate">{stage.stageName}</p>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">{stage.scorecardName ?? 'Scorecard'}</p>
+                    </div>
+                    <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${statusCfg.cls}`}>
+                      {statusCfg.icon}{statusCfg.label}
+                    </span>
+                  </div>
+                  {eval_?.overallRecommendation && (
+                    <p className="text-[10px] text-[var(--color-text-muted)] mb-2">
+                      Recommendation: <span className="font-semibold">{REC_LABEL[eval_.overallRecommendation] ?? eval_.overallRecommendation}</span>
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onSubmitFeedback(stage.id)}
+                    className="text-[10px] font-semibold text-[var(--color-primary)] hover:underline"
+                  >
+                    {eval_ ? 'View / Edit Feedback' : 'Submit Feedback'}
+                  </button>
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </div>
+      )}
+
+      {/* Interview feedback from interviews */}
+      {(!data || data.length === 0) && !hasScorecardsSection && (
+        <div className="py-6 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">No feedback submitted yet</p>
+        </div>
+      )}
+      {data && data.length > 0 && (
+        <div>
+          {hasScorecardsSection && (
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] mb-2">Interview Notes</p>
+          )}
+          {data.map((fb) => {
+            const recCfg = fb.recommendation ? (REC_BADGE[fb.recommendation] ?? { label: fb.recommendation, cls: 'bg-neutral-100 text-neutral-700' }) : null;
+            return (
+              <div key={fb.id} className="border border-[var(--color-border)] rounded-xl p-3 bg-white mb-2">
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full capitalize">
+                    {fb.interviewType}
+                  </span>
+                  {fb.jobTitle && (
+                    <span className="text-[10px] text-[var(--color-text-muted)] truncate max-w-[120px]">{fb.jobTitle}</span>
+                  )}
+                  <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">{formatDate(fb.scheduledAt)}</span>
+                </div>
+                <div className="flex items-center gap-3 mb-2">
+                  <StarRating rating={fb.rating} />
+                  {recCfg && (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${recCfg.cls}`}>
+                      {recCfg.label}
+                    </span>
+                  )}
+                </div>
+                {fb.feedback && (
+                  <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">{fb.feedback}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

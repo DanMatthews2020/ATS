@@ -5,7 +5,10 @@ export const workflowsRepository = {
     return prisma.workflowTemplate.findUnique({
       where: { jobId },
       include: {
-        stages: { orderBy: { position: 'asc' } },
+        stages: {
+          orderBy: { position: 'asc' },
+          include: { scorecard: { select: { id: true, name: true } } },
+        },
       },
     });
   },
@@ -14,7 +17,10 @@ export const workflowsRepository = {
     return prisma.workflowTemplate.findUnique({
       where: { id },
       include: {
-        stages: { orderBy: { position: 'asc' } },
+        stages: {
+          orderBy: { position: 'asc' },
+          include: { scorecard: { select: { id: true, name: true } } },
+        },
       },
     });
   },
@@ -48,6 +54,7 @@ export const workflowsRepository = {
     description?: string;
     position: number;
     requiresScorecard?: boolean;
+    scorecardId?: string | null;
   }) {
     return prisma.workflowStage.create({
       data: {
@@ -57,6 +64,7 @@ export const workflowsRepository = {
         description: data.description,
         position: data.position,
         requiresScorecard: data.requiresScorecard ?? false,
+        scorecardId: data.scorecardId ?? null,
       },
     });
   },
@@ -67,6 +75,7 @@ export const workflowsRepository = {
     description?: string;
     position?: number;
     requiresScorecard?: boolean;
+    scorecardId?: string | null;
   }) {
     return prisma.workflowStage.update({
       where: { id: stageId },

@@ -18,7 +18,7 @@ import {
 import {
   ChevronDown, ChevronRight, ExternalLink, MoreHorizontal,
   Search, SlidersHorizontal, Loader2, X, Check,
-  Users, Clock, MapPin, Briefcase, DollarSign, GripVertical,
+  Users, Clock, MapPin, Briefcase, DollarSign, GripVertical, MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -32,6 +32,7 @@ import {
   type JobPipelineStageCounts,
   type PipelineApplicationDto,
 } from '@/lib/api';
+import ScorecardModal from '@/components/ScorecardModal';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
 
@@ -141,6 +142,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [closing, setClosing]                         = useState(false);
   const [activeDragId, setActiveDragId]               = useState<string | null>(null);
   const [panelCandidate, setPanelCandidate]           = useState<{ candidateId: string; applicationId: string } | null>(null);
+  const [feedbackModal, setFeedbackModal]             = useState<{ candidateId: string; candidateName: string } | null>(null);
 
   const switcherRef = useRef<HTMLDivElement>(null);
   const moreRef     = useRef<HTMLDivElement>(null);
@@ -492,6 +494,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   recruiterName={job.createdByName}
                   isDragActive={activeDragId !== null}
                   onCardClick={(cId, appId) => setPanelCandidate({ candidateId: cId, applicationId: appId })}
+                  onFeedbackClick={(cId, cName) => setFeedbackModal({ candidateId: cId, candidateName: cName })}
                 />
               ))}
             </div>
@@ -514,8 +517,18 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       <CandidatePanel
         candidateId={panelCandidate?.candidateId ?? null}
         applicationId={panelCandidate?.applicationId}
+        jobId={id}
         onClose={() => setPanelCandidate(null)}
       />
+
+      {feedbackModal && (
+        <ScorecardModal
+          candidateId={feedbackModal.candidateId}
+          candidateName={feedbackModal.candidateName}
+          jobId={id}
+          onClose={() => setFeedbackModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -537,11 +550,13 @@ function KanbanColumn({
   recruiterName,
   isDragActive,
   onCardClick,
+  onFeedbackClick,
 }: {
   col: { id: string; label: string; candidates: PipelineApplicationDto[] };
   recruiterName: string;
   isDragActive: boolean;
   onCardClick: (candidateId: string, applicationId: string) => void;
+  onFeedbackClick: (candidateId: string, candidateName: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
 
@@ -571,6 +586,7 @@ function KanbanColumn({
             colId={col.id}
             recruiterName={recruiterName}
             onCardClick={onCardClick}
+            onFeedbackClick={onFeedbackClick}
           />
         ))}
       </div>
@@ -586,12 +602,14 @@ function CandidateCard({
   recruiterName,
   isOverlay = false,
   onCardClick,
+  onFeedbackClick,
 }: {
   candidate: PipelineApplicationDto;
   colId: string;
   recruiterName: string;
   isOverlay?: boolean;
   onCardClick: (candidateId: string, applicationId: string) => void;
+  onFeedbackClick?: (candidateId: string, candidateName: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id:   candidate.id,
@@ -686,12 +704,24 @@ function CandidateCard({
               </span>
             </div>
 
-            {/* Recruiter avatar */}
-            {recruiterName && (
-              <div className="flex-shrink-0" title={recruiterName}>
-                <Avatar name={recruiterName} size="sm" />
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Feedback button */}
+              {!isOverlay && onFeedbackClick && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onFeedbackClick(candidate.candidateId, candidate.candidateName); }}
+                  title="Submit feedback"
+                  className="p-1 rounded-md text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/8 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <MessageSquare size={12} />
+                </button>
+              )}
+              {/* Recruiter avatar */}
+              {recruiterName && (
+                <div title={recruiterName}>
+                  <Avatar name={recruiterName} size="sm" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

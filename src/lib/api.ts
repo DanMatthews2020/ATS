@@ -1042,6 +1042,8 @@ export interface WorkflowStageDto {
   description: string | null;
   position: number;
   requiresScorecard: boolean;
+  scorecardId: string | null;
+  scorecardName: string | null;
 }
 
 export interface WorkflowTemplateDto {
@@ -1063,9 +1065,9 @@ export const workflowsApi = {
     api.post<WorkflowTemplateDto>('/workflows', data),
   update: (id: string, data: { name?: string }) =>
     api.patch<WorkflowTemplateDto>(`/workflows/${id}`, data),
-  addStage: (id: string, data: { stageName: string; stageType: string; description?: string; requiresScorecard?: boolean }) =>
+  addStage: (id: string, data: { stageName: string; stageType: string; description?: string; requiresScorecard?: boolean; scorecardId?: string | null }) =>
     api.post<WorkflowStageDto>(`/workflows/${id}/stages`, data),
-  updateStage: (id: string, stageId: string, data: Partial<{ stageName: string; stageType: string; description: string; requiresScorecard: boolean }>) =>
+  updateStage: (id: string, stageId: string, data: Partial<{ stageName: string; stageType: string; description: string; requiresScorecard: boolean; scorecardId: string | null }>) =>
     api.patch<WorkflowStageDto>(`/workflows/${id}/stages/${stageId}`, data),
   deleteStage: (id: string, stageId: string) =>
     api.delete<void>(`/workflows/${id}/stages/${stageId}`),
@@ -1086,4 +1088,84 @@ export const candidatePanelApi = {
     api.patch<{ tags: string[] }>(`/candidates/${id}/tags`, { tags }),
   getFeedback: (id: string) => api.get<{ feedback: CandidateFeedbackDto[] }>(`/candidates/${id}/feedback`),
   getEmails:   (id: string) => api.get<{ emails: unknown[] }>(`/candidates/${id}/emails`),
+};
+
+// ── Scorecards ────────────────────────────────────────────────────────────────
+
+export interface ScorecardCriterionDto {
+  id: string;
+  name: string;
+  type: string; // rating | yes-no | free-text | multiple-choice
+  description: string | null;
+  isRequired: boolean;
+  position: number;
+}
+
+export interface ScorecardDto {
+  id: string;
+  name: string;
+  description: string | null;
+  criteriaCount: number;
+  criteria: ScorecardCriterionDto[];
+  createdAt: string;
+}
+
+export const scorecardsApi = {
+  getAll: () => api.get<{ scorecards: ScorecardDto[] }>('/scorecards'),
+  getById: (id: string) => api.get<ScorecardDto>(`/scorecards/${id}`),
+  create: (data: { name: string; description?: string; criteria: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number }> }) =>
+    api.post<ScorecardDto>('/scorecards', data),
+  update: (id: string, data: { name?: string; description?: string; criteria?: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number }> }) =>
+    api.patch<ScorecardDto>(`/scorecards/${id}`, data),
+  delete: (id: string) => api.delete<void>(`/scorecards/${id}`),
+};
+
+// ── Evaluations ───────────────────────────────────────────────────────────────
+
+export interface EvaluationResponseDto {
+  id: string;
+  criterionId: string;
+  criterionName: string;
+  criterionType: string;
+  responseValue: string;
+}
+
+export interface EvaluationDto {
+  id: string;
+  candidateId: string;
+  jobId: string;
+  jobTitle: string;
+  stageId: string | null;
+  stageName: string | null;
+  stageType: string | null;
+  scorecardId: string | null;
+  scorecardName: string | null;
+  submittedByName: string;
+  overallRecommendation: string | null;
+  notes: string | null;
+  status: string; // pending | in-progress | submitted
+  responses: EvaluationResponseDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const evaluationsApi = {
+  getByCandidate: (candidateId: string) =>
+    api.get<{ evaluations: EvaluationDto[] }>(`/evaluations/candidate/${candidateId}`),
+  create: (data: {
+    candidateId: string;
+    jobId: string;
+    stageId?: string;
+    scorecardId?: string;
+    overallRecommendation?: string;
+    notes?: string;
+    status?: string;
+    responses: Array<{ criterionId: string; responseValue: string }>;
+  }) => api.post<EvaluationDto>('/evaluations', data),
+  update: (id: string, data: {
+    overallRecommendation?: string;
+    notes?: string;
+    status?: string;
+    responses?: Array<{ criterionId: string; responseValue: string }>;
+  }) => api.patch<EvaluationDto>(`/evaluations/${id}`, data),
 };

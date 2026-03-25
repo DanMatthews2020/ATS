@@ -7,6 +7,8 @@ export interface WorkflowStageDto {
   description: string | null;
   position: number;
   requiresScorecard: boolean;
+  scorecardId: string | null;
+  scorecardName: string | null;
 }
 
 export interface WorkflowTemplateDto {
@@ -24,6 +26,8 @@ function toStageDto(stage: {
   description: string | null;
   position: number;
   requiresScorecard: boolean;
+  scorecardId?: string | null;
+  scorecard?: { id: string; name: string } | null;
 }): WorkflowStageDto {
   return {
     id: stage.id,
@@ -32,6 +36,8 @@ function toStageDto(stage: {
     description: stage.description,
     position: stage.position,
     requiresScorecard: stage.requiresScorecard,
+    scorecardId: stage.scorecardId ?? null,
+    scorecardName: stage.scorecard?.name ?? null,
   };
 }
 
@@ -47,6 +53,8 @@ function toDto(workflow: {
     description: string | null;
     position: number;
     requiresScorecard: boolean;
+    scorecardId?: string | null;
+    scorecard?: { id: string; name: string } | null;
   }[];
 }): WorkflowTemplateDto {
   return {
@@ -109,6 +117,7 @@ export const workflowsService = {
     stageType: string;
     description?: string;
     requiresScorecard?: boolean;
+    scorecardId?: string | null;
   }): Promise<WorkflowStageDto> {
     const position = await workflowsRepository.getNextPosition(workflowId);
     const stage = await workflowsRepository.addStage(workflowId, {
@@ -123,6 +132,7 @@ export const workflowsService = {
     stageType?: string;
     description?: string;
     requiresScorecard?: boolean;
+    scorecardId?: string | null;
   }): Promise<WorkflowStageDto> {
     const stage = await workflowsRepository.updateStage(stageId, data);
     return toStageDto(stage);

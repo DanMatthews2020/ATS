@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   Settings, User, Users, Link2, Bell, CreditCard, Shield,
   Camera, Eye, EyeOff, Check, X, Plus, Trash2, ChevronDown,
-  LogOut, Monitor, Smartphone, Globe, Lock, Zap, RefreshCw,
+  LogOut, Monitor, Smartphone, Globe, Lock, Zap, RefreshCw, ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -1221,6 +1222,15 @@ export default function SettingsPage() {
                 </li>
               ))}
             </ul>
+            <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+              <Link
+                href="/settings/scorecards"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors duration-100 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]"
+              >
+                <ClipboardList size={15} strokeWidth={1.75} aria-hidden="true" />
+                Scorecards
+              </Link>
+            </div>
           </nav>
         </aside>
 

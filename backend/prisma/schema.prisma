@@ -108,12 +108,14 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdJobs       JobPosting[]        @relation("CreatedBy")
-  interviewSlots    InterviewsOnUsers[]
-  assignedTasks     OnboardingTask[]    @relation("AssignedTo")
-  employee          Employee?           @relation("UserEmployee")
-  refreshTokens     RefreshToken[]
-  workflowTemplates WorkflowTemplate[]  @relation("WorkflowCreatedBy")
+  createdJobs           JobPosting[]          @relation("CreatedBy")
+  interviewSlots        InterviewsOnUsers[]
+  assignedTasks         OnboardingTask[]      @relation("AssignedTo")
+  employee              Employee?             @relation("UserEmployee")
+  refreshTokens         RefreshToken[]
+  workflowTemplates     WorkflowTemplate[]    @relation("WorkflowCreatedBy")
+  scorecards            Scorecard[]           @relation("ScorecardCreatedBy")
+  evaluationsSubmitted  CandidateEvaluation[] @relation("EvaluationSubmittedBy")
 }
 
 model RefreshToken {
@@ -145,6 +147,7 @@ model JobPosting {
 
   applications     Application[]
   workflowTemplate WorkflowTemplate?
+  evaluations      CandidateEvaluation[]
 }
 
 model Candidate {
@@ -165,6 +168,7 @@ model Candidate {
   applications Application[]
   employee     Employee?
   notes        CandidateNote[]
+  evaluations  CandidateEvaluation[]
 }
 
 model Application {
@@ -308,6 +312,71 @@ model WorkflowStage {
   description       String?
   position          Int
   requiresScorecard Boolean          @default(false)
+  scorecardId       String?
+  scorecard         Scorecard?       @relation("StageScorecard", fields: [scorecardId], references: [id])
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+
+  evaluations CandidateEvaluation[]
+}
+
+model Scorecard {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdById String
+  createdBy   User     @relation("ScorecardCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  criteria    ScorecardCriterion[]
+  stages      WorkflowStage[]      @relation("StageScorecard")
+  evaluations CandidateEvaluation[]
+}
+
+model ScorecardCriterion {
+  id          String    @id @default(uuid())
+  scorecardId String
+  scorecard   Scorecard @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
+  name        String
+  type        String    // rating | yes-no | free-text | multiple-choice
+  description String?
+  isRequired  Boolean   @default(true)
+  position    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  responses EvaluationResponse[]
+}
+
+model CandidateEvaluation {
+  id                    String         @id @default(uuid())
+  candidateId           String
+  candidate             Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  jobId                 String
+  jobPosting            JobPosting     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  stageId               String?
+  stage                 WorkflowStage? @relation(fields: [stageId], references: [id])
+  scorecardId           String?
+  scorecard             Scorecard?     @relation(fields: [scorecardId], references: [id])
+  submittedById         String
+  submittedBy           User           @relation("EvaluationSubmittedBy", fields: [submittedById], references: [id])
+  overallRecommendation String?        // strong-yes | yes | no | strong-no
+  notes                 String?
+  status                String         @default("pending") // pending | in-progress | submitted
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  responses EvaluationResponse[]
+}
+
+model EvaluationResponse {
+  id            String              @id @default(uuid())
+  evaluationId  String
+  evaluation    CandidateEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterionId   String
+  criterion     ScorecardCriterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  responseValue String
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 }

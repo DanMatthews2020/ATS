@@ -27,7 +27,7 @@ import {
   Loader2,
   Clipboard,
 } from 'lucide-react';
-import { workflowsApi, jobsApi, type WorkflowStageDto, type WorkflowTemplateDto } from '@/lib/api';
+import { workflowsApi, jobsApi, scorecardsApi, type WorkflowStageDto, type WorkflowTemplateDto, type ScorecardDto } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -40,6 +40,7 @@ interface LocalStage {
   stageType: StageType;
   description: string;
   requiresScorecard: boolean;
+  scorecardId: string | null;
   position: number;
   isSaved: boolean; // false = not yet persisted
 }
@@ -114,10 +115,12 @@ const TEMPLATES: { id: string; label: string; stages: { stageName: string; stage
 
 function DraggableStageRow({
   stage,
+  scorecards,
   onUpdate,
   onDelete,
 }: {
   stage: LocalStage;
+  scorecards: ScorecardDto[];
   onUpdate: (id: string, patch: Partial<LocalStage>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -194,8 +197,8 @@ function DraggableStageRow({
         </button>
       </div>
 
-      {/* Description + scorecard */}
-      <div className="px-4 pb-4 pl-14 flex gap-4 items-start">
+      {/* Description + scorecard toggle */}
+      <div className="px-4 pb-3 pl-14 flex gap-4 items-start">
         <input
           type="text"
           value={stage.description}
@@ -207,12 +210,33 @@ function DraggableStageRow({
           <input
             type="checkbox"
             checked={stage.requiresScorecard}
-            onChange={(e) => onUpdate(stage.id, { requiresScorecard: e.target.checked })}
+            onChange={(e) => onUpdate(stage.id, { requiresScorecard: e.target.checked, scorecardId: e.target.checked ? stage.scorecardId : null })}
             className="w-3.5 h-3.5 accent-[var(--color-primary)]"
           />
           Scorecard required
         </label>
       </div>
+
+      {/* Scorecard selector — shown when requiresScorecard */}
+      {stage.requiresScorecard && (
+        <div className="px-4 pb-4 pl-14">
+          <select
+            value={stage.scorecardId ?? ''}
+            onChange={(e) => onUpdate(stage.id, { scorecardId: e.target.value || null })}
+            className="w-full text-xs rounded-lg border border-[var(--color-border)] px-3 py-2 bg-white text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] appearance-none"
+          >
+            <option value="">Select a scorecard…</option>
+            {scorecards.map((sc) => (
+              <option key={sc.id} value={sc.id}>{sc.name}</option>
+            ))}
+          </select>
+          {scorecards.length === 0 && (
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+              No scorecards yet. <a href="/settings/scorecards" className="text-[var(--color-primary)] underline">Create one in Settings</a>.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -265,6 +289,7 @@ export default function WorkflowBuilderPage() {
   const [activeId, setActiveId]           = useState<string | null>(null);
   const [isSaving, setIsSaving]           = useState(false);
   const [isLoading, setIsLoading]         = useState(true);
+  const [scorecards, setScorecards]       = useState<ScorecardDto[]>([]);
   const tempCounter                        = useRef(0);
 
   const sensors = useSensors(
@@ -276,10 +301,13 @@ export default function WorkflowBuilderPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [job, workflow] = await Promise.allSettled([
+        const [job, workflow, scorecardsRes] = await Promise.allSettled([
           jobsApi.getJob(jobId),
           workflowsApi.getByJobId(jobId),
+          scorecardsApi.getAll(),
         ]);
+
+        if (scorecardsRes.status === 'fulfilled') setScorecards(scorecardsRes.value.scorecards);
 
         if (cancelled) return;
 
@@ -294,6 +322,7 @@ export default function WorkflowBuilderPage() {
               stageType: s.stageType as StageType,
               description: s.description ?? '',
               requiresScorecard: s.requiresScorecard,
+              scorecardId: s.scorecardId,
               position: s.position,
               isSaved: true,
             })),
@@ -323,6 +352,7 @@ export default function WorkflowBuilderPage() {
         stageType: 'phone-screen',
         description: '',
         requiresScorecard: false,
+        scorecardId: null,
         position: prev.length,
         isSaved: false,
       },
@@ -347,6 +377,7 @@ export default function WorkflowBuilderPage() {
         stageType: s.stageType,
         description: s.description,
         requiresScorecard: false,
+        scorecardId: null,
         position: i,
         isSaved: false,
       })),
@@ -390,6 +421,7 @@ export default function WorkflowBuilderPage() {
         stageType: s.stageType,
         description: s.description || undefined,
         requiresScorecard: s.requiresScorecard,
+        scorecardId: s.scorecardId,
       }));
 
       if (workflowId) {
@@ -422,6 +454,7 @@ export default function WorkflowBuilderPage() {
               stageType: s.stageType,
               description: s.description || undefined,
               requiresScorecard: s.requiresScorecard,
+              scorecardId: s.scorecardId,
             });
             updatedStages.push(created);
           } else {
@@ -431,8 +464,9 @@ export default function WorkflowBuilderPage() {
               stageType: s.stageType,
               description: s.description || undefined,
               requiresScorecard: s.requiresScorecard,
+              scorecardId: s.scorecardId,
             });
-            updatedStages.push({ id: s.id, stageName: s.stageName, stageType: s.stageType, description: s.description, requiresScorecard: s.requiresScorecard, position: s.position });
+            updatedStages.push({ id: s.id, stageName: s.stageName, stageType: s.stageType, description: s.description, requiresScorecard: s.requiresScorecard, scorecardId: s.scorecardId, scorecardName: null, position: s.position });
           }
         }
 
@@ -453,6 +487,7 @@ export default function WorkflowBuilderPage() {
             stageType: s.stageType as StageType,
             description: s.description ?? '',
             requiresScorecard: s.requiresScorecard,
+            scorecardId: s.scorecardId,
             position: s.position,
             isSaved: true,
           })),
@@ -471,6 +506,7 @@ export default function WorkflowBuilderPage() {
             stageType: s.stageType as StageType,
             description: s.description ?? '',
             requiresScorecard: s.requiresScorecard,
+            scorecardId: s.scorecardId,
             position: s.position,
             isSaved: true,
           })),
@@ -563,6 +599,7 @@ export default function WorkflowBuilderPage() {
                   <DraggableStageRow
                     key={stage.id}
                     stage={stage}
+                    scorecards={scorecards}
                     onUpdate={updateStage}
                     onDelete={deleteStage}
                   />

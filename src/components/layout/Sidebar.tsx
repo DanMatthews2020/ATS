@@ -214,7 +214,7 @@ export function Sidebar() {
           {SETTINGS_NAV_ITEM.label}
         </Link>
 
-        {/* User profile / logout */}
+{/* User profile / logout */}
         {user ? (
           <button
             type="button"

@@ -15,6 +15,8 @@ import offersRoutes from './offers.routes';
 import employeesRoutes from './employees.routes';
 import notificationsRoutes from './notifications.routes';
 import workflowsRoutes from './workflows.routes';
+import scorecardsRoutes from './scorecards.routes';
+import evaluationsRoutes from './evaluations.routes';
 
 const router = Router();
 
@@ -34,5 +36,7 @@ router.use('/offers',        offersRoutes);
 router.use('/employees',     employeesRoutes);
 router.use('/notifications', notificationsRoutes);
 router.use('/workflows',    workflowsRoutes);
+router.use('/scorecards',   scorecardsRoutes);
+router.use('/evaluations',  evaluationsRoutes);
 
 export default router;
