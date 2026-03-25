@@ -12,10 +12,14 @@ import { authService } from '../services/auth.service';
 import { sendSuccess, sendError } from '../utils/response';
 import { isServiceError } from '../types';
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const COOKIE_BASE = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  secure: isProd,
+  // SameSite=none is required for cross-origin cookie sending (Vercel → Render).
+  // Lax is fine for local dev where frontend and backend share localhost.
+  sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
   path: '/',
 };
 
