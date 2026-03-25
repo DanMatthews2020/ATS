@@ -496,6 +496,7 @@ function AddCandidateModal({
         candidatePhone:    candidate.phone ?? null,
         candidateLocation: candidate.location ?? null,
         cvUrl:             null,
+        source:            candidate.source ?? 'JOB_BOARD',
         status:            result.application.status,
         stage:             null,
         notes:             null,
