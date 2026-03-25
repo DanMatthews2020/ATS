@@ -4,6 +4,15 @@ import { jobsService } from '../services/jobs.service';
 import { sendSuccess, sendError } from '../utils/response';
 
 export const jobsController = {
+  async getPipelineStats(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const stats = await jobsService.getPipelineStats();
+      sendSuccess(res, { stats });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch pipeline stats');
+    }
+  },
+
   async getStats(req: AuthRequest, res: Response): Promise<void> {
     try {
       const stats = await jobsService.getStats();

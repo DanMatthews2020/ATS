@@ -85,6 +85,19 @@ export const jobsRepository = {
     });
   },
 
+  async getPipelineStats() {
+    const rows = await prisma.application.groupBy({
+      by: ['jobPostingId', 'status'],
+      _count: { _all: true },
+    });
+    const map: Record<string, Record<string, number>> = {};
+    for (const row of rows) {
+      if (!map[row.jobPostingId]) map[row.jobPostingId] = {};
+      map[row.jobPostingId][row.status] = row._count._all;
+    }
+    return map;
+  },
+
   async getStats() {
     const now = new Date();
     const startOfWeek = new Date(now);

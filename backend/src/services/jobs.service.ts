@@ -96,6 +96,17 @@ export interface PipelineApplicationDto {
   score: number;
 }
 
+export interface JobPipelineStageCounts {
+  leads: number;
+  applicationReview: number;
+  active: number;
+  pendingOffer: number;
+  hired: number;
+  archived: number;
+}
+
+export type JobPipelineStatsDto = Record<string, JobPipelineStageCounts>;
+
 export interface JobStatsDto {
   openPositions: number;
   totalApplicants: number;
@@ -251,6 +262,22 @@ export const jobsService = {
         score:             computeMatchScore(app.id, app.candidate.skills.length, ratings),
       };
     });
+  },
+
+  async getPipelineStats(): Promise<JobPipelineStatsDto> {
+    const raw = await jobsRepository.getPipelineStats();
+    const result: JobPipelineStatsDto = {};
+    for (const [jobId, counts] of Object.entries(raw)) {
+      result[jobId] = {
+        leads:             counts['APPLIED']   ?? 0,
+        applicationReview: counts['SCREENING'] ?? 0,
+        active:            counts['INTERVIEW'] ?? 0,
+        pendingOffer:      counts['OFFER']     ?? 0,
+        hired:             counts['HIRED']     ?? 0,
+        archived:          counts['REJECTED']  ?? 0,
+      };
+    }
+    return result;
   },
 
   async getStats(): Promise<JobStatsDto> {

@@ -6,7 +6,8 @@ import { CreateJobSchema } from '../types/schemas';
 
 const router = Router();
 
-router.get('/stats',  authenticate, jobsController.getStats);
+router.get('/stats',          authenticate, jobsController.getStats);
+router.get('/pipeline-stats', authenticate, jobsController.getPipelineStats);
 router.get('/',       authenticate, jobsController.getJobs);
 router.post('/',      authenticate, validate(CreateJobSchema), jobsController.createJob);
 router.get('/:id',              authenticate, jobsController.getJob);

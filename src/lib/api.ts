@@ -210,6 +210,17 @@ export interface JobStatsDto {
   offersExtended: number;
 }
 
+export interface JobPipelineStageCounts {
+  leads: number;
+  applicationReview: number;
+  active: number;
+  pendingOffer: number;
+  hired: number;
+  archived: number;
+}
+
+export type JobPipelineStatsDto = Record<string, JobPipelineStageCounts>;
+
 export interface PipelineApplicationDto {
   id: string;
   candidateId: string;
@@ -260,6 +271,8 @@ export const jobsApi = {
     api.patch<{ job: JobDetailDto }>(`/jobs/${id}`, { status }),
   getJobApplications: (jobId: string) =>
     api.get<{ applications: PipelineApplicationDto[] }>(`/jobs/${jobId}/applications`),
+  getPipelineStats: () =>
+    api.get<{ stats: JobPipelineStatsDto }>('/jobs/pipeline-stats'),
 };
 
 // Candidates
