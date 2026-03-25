@@ -74,7 +74,6 @@ export default function CreateJobPostingPage() {
   const [form, setForm]                       = useState<FormState>(EMPTY);
   const [errors, setErrors]                   = useState<Partial<Record<keyof FormState, string>>>({});
   const [isSubmitting, setIsSubmitting]       = useState(false);
-  const [redirectToWorkflow, setRedirectToWorkflow] = useState(false);
   const [criteriaInput, setCriteriaInput]     = useState('');
   const [criteriaFocused, setCriteriaFocused] = useState(false);
 
@@ -128,7 +127,7 @@ export default function CreateJobPostingPage() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
-  async function handleSubmit(status: 'DRAFT' | 'OPEN') {
+  async function handleSubmit(status: 'DRAFT' | 'OPEN', goToWorkflow = false) {
     if (!validate()) return;
 
     const department = form.department === 'Other' ? form.customDepartment.trim() : form.department;
@@ -156,11 +155,7 @@ export default function CreateJobPostingPage() {
         salaryMax:    form.salaryMax ? Number(form.salaryMax) : undefined,
       });
       showToast(status === 'DRAFT' ? 'Job saved as draft' : 'Job posting published', 'success');
-      if (redirectToWorkflow) {
-        router.push(`/jobs/${result.job.id}/workflow`);
-      } else {
-        router.push(`/jobs/${result.job.id}`);
-      }
+      router.push(goToWorkflow ? `/jobs/${result.job.id}/workflow` : `/jobs/${result.job.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create job posting';
       showToast(msg, 'error');
@@ -436,10 +431,7 @@ export default function CreateJobPostingPage() {
               </p>
               <button
                 type="button"
-                onClick={() => {
-                  setRedirectToWorkflow(true);
-                  handleSubmit('DRAFT');
-                }}
+                onClick={() => handleSubmit('DRAFT', true)}
                 disabled={isSubmitting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
               >
