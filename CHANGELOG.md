@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.0] — 2026-03-25
+
+### 🚀 Features Built
+
+- **Scorecard Builder** — Full page at `/settings/scorecards` where recruiters can create, edit, duplicate, and delete interview scorecards. Each scorecard has a name, description, and a draggable list of criteria. Four criterion types are supported: star rating (1–5 stars), yes/no toggle, free-text notes, and multiple choice. A live preview panel on the right shows exactly what the interviewer will see.
+- **Scorecard Assignment in Workflow Builder** — Each stage in the job workflow builder now has a "Requires Scorecard" toggle. When turned on, a dropdown appears letting you choose which scorecard applies to that stage.
+- **Evaluation Modal** — A `ScorecardModal` component that shows all workflow stages requiring feedback, their submission status (Pending / In Progress / Submitted), and opens an evaluation form for any selected stage. The form includes an overall recommendation grid (Strong Yes / Yes / No / Strong No) and a free-text notes field.
+- **Feedback Button on Kanban Cards** — A message icon appears on candidate cards on hover in the job pipeline view. Clicking it opens the scorecard evaluation modal for that candidate.
+- **Feedback Tab in Candidate Panel** — The Feedback tab now shows all interview stages with scorecards, their evaluation status, and a Submit Feedback button per stage.
+- **Scorecards Link in Settings** — "Scorecards" now appears in the Settings page's left sidebar under a divider, accessible from `/settings`.
+
+### 🔌 Connected to Backend
+
+- Scorecard CRUD — create, read, update, delete all wired to Express API and Supabase via Prisma
+- Evaluation submission — saving draft evaluations and final submissions write to `candidate_evaluations` and `evaluation_responses` tables
+- Workflow stage `scorecardId` — persisted to `workflow_stages` table and loaded back with stage data
+- Candidate evaluations fetched per-candidate in both the Feedback tab and evaluation modal
+
+### 🐛 Bugs Fixed
+
+- **EvalForm empty IDs bug** — When creating a new evaluation, `candidateId` and `jobId` were passed as empty strings instead of real values. Fixed by passing them as explicit props from the parent modal.
+- **Scorecards nav not visible** — The Scorecards link was placed inside the main sidebar's fixed bottom section and clipped behind the user profile row. Moved into the Settings page's own nav where it is always visible.
+- **TypeScript `Set` iteration error** — `[...new Set(...)]` spread rejected at the TS compilation target. Fixed with `Array.from(new Set(...))`.
+- **CriterionType inference bug** — When mapping scorecard criteria from the API response, `type` was inferred as `string` instead of the `CriterionType` union. Fixed with an explicit cast.
+
+### 🏗️ Infrastructure & Config
+
+- **Prisma migration** `20260325222740_add_scorecards_and_evaluations` — adds four new tables: `scorecards`, `scorecard_criteria`, `candidate_evaluations`, `evaluation_responses`
+- **Named Prisma relations** — `"StageScorecard"`, `"ScorecardCreatedBy"`, `"EvaluationSubmittedBy"` used to prevent ambiguous-relation errors
+- New backend routes: `GET/POST /api/scorecards`, `GET/PATCH/DELETE /api/scorecards/:id`, `GET /api/evaluations/candidate/:candidateId`, `POST /api/evaluations`, `PATCH /api/evaluations/:id`
+
+### 📁 Files Created or Modified
+
+| File | What Changed |
+|------|-------------|
+| `backend/prisma/schema.prisma` | Added Scorecard, ScorecardCriterion, CandidateEvaluation, EvaluationResponse models; updated User, WorkflowStage, Candidate, JobPosting with new relations |
+| `backend/prisma/migrations/20260325222740_.../migration.sql` | New migration — four new tables |
+| `backend/src/repositories/scorecards.repository.ts` | New — Prisma queries for scorecard CRUD |
+| `backend/src/services/scorecards.service.ts` | New — business logic and DTOs for scorecards |
+| `backend/src/controllers/scorecards.controller.ts` | New — HTTP handlers for scorecard endpoints |
+| `backend/src/routes/scorecards.routes.ts` | New — route definitions for /api/scorecards |
+| `backend/src/repositories/evaluations.repository.ts` | New — Prisma queries for evaluation CRUD |
+| `backend/src/services/evaluations.service.ts` | New — business logic and DTOs for evaluations |
+| `backend/src/controllers/evaluations.controller.ts` | New — HTTP handlers for evaluation endpoints |
+| `backend/src/routes/evaluations.routes.ts` | New — route definitions for /api/evaluations |
+| `backend/src/repositories/workflows.repository.ts` | Updated to include `scorecardId` and scorecard name in stage queries |
+| `backend/src/services/workflows.service.ts` | Extended `WorkflowStageDto` with `scorecardId` and `scorecardName` |
+| `backend/src/routes/index.ts` | Registered scorecards and evaluations route modules |
+| `src/lib/api.ts` | Added `ScorecardDto`, `EvaluationDto` types and `scorecardsApi`, `evaluationsApi` client functions; extended `WorkflowStageDto` |
+| `src/app/(dashboard)/settings/scorecards/page.tsx` | New — full scorecard builder page with draggable criteria and live preview |
+| `src/app/(dashboard)/settings/page.tsx` | Added Scorecards link to left nav with `ClipboardList` icon |
+| `src/app/(dashboard)/jobs/[id]/workflow/page.tsx` | Added requiresScorecard toggle and scorecard dropdown per stage |
+| `src/app/(dashboard)/jobs/[id]/page.tsx` | Added feedback button to kanban cards; wired ScorecardModal; passed `jobId` to CandidatePanel |
+| `src/components/CandidatePanel.tsx` | Added `jobId` prop, evaluation state, Interview Scorecards section in Feedback tab |
+| `src/components/ScorecardModal.tsx` | New — two-view modal for stage list and evaluation form submission |
+| `src/components/layout/Sidebar.tsx` | Removed broken Scorecards sub-nav from bottom section; cleaned up Settings highlight logic |
+
+### ⚠️ Known Issues & Incomplete Work
+
+- Candidate Panel Feedback tab only loads evaluations when `jobId` is provided — does not load from the global Candidates page (no `jobId` available in that context)
+- Interviews page is UI-only — not connected to backend
+- Offers page is UI-only — not connected to backend
+- Talent Insights analytics uses static/mock data — not querying real database aggregations
+- People Search and AI Sourcing Agent pages are placeholder stubs
+- Onboarding tasks UI exists but tasks are not persisted to a database table
+- No email or in-app notifications when evaluations are submitted
+
+### 🔜 Next Session Priority List
+
+1. Connect the Interviews page to the backend — scheduled interviews linked to candidates and workflow stages, with the ability to add/edit interview slots
+2. Connect the Offers page — create, send, and track offers for candidates moving to Pending Offer stage
+3. Fix Candidate Panel Feedback tab to work from the global Candidates page (needs job resolution from the candidate's active application)
+4. Wire Talent Insights to real database aggregations — hire rate, time-to-hire, pipeline velocity, source breakdown
+5. Add in-app notifications when an evaluation is submitted, so hiring managers are alerted
+
+---
+
 ## [1.3.0] — 2026-03-25
 
 ### 🚀 New Features

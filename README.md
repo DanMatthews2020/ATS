@@ -66,6 +66,7 @@ A full-stack Applicant Tracking System built with Next.js 14 and Node.js/Express
 | `/performance/employees/[id]` | UI only | Employee performance detail |
 | `/reports` | UI only | 20 pre-built report library |
 | `/settings` | UI only | Account and team settings |
+| `/settings/scorecards` | Live · Supabase | Scorecard builder — create, edit, duplicate, delete interview scorecards with draggable criteria |
 | `/sourcing` | UI only | Sourcing hub landing page |
 | `/sourcing/people` | Mock data | People search interface |
 | `/sourcing/ai-agent` | Mock data | AI sourcing agent control panel |
@@ -233,6 +234,22 @@ All routes are prefixed with `/api` and require authentication (JWT cookie) unle
 | PATCH | `/:id/stage` | Update application stage (Zod validates DB enum) |
 | PATCH | `/:id/notes` | Update internal notes on an application |
 
+### Scorecards — `/api/scorecards`
+| Method | Path | Description |
+|---|---|---|
+| GET | `/` | List all scorecards with criteria and usage count |
+| POST | `/` | Create scorecard with nested criteria |
+| GET | `/:id` | Get single scorecard with full criteria |
+| PATCH | `/:id` | Update scorecard name, description, and criteria |
+| DELETE | `/:id` | Delete scorecard |
+
+### Evaluations — `/api/evaluations`
+| Method | Path | Description |
+|---|---|---|
+| GET | `/candidate/:candidateId` | All evaluations for a candidate |
+| POST | `/` | Create evaluation with criterion responses |
+| PATCH | `/:id` | Update evaluation status or responses |
+
 ### Health
 | Method | Path | Auth | Description |
 |---|---|---|---|
@@ -248,7 +265,7 @@ All routes are prefixed with `/api` and require authentication (JWT cookie) unle
 - **Migrations:** `backend/prisma/migrations/`
 
 ### Models
-`User` · `JobPosting` · `Candidate` · `Application` · `Interview` · `Offer` · `Employee` · `OnboardingTask`
+`User` · `JobPosting` · `Candidate` · `Application` · `Interview` · `Offer` · `Employee` · `OnboardingTask` · `WorkflowStage` · `Scorecard` · `ScorecardCriterion` · `CandidateEvaluation` · `EvaluationResponse`
 
 ### Run migrations against production:
 ```bash
@@ -287,11 +304,14 @@ ATS/
 │   │       ├── reports/          # Report library
 │   │       ├── onboarding/       # Onboarding task manager
 │   │       └── settings/         # Account + team settings
+│   │           └── scorecards/   # Scorecard builder (fully connected)
 │   ├── components/
 │   │   ├── ui/                   # Button, Card, Badge, Input, Avatar
 │   │   ├── layout/               # Sidebar navigation
 │   │   ├── dashboard/            # JobListingCard, CandidateCard
-│   │   └── pipeline/             # PipelineCandidateCard
+│   │   ├── pipeline/             # PipelineCandidateCard
+│   │   ├── CandidatePanel.tsx    # Candidate side panel with tabs (incl. Feedback)
+│   │   └── ScorecardModal.tsx    # Evaluation modal (stage list + evaluation form)
 │   ├── contexts/
 │   │   ├── AuthContext.tsx       # Global auth state (login, logout, user)
 │   │   └── ToastContext.tsx      # Global toast notifications
@@ -330,11 +350,14 @@ ATS/
 - Dashboard KPI stats
 - Jobs: list, create, view detail, close role
 - Candidates: list, search, add, view profile, move stage, save notes
-- Pipeline: kanban board, drag-and-drop stage moves, candidate side panel
+- Pipeline: kanban board, drag-and-drop stage moves, candidate side panel with feedback tab
+- Workflow Builder: per-job interview stage configuration with scorecard assignment
+- Scorecards: full CRUD builder at `/settings/scorecards` with draggable criteria
+- Evaluations: interviewers can submit structured feedback against candidates per stage; draft and final submission supported
 
 ### UI built but not yet connected to Supabase
 - Interviews, Offers, Employees, Inbox (all backed by in-memory stores that reset on deploy)
-- Onboarding, Performance, Reports, Settings, Talent Insights (static UI, no real data)
+- Onboarding, Performance, Reports, Talent Insights (static UI, no real data)
 - Sourcing pages (mock data, no external integration)
 
 ### Not yet built
@@ -342,6 +365,7 @@ ATS/
 - Schedule interview from candidate profile
 - Send offer from job detail
 - Notifications persistence (unread count resets on deploy)
+- Email/in-app notifications when evaluations are submitted
 
 ---
 
