@@ -190,7 +190,7 @@ export default function DashboardPage() {
             Job Listings
           </h2>
           <a
-            href="/job-postings"
+            href="/jobs"
             className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors duration-100 outline-none focus-visible:underline"
           >
             View all →

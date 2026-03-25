@@ -155,7 +155,7 @@ export default function CreateJobPostingPage() {
         salaryMax:    form.salaryMax ? Number(form.salaryMax) : undefined,
       });
       showToast(status === 'DRAFT' ? 'Job saved as draft' : 'Job posting published', 'success');
-      router.push(`/job-postings/${result.job.id}`);
+      router.push(`/jobs/${result.job.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create job posting';
       showToast(msg, 'error');
@@ -173,7 +173,7 @@ export default function CreateJobPostingPage() {
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-6"
       >
-        <ArrowLeft size={14} /> Back to Job Postings
+        <ArrowLeft size={14} /> Back to Jobs
       </button>
 
       <header className="mb-6">

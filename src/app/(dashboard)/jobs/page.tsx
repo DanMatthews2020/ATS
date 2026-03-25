@@ -43,7 +43,7 @@ function formatDate(dateStr: string) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function JobPostingsPage() {
+export default function JobsPage() {
   const router = useRouter();
   const [jobs, setJobs]           = useState<JobListingDto[]>([]);
   const [stats, setStats]         = useState<JobStatsDto | null>(null);
@@ -62,7 +62,7 @@ export default function JobPostingsPage() {
       setJobs(jobsResult.items);
       setStats(statsResult);
     } catch {
-      setError('Failed to load job postings.');
+      setError('Failed to load jobs.');
     } finally {
       setIsLoading(false);
     }
@@ -88,14 +88,14 @@ export default function JobPostingsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text-primary)] leading-tight">
-              Job Postings
+              Jobs
             </h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
               Manage and publish open positions
             </p>
           </div>
         </div>
-        <Link href="/job-postings/create">
+        <Link href="/jobs/create">
           <Button variant="primary" size="md">
             <Plus size={15} />
             Create Job Posting
@@ -204,7 +204,7 @@ export default function JobPostingsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-                          <Button variant="secondary" size="sm" onClick={() => router.push(`/job-postings/${job.id}`)}>
+                          <Button variant="secondary" size="sm" onClick={() => router.push(`/jobs/${job.id}`)}>
                             View <ChevronRight size={12} />
                           </Button>
                         </div>
@@ -221,7 +221,7 @@ export default function JobPostingsPage() {
               </div>
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">No job postings found</p>
               <p className="text-sm text-[var(--color-text-muted)] mt-1 mb-4">Create your first posting to get started</p>
-              <Link href="/job-postings/create">
+              <Link href="/jobs/create">
                 <Button variant="primary" size="sm"><Plus size={13} />Create Job Posting</Button>
               </Link>
             </div>
@@ -255,7 +255,7 @@ export default function JobPostingsPage() {
 
           <Card padding="md">
             <div className="pt-2">
-              <Link href="/job-postings/create">
+              <Link href="/jobs/create">
                 <Button variant="primary" size="sm" className="w-full justify-center">
                   <Plus size={13} />Create Job Posting
                 </Button>

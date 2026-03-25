@@ -147,9 +147,9 @@ export interface SelectOption {
   label: string;
 }
 
-// ─── Job Postings ─────────────────────────────────────────────────────────────
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
 
-export interface JobPostingFormData {
+export interface JobFormData {
   title: string;
   description: string;
   criteria: string;

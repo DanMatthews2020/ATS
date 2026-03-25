@@ -9,7 +9,8 @@
       "Bash(npx tsc:*)",
       "Bash(ls -la /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/)",
       "Bash(mkdir -p /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/cycles/\\\\[id\\\\]\nmkdir -p /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/employees/\\\\[id\\\\])",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(mv \"/Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\(dashboard\\)/job-postings\" \"/Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\(dashboard\\)/jobs\" && echo \"Done\" && ls \"/Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\(dashboard\\)/jobs/\")"
     ]
   }
 }

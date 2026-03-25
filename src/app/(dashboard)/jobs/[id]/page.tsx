@@ -279,7 +279,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-6"
         >
-          <ArrowLeft size={14} /> Back to Job Postings
+          <ArrowLeft size={14} /> Back to Jobs
         </button>
         <p className="text-sm text-red-600">{error || 'Job posting not found.'}</p>
       </div>
@@ -303,7 +303,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-6"
       >
-        <ArrowLeft size={14} /> Back to Job Postings
+        <ArrowLeft size={14} /> Back to Jobs
       </button>
 
       {/* Header */}

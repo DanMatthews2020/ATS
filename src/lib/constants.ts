@@ -50,8 +50,8 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'FileCheck',
   },
   {
-    label: 'Job Postings',
-    href: '/job-postings',
+    label: 'Jobs',
+    href: '/jobs',
     icon: 'Briefcase',
   },
   {
@@ -482,7 +482,7 @@ export const LOGIN_FEATURES: string[] = [
   'Collaborative hiring workflows',
 ];
 
-// ─── Job Postings — Applications Status ──────────────────────────────────────
+// ─── Jobs — Applications Status ──────────────────────────────────────────────
 
 export const MOCK_APPLICATION_STATUSES: ApplicationStatusEntry[] = [
   {
