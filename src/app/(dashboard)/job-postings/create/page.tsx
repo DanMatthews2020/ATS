@@ -74,7 +74,8 @@ export default function CreateJobPostingPage() {
   const [form, setForm]                   = useState<FormState>(EMPTY);
   const [errors, setErrors]               = useState<Partial<Record<keyof FormState, string>>>({});
   const [isSubmitting, setIsSubmitting]   = useState(false);
-  const [criteriaInput, setCriteriaInput] = useState('');
+  const [criteriaInput, setCriteriaInput]   = useState('');
+  const [criteriaFocused, setCriteriaFocused] = useState(false);
 
   function update<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -353,7 +354,7 @@ export default function CreateJobPostingPage() {
           <p className="text-xs text-[var(--color-text-muted)] mb-4">Tags used to screen applicants. Press Enter or comma to add.</p>
 
           <div className={`min-h-[42px] flex flex-wrap gap-2 items-center px-3 py-2 rounded-xl border transition-shadow bg-white ${
-            document?.activeElement?.id === 'criteria-input'
+            criteriaFocused
               ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/30'
               : 'border-[var(--color-border)]'
           }`}>
@@ -372,7 +373,8 @@ export default function CreateJobPostingPage() {
               value={criteriaInput}
               onChange={(e) => setCriteriaInput(e.target.value)}
               onKeyDown={onCriteriaKeyDown}
-              onBlur={addCriteria}
+              onFocus={() => setCriteriaFocused(true)}
+              onBlur={() => { setCriteriaFocused(false); addCriteria(); }}
               className="flex-1 min-w-[160px] text-sm bg-transparent text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none"
             />
           </div>

@@ -470,6 +470,7 @@ export interface CustomReportDefDto {
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
 async function downloadBlob(endpoint: string, filename: string): Promise<void> {
+  if (typeof window === 'undefined') throw new Error('downloadBlob must be called in a browser context');
   const res = await fetch(`${BASE}${endpoint}`, { credentials: 'include' });
   if (!res.ok) throw new Error('Download failed');
   const blob = await res.blob();
@@ -808,6 +809,7 @@ export const employeesApi = {
   update: (id: string, data: Partial<EmployeeDto>) =>
     api.patch<{ employee: EmployeeDto }>(`/employees/${id}`, data),
   exportCsv: async () => {
+    if (typeof window === 'undefined') throw new Error('exportCsv must be called in a browser context');
     const res = await fetch(`${BASE_URL_DIRECT}/employees/export`, { credentials: 'include' });
     if (!res.ok) throw new Error('Export failed');
     const blob = await res.blob();
