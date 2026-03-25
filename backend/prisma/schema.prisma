@@ -108,11 +108,12 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdJobs      JobPosting[]        @relation("CreatedBy")
-  interviewSlots   InterviewsOnUsers[]
-  assignedTasks    OnboardingTask[]    @relation("AssignedTo")
-  employee         Employee?           @relation("UserEmployee")
-  refreshTokens    RefreshToken[]
+  createdJobs       JobPosting[]        @relation("CreatedBy")
+  interviewSlots    InterviewsOnUsers[]
+  assignedTasks     OnboardingTask[]    @relation("AssignedTo")
+  employee          Employee?           @relation("UserEmployee")
+  refreshTokens     RefreshToken[]
+  workflowTemplates WorkflowTemplate[]  @relation("WorkflowCreatedBy")
 }
 
 model RefreshToken {
@@ -142,7 +143,8 @@ model JobPosting {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  applications Application[]
+  applications     Application[]
+  workflowTemplate WorkflowTemplate?
 }
 
 model Candidate {
@@ -282,4 +284,30 @@ model CandidateNote {
   authorName    String       @default("Recruiter")
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+}
+
+model WorkflowTemplate {
+  id          String          @id @default(uuid())
+  jobId       String          @unique
+  jobPosting  JobPosting      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  name        String          @default("Interview Workflow")
+  createdById String
+  createdBy   User            @relation("WorkflowCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  stages WorkflowStage[]
+}
+
+model WorkflowStage {
+  id                String           @id @default(uuid())
+  workflowId        String
+  workflow          WorkflowTemplate @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stageName         String
+  stageType         String           // phone-screen | video-call | on-site | take-home | offer | hired
+  description       String?
+  position          Int
+  requiresScorecard Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 }

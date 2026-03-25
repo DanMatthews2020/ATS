@@ -1033,6 +1033,46 @@ export interface CandidateFeedbackDto {
   jobTitle?: string;
 }
 
+// ── Workflows ─────────────────────────────────────────────────────────────────
+
+export interface WorkflowStageDto {
+  id: string;
+  stageName: string;
+  stageType: string;
+  description: string | null;
+  position: number;
+  requiresScorecard: boolean;
+}
+
+export interface WorkflowTemplateDto {
+  id: string;
+  jobId: string;
+  name: string;
+  stages: WorkflowStageDto[];
+  createdAt: string;
+}
+
+export const workflowsApi = {
+  getByJobId: (jobId: string) =>
+    api.get<WorkflowTemplateDto>(`/workflows/job/${jobId}`),
+  create: (data: {
+    jobId: string;
+    name?: string;
+    stages?: Array<{ stageName: string; stageType: string; description?: string; requiresScorecard?: boolean }>;
+  }) =>
+    api.post<WorkflowTemplateDto>('/workflows', data),
+  update: (id: string, data: { name?: string }) =>
+    api.patch<WorkflowTemplateDto>(`/workflows/${id}`, data),
+  addStage: (id: string, data: { stageName: string; stageType: string; description?: string; requiresScorecard?: boolean }) =>
+    api.post<WorkflowStageDto>(`/workflows/${id}/stages`, data),
+  updateStage: (id: string, stageId: string, data: Partial<{ stageName: string; stageType: string; description: string; requiresScorecard: boolean }>) =>
+    api.patch<WorkflowStageDto>(`/workflows/${id}/stages/${stageId}`, data),
+  deleteStage: (id: string, stageId: string) =>
+    api.delete<void>(`/workflows/${id}/stages/${stageId}`),
+  reorderStages: (id: string, stageIds: string[]) =>
+    api.patch<WorkflowTemplateDto>(`/workflows/${id}/stages/reorder`, { stageIds }),
+};
+
 export const candidatePanelApi = {
   getFeed:     (id: string) => api.get<{ feed: FeedEventDto[] }>(`/candidates/${id}/feed`),
   getNotes:    (id: string) => api.get<{ notes: CandidateNoteDto[] }>(`/candidates/${id}/notes`),

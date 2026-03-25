@@ -14,6 +14,7 @@ import interviewsRoutes from './interviews.routes';
 import offersRoutes from './offers.routes';
 import employeesRoutes from './employees.routes';
 import notificationsRoutes from './notifications.routes';
+import workflowsRoutes from './workflows.routes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/interviews',    interviewsRoutes);
 router.use('/offers',        offersRoutes);
 router.use('/employees',     employeesRoutes);
 router.use('/notifications', notificationsRoutes);
+router.use('/workflows',    workflowsRoutes);
 
 export default router;

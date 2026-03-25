@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, X, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Loader2, GitBranch, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -71,10 +71,11 @@ export default function CreateJobPostingPage() {
   const router = useRouter();
   const { showToast } = useToast();
 
-  const [form, setForm]                   = useState<FormState>(EMPTY);
-  const [errors, setErrors]               = useState<Partial<Record<keyof FormState, string>>>({});
-  const [isSubmitting, setIsSubmitting]   = useState(false);
-  const [criteriaInput, setCriteriaInput]   = useState('');
+  const [form, setForm]                       = useState<FormState>(EMPTY);
+  const [errors, setErrors]                   = useState<Partial<Record<keyof FormState, string>>>({});
+  const [isSubmitting, setIsSubmitting]       = useState(false);
+  const [redirectToWorkflow, setRedirectToWorkflow] = useState(false);
+  const [criteriaInput, setCriteriaInput]     = useState('');
   const [criteriaFocused, setCriteriaFocused] = useState(false);
 
   function update<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -155,7 +156,11 @@ export default function CreateJobPostingPage() {
         salaryMax:    form.salaryMax ? Number(form.salaryMax) : undefined,
       });
       showToast(status === 'DRAFT' ? 'Job saved as draft' : 'Job posting published', 'success');
-      router.push(`/jobs/${result.job.id}`);
+      if (redirectToWorkflow) {
+        router.push(`/jobs/${result.job.id}/workflow`);
+      } else {
+        router.push(`/jobs/${result.job.id}`);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create job posting';
       showToast(msg, 'error');
@@ -415,6 +420,37 @@ export default function CreateJobPostingPage() {
           <p className="mt-3 text-xs text-[var(--color-text-muted)]">
             Job board integrations coming soon — selections are saved for when they go live.
           </p>
+        </Card>
+
+        {/* ── Interview Workflow ───────────────────────────────────────── */}
+        <Card padding="lg">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0">
+              <GitBranch size={18} className="text-[var(--color-primary)]" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Interview Workflow</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 mb-3">
+                Define the stages candidates move through — phone screens, technical rounds, on-sites, and offers.
+                Start from a template or build your own.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setRedirectToWorkflow(true);
+                  handleSubmit('DRAFT');
+                }}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+              >
+                Configure Interview Workflow
+                <ChevronRight size={14} />
+              </button>
+              <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                This will save the job as a draft and open the workflow builder.
+              </p>
+            </div>
+          </div>
         </Card>
 
         {/* ── Actions ──────────────────────────────────────────────────── */}
