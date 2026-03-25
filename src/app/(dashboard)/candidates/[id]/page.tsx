@@ -28,6 +28,16 @@ const STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = 
 
 const STAGE_ORDER = ['new', 'screening', 'interview', 'offer', 'hired', 'rejected'];
 
+// Maps frontend display status → backend DB enum value
+const STATUS_TO_DB: Record<string, string> = {
+  new:       'APPLIED',
+  screening: 'SCREENING',
+  interview: 'INTERVIEW',
+  offer:     'OFFER',
+  hired:     'HIRED',
+  rejected:  'REJECTED',
+};
+
 const OFFER_STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   draft:    { label: 'Draft',    variant: 'default' },
   sent:     { label: 'Sent',     variant: 'info' },
@@ -89,7 +99,7 @@ function MoveStageModal({ appId, currentStatus, jobTitle, onClose, onMoved }: Mo
     if (selected === currentStatus) { onClose(); return; }
     setSaving(true);
     try {
-      await applicationsApi.updateStage(appId, selected);
+      await applicationsApi.updateStage(appId, STATUS_TO_DB[selected] ?? selected.toUpperCase());
       onMoved(appId, selected);
       showToast('Stage updated successfully', 'success');
       onClose();

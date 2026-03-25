@@ -363,7 +363,11 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
     const newErrors: Partial<ManualForm> = {};
     if (!form.firstName.trim()) newErrors.firstName = 'Required';
     if (!form.lastName.trim())  newErrors.lastName  = 'Required';
-    if (!form.email.trim())     newErrors.email     = 'Required';
+    if (!form.email.trim()) {
+      newErrors.email = 'Required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      newErrors.email = 'Enter a valid email address';
+    }
     if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
 
     setIsSubmitting(true);
