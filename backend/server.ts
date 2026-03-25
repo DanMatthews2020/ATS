@@ -16,6 +16,7 @@ import cookieParser from 'cookie-parser';
 import routes from './src/routes';
 import { errorHandler, notFound } from './src/middleware/error.middleware';
 import { env } from './src/utils/env';
+import { prisma } from './src/lib/prisma';
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use(
   cors({
     origin: env.FRONTEND_URL,
     credentials: true, // Required for cross-origin cookies
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   }),
 );
 app.use(express.json());
@@ -31,8 +33,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // ── Health check ────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'connected', timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: 'error', database: 'disconnected', timestamp: new Date().toISOString() });
+  }
 });
 
 // ── API routes ──────────────────────────────────────────────────────────────
