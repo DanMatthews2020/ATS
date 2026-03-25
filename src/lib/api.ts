@@ -273,6 +273,10 @@ export const jobsApi = {
     api.get<{ applications: PipelineApplicationDto[] }>(`/jobs/${jobId}/applications`),
   getPipelineStats: () =>
     api.get<{ stats: JobPipelineStatsDto }>('/jobs/pipeline-stats'),
+  getJobPipelineStats: (id: string) =>
+    api.get<{ stats: JobPipelineStageCounts }>(`/jobs/${id}/pipeline-stats`),
+  getJobCandidates: (jobId: string, stage: string) =>
+    api.get<{ candidates: PipelineApplicationDto[] }>(`/jobs/${jobId}/candidates?stage=${encodeURIComponent(stage)}`),
 };
 
 // Candidates

@@ -10,8 +10,10 @@ router.get('/stats',          authenticate, jobsController.getStats);
 router.get('/pipeline-stats', authenticate, jobsController.getPipelineStats);
 router.get('/',       authenticate, jobsController.getJobs);
 router.post('/',      authenticate, validate(CreateJobSchema), jobsController.createJob);
-router.get('/:id',              authenticate, jobsController.getJob);
-router.get('/:id/applications', authenticate, jobsController.getJobApplications);
-router.patch('/:id',            authenticate, jobsController.updateJob);
+router.get('/:id',                   authenticate, jobsController.getJob);
+router.get('/:id/applications',      authenticate, jobsController.getJobApplications);
+router.get('/:id/candidates',        authenticate, jobsController.getJobCandidates);
+router.get('/:id/pipeline-stats',    authenticate, jobsController.getJobPipelineStats);
+router.patch('/:id',                 authenticate, jobsController.updateJob);
 
 export default router;

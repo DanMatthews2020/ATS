@@ -125,6 +125,31 @@ function computeMatchScore(appId: string, skillCount: number, ratings: (number |
   return Math.min(98, base + skillBonus + ratingBonus);
 }
 
+type AppRow = Awaited<ReturnType<typeof jobsRepository.findApplicationsByJobId>>[number];
+
+function toApplicationDto(app: AppRow): PipelineApplicationDto {
+  const ratings = app.interviews.map((iv) => iv.rating);
+  return {
+    id:                app.id,
+    candidateId:       app.candidate.id,
+    candidateName:     `${app.candidate.firstName} ${app.candidate.lastName}`,
+    candidateEmail:    app.candidate.email,
+    candidatePhone:    app.candidate.phone ?? null,
+    candidateLocation: app.candidate.location ?? null,
+    cvUrl:             app.candidate.cvUrl ?? null,
+    status:            mapApplicationStatus(app.status),
+    stage:             app.stage,
+    notes:             app.notes ?? null,
+    appliedAt:         app.appliedAt.toISOString(),
+    lastUpdated:       app.updatedAt.toISOString(),
+    skills:            app.candidate.skills,
+    interviewCount:    app._count.interviews,
+    interviewRatings:  ratings,
+    offerStatus:       app.offer ? mapApplicationStatus(app.offer.status) : null,
+    score:             computeMatchScore(app.id, app.candidate.skills.length, ratings),
+  };
+}
+
 export const jobsService = {
   async getJobs(page: number, limit: number): Promise<PaginatedResponse<JobListingDto>> {
     const skip = (page - 1) * limit;
@@ -240,28 +265,33 @@ export const jobsService = {
 
   async getJobApplications(jobId: string): Promise<PipelineApplicationDto[]> {
     const apps = await jobsRepository.findApplicationsByJobId(jobId);
-    return apps.map((app) => {
-      const ratings = app.interviews.map((iv) => iv.rating);
-      return {
-        id:                app.id,
-        candidateId:       app.candidate.id,
-        candidateName:     `${app.candidate.firstName} ${app.candidate.lastName}`,
-        candidateEmail:    app.candidate.email,
-        candidatePhone:    app.candidate.phone ?? null,
-        candidateLocation: app.candidate.location ?? null,
-        cvUrl:             app.candidate.cvUrl ?? null,
-        status:            mapApplicationStatus(app.status),
-        stage:             app.stage,
-        notes:             app.notes ?? null,
-        appliedAt:         app.appliedAt.toISOString(),
-        lastUpdated:       app.updatedAt.toISOString(),
-        skills:            app.candidate.skills,
-        interviewCount:    app._count.interviews,
-        interviewRatings:  ratings,
-        offerStatus:       app.offer ? mapApplicationStatus(app.offer.status) : null,
-        score:             computeMatchScore(app.id, app.candidate.skills.length, ratings),
-      };
-    });
+    return apps.map(toApplicationDto);
+  },
+
+  async getJobCandidates(jobId: string, stage?: string): Promise<PipelineApplicationDto[]> {
+    const STAGE_TO_STATUS: Record<string, string> = {
+      'leads':               'APPLIED',
+      'application-review':  'SCREENING',
+      'active':              'INTERVIEW',
+      'pending-offer':       'OFFER',
+      'hired':               'HIRED',
+      'archived':            'REJECTED',
+    };
+    const dbStatus = stage ? STAGE_TO_STATUS[stage] : undefined;
+    const apps = await jobsRepository.findApplicationsByJobId(jobId, dbStatus);
+    return apps.map(toApplicationDto);
+  },
+
+  async getJobPipelineStats(jobId: string): Promise<JobPipelineStageCounts> {
+    const raw = await jobsRepository.getPipelineStatsByJobId(jobId);
+    return {
+      leads:             raw['APPLIED']   ?? 0,
+      applicationReview: raw['SCREENING'] ?? 0,
+      active:            raw['INTERVIEW'] ?? 0,
+      pendingOffer:      raw['OFFER']     ?? 0,
+      hired:             raw['HIRED']     ?? 0,
+      archived:          raw['REJECTED']  ?? 0,
+    };
   },
 
   async getPipelineStats(): Promise<JobPipelineStatsDto> {

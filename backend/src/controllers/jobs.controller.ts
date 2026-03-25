@@ -69,6 +69,25 @@ export const jobsController = {
     }
   },
 
+  async getJobCandidates(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { stage } = req.query as { stage?: string };
+      const candidates = await jobsService.getJobCandidates(req.params.id, stage);
+      sendSuccess(res, { candidates });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch candidates');
+    }
+  },
+
+  async getJobPipelineStats(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const stats = await jobsService.getJobPipelineStats(req.params.id);
+      sendSuccess(res, { stats });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch pipeline stats');
+    }
+  },
+
   async updateJob(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { status } = req.body as { status?: string };

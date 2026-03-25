@@ -55,9 +55,25 @@ export const jobsRepository = {
     return prisma.jobPosting.update({ where: { id }, data });
   },
 
-  async findApplicationsByJobId(jobId: string) {
-    return prisma.application.findMany({
+  async getPipelineStatsByJobId(jobId: string) {
+    const rows = await prisma.application.groupBy({
+      by: ['status'],
       where: { jobPostingId: jobId },
+      _count: { _all: true },
+    });
+    const map: Record<string, number> = {};
+    for (const row of rows) {
+      map[row.status] = row._count._all;
+    }
+    return map;
+  },
+
+  async findApplicationsByJobId(jobId: string, status?: string) {
+    return prisma.application.findMany({
+      where: {
+        jobPostingId: jobId,
+        ...(status ? { status: status as import('@prisma/client').ApplicationStatus } : {}),
+      },
       orderBy: { appliedAt: 'desc' },
       select: {
         id: true,
