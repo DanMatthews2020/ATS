@@ -42,6 +42,37 @@ function mapInterviewStatus(status: string): string {
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
+export interface CandidateNoteDto {
+  id: string;
+  content: string;
+  authorName: string;
+  applicationId: string | null;
+  jobTitle: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedEventDto {
+  id: string;
+  type: 'applied' | 'stage_changed' | 'interview_scheduled' | 'interview_completed' | 'offer_sent' | 'offer_accepted' | 'offer_rejected' | 'note_added';
+  description: string;
+  actor: string;
+  timestamp: string;
+  jobTitle?: string;
+  meta?: Record<string, string | number | null>;
+}
+
+export interface FeedbackDto {
+  id: string;
+  interviewType: string;
+  scheduledAt: string;
+  status: string;
+  rating: number | null;
+  recommendation: string | null;
+  feedback: string | null;
+  jobTitle?: string;
+}
+
 export interface CandidateListDto {
   id: string;
   name: string;
@@ -67,6 +98,7 @@ export interface CandidateDetailDto {
   location?: string;
   source: string;
   skills: string[];
+  tags: string[];
   createdAt: string;
   applications: {
     id: string;
@@ -164,6 +196,7 @@ export const candidatesService = {
       location: c.location ?? undefined,
       source: mapSource(c.source),
       skills: c.skills,
+      tags: c.tags,
       createdAt: c.createdAt.toISOString(),
       applications: c.applications.map((app) => ({
         id: app.id,
@@ -232,9 +265,115 @@ export const candidatesService = {
       location: c.location ?? undefined,
       source: mapSource(c.source),
       skills: c.skills,
+      tags: c.tags,
       createdAt: c.createdAt.toISOString(),
       applications: [],
     };
+  },
+
+  // Notes CRUD
+  async getNotes(candidateId: string): Promise<CandidateNoteDto[]> {
+    const notes = await candidatesRepository.findNotes(candidateId);
+    return notes.map((n) => ({
+      id: n.id,
+      content: n.content,
+      authorName: n.authorName,
+      applicationId: n.applicationId ?? null,
+      jobTitle: n.application?.jobPosting?.title ?? null,
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+    }));
+  },
+
+  async createNote(candidateId: string, data: { applicationId?: string; content: string; authorName: string }): Promise<CandidateNoteDto> {
+    const n = await candidatesRepository.createNote({ candidateId, ...data });
+    return {
+      id: n.id,
+      content: n.content,
+      authorName: n.authorName,
+      applicationId: n.applicationId ?? null,
+      jobTitle: n.application?.jobPosting?.title ?? null,
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+    };
+  },
+
+  async updateNote(noteId: string, content: string): Promise<CandidateNoteDto | null> {
+    try {
+      const n = await candidatesRepository.updateNote(noteId, content);
+      return {
+        id: n.id,
+        content: n.content,
+        authorName: n.authorName,
+        applicationId: n.applicationId ?? null,
+        jobTitle: n.application?.jobPosting?.title ?? null,
+        createdAt: n.createdAt.toISOString(),
+        updatedAt: n.updatedAt.toISOString(),
+      };
+    } catch { return null; }
+  },
+
+  async deleteNote(noteId: string): Promise<boolean> {
+    try { await candidatesRepository.deleteNote(noteId); return true; } catch { return false; }
+  },
+
+  async updateTags(candidateId: string, tags: string[]): Promise<string[]> {
+    const c = await candidatesRepository.updateTags(candidateId, tags);
+    return c.tags;
+  },
+
+  async getFeed(candidateId: string): Promise<FeedEventDto[]> {
+    const data = await candidatesRepository.findFeedData(candidateId);
+    if (!data) return [];
+
+    const events: FeedEventDto[] = [];
+    let counter = 0;
+
+    for (const app of data.applications) {
+      const jobTitle = app.jobPosting.title;
+      events.push({ id: `evt-${counter++}`, type: 'applied', description: `Applied to ${jobTitle}`, actor: 'Candidate', timestamp: app.appliedAt.toISOString(), jobTitle });
+      events.push({ id: `evt-${counter++}`, type: 'stage_changed', description: `Moved to ${app.status.charAt(0) + app.status.slice(1).toLowerCase()} for ${jobTitle}`, actor: 'Recruiter', timestamp: app.updatedAt.toISOString(), jobTitle });
+      for (const iv of app.interviews) {
+        events.push({ id: `evt-${counter++}`, type: 'interview_scheduled', description: `${iv.type} interview scheduled for ${jobTitle}`, actor: 'Recruiter', timestamp: iv.createdAt.toISOString(), jobTitle, meta: { interviewId: iv.id, type: iv.type } });
+        if (iv.status === 'COMPLETED') {
+          events.push({ id: `evt-${counter++}`, type: 'interview_completed', description: `${iv.type} interview completed for ${jobTitle}${iv.rating ? ` — rated ${iv.rating}/5` : ''}`, actor: 'Interviewer', timestamp: iv.scheduledAt.toISOString(), jobTitle, meta: { rating: iv.rating ?? null } });
+        }
+      }
+      if (app.offer) {
+        if (app.offer.sentAt) events.push({ id: `evt-${counter++}`, type: 'offer_sent', description: `Offer sent for ${jobTitle}`, actor: 'Recruiter', timestamp: app.offer.sentAt.toISOString(), jobTitle });
+        if (app.offer.acceptedAt) events.push({ id: `evt-${counter++}`, type: 'offer_accepted', description: `Offer accepted for ${jobTitle}`, actor: 'Candidate', timestamp: app.offer.acceptedAt.toISOString(), jobTitle });
+        if (app.offer.respondedAt && app.offer.status === 'REJECTED') events.push({ id: `evt-${counter++}`, type: 'offer_rejected', description: `Offer declined for ${jobTitle}`, actor: 'Candidate', timestamp: app.offer.respondedAt.toISOString(), jobTitle });
+      }
+    }
+
+    for (const note of data.notes) {
+      events.push({ id: `evt-${counter++}`, type: 'note_added', description: `Note added by ${note.authorName}`, actor: note.authorName, timestamp: note.createdAt.toISOString() });
+    }
+
+    return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  },
+
+  async getFeedback(candidateId: string): Promise<FeedbackDto[]> {
+    const data = await candidatesRepository.findFeedData(candidateId);
+    if (!data) return [];
+    const result: FeedbackDto[] = [];
+    for (const app of data.applications) {
+      for (const iv of app.interviews) {
+        if (iv.feedback || iv.rating || iv.recommendation) {
+          result.push({
+            id: iv.id,
+            interviewType: mapInterviewType(iv.type),
+            scheduledAt: iv.scheduledAt.toISOString(),
+            status: mapInterviewStatus(iv.status),
+            rating: iv.rating ?? null,
+            recommendation: iv.recommendation ?? null,
+            feedback: iv.feedback ?? null,
+            jobTitle: app.jobPosting.title,
+          });
+        }
+      }
+    }
+    return result.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
   },
 
   // Existing: tracking view (applications list)

@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AuthRequest } from '../types';
 import { candidatesService } from '../services/candidates.service';
 import { parseCvBuffer } from '../services/cv-parser.service';
 import { sendSuccess, sendError } from '../utils/response';
@@ -108,5 +109,75 @@ export const candidatesController = {
     } catch {
       sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch candidate tracking');
     }
+  },
+
+  // GET /candidates/:id/notes
+  async getNotes(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const notes = await candidatesService.getNotes(req.params.id);
+      sendSuccess(res, { notes });
+    } catch { sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch notes'); }
+  },
+
+  // POST /candidates/:id/notes
+  async createNote(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { content, applicationId } = req.body as { content: string; applicationId?: string };
+      if (!content?.trim()) { sendError(res, 400, 'INVALID_BODY', 'content is required'); return; }
+      const authorName = req.user?.email ?? 'Recruiter';
+      const note = await candidatesService.createNote(req.params.id, { content: content.trim(), applicationId, authorName });
+      sendSuccess(res, { note }, 201);
+    } catch { sendError(res, 500, 'CREATE_ERROR', 'Failed to create note'); }
+  },
+
+  // PATCH /candidates/:id/notes/:noteId
+  async updateNote(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { content } = req.body as { content: string };
+      if (!content?.trim()) { sendError(res, 400, 'INVALID_BODY', 'content is required'); return; }
+      const note = await candidatesService.updateNote(req.params.noteId, content.trim());
+      if (!note) { sendError(res, 404, 'NOT_FOUND', 'Note not found'); return; }
+      sendSuccess(res, { note });
+    } catch { sendError(res, 500, 'UPDATE_ERROR', 'Failed to update note'); }
+  },
+
+  // DELETE /candidates/:id/notes/:noteId
+  async deleteNote(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const ok = await candidatesService.deleteNote(req.params.noteId);
+      if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Note not found'); return; }
+      sendSuccess(res, { deleted: true });
+    } catch { sendError(res, 500, 'DELETE_ERROR', 'Failed to delete note'); }
+  },
+
+  // PATCH /candidates/:id/tags
+  async updateTags(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { tags } = req.body as { tags: string[] };
+      if (!Array.isArray(tags)) { sendError(res, 400, 'INVALID_BODY', 'tags must be an array'); return; }
+      const updated = await candidatesService.updateTags(req.params.id, tags);
+      sendSuccess(res, { tags: updated });
+    } catch { sendError(res, 500, 'UPDATE_ERROR', 'Failed to update tags'); }
+  },
+
+  // GET /candidates/:id/feed
+  async getFeed(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const feed = await candidatesService.getFeed(req.params.id);
+      sendSuccess(res, { feed });
+    } catch { sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch feed'); }
+  },
+
+  // GET /candidates/:id/feedback
+  async getFeedback(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const feedback = await candidatesService.getFeedback(req.params.id);
+      sendSuccess(res, { feedback });
+    } catch { sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch feedback'); }
+  },
+
+  // GET /candidates/:id/emails
+  async getEmails(req: AuthRequest, res: Response): Promise<void> {
+    sendSuccess(res, { emails: [] });
   },
 };

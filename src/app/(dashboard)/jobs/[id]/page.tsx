@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
 import Link from 'next/link';
+import CandidatePanel from '@/components/CandidatePanel';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -139,6 +140,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [allJobsLoaded, setAllJobsLoaded]             = useState(false);
   const [closing, setClosing]                         = useState(false);
   const [activeDragId, setActiveDragId]               = useState<string | null>(null);
+  const [panelCandidate, setPanelCandidate]           = useState<{ candidateId: string; applicationId: string } | null>(null);
 
   const switcherRef = useRef<HTMLDivElement>(null);
   const moreRef     = useRef<HTMLDivElement>(null);
@@ -489,6 +491,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   col={col}
                   recruiterName={job.createdByName}
                   isDragActive={activeDragId !== null}
+                  onCardClick={(cId, appId) => setPanelCandidate({ candidateId: cId, applicationId: appId })}
                 />
               ))}
             </div>
@@ -500,12 +503,19 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   colId={activeDragCandidate.stage ?? GENERAL_COL}
                   recruiterName={job.createdByName}
                   isOverlay
+                  onCardClick={() => {}}
                 />
               )}
             </DragOverlay>
           </DndContext>
         )}
       </div>
+
+      <CandidatePanel
+        candidateId={panelCandidate?.candidateId ?? null}
+        applicationId={panelCandidate?.applicationId}
+        onClose={() => setPanelCandidate(null)}
+      />
     </div>
   );
 }
@@ -526,10 +536,12 @@ function KanbanColumn({
   col,
   recruiterName,
   isDragActive,
+  onCardClick,
 }: {
   col: { id: string; label: string; candidates: PipelineApplicationDto[] };
   recruiterName: string;
   isDragActive: boolean;
+  onCardClick: (candidateId: string, applicationId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
 
@@ -558,6 +570,7 @@ function KanbanColumn({
             candidate={c}
             colId={col.id}
             recruiterName={recruiterName}
+            onCardClick={onCardClick}
           />
         ))}
       </div>
@@ -572,11 +585,13 @@ function CandidateCard({
   colId,
   recruiterName,
   isOverlay = false,
+  onCardClick,
 }: {
   candidate: PipelineApplicationDto;
   colId: string;
   recruiterName: string;
   isOverlay?: boolean;
+  onCardClick: (candidateId: string, applicationId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id:   candidate.id,
@@ -604,90 +619,92 @@ function CandidateCard({
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <Link href={`/candidates/${candidate.candidateId}`} onClick={(e) => isDragging && e.preventDefault()}>
-        <div className={[
-          'bg-white border rounded-xl overflow-hidden transition-all duration-150 cursor-pointer group',
-          isOverlay
-            ? 'border-[var(--color-primary)]/40 shadow-xl rotate-1 scale-[1.02]'
-            : 'border-[var(--color-border)] shadow-card hover:shadow-card-hover hover:border-neutral-300',
-        ].join(' ')}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={() => { if (!isDragging) onCardClick(candidate.candidateId, candidate.id); }}
+    >
+      <div className={[
+        'bg-white border rounded-xl overflow-hidden transition-all duration-150 cursor-pointer group',
+        isOverlay
+          ? 'border-[var(--color-primary)]/40 shadow-xl rotate-1 scale-[1.02]'
+          : 'border-[var(--color-border)] shadow-card hover:shadow-card-hover hover:border-neutral-300',
+      ].join(' ')}>
 
-          {/* Drag handle + main content */}
-          <div className="p-3.5">
-            {/* Top row: drag handle + name */}
-            <div className="flex items-start gap-2 mb-1">
-              <button
-                {...attributes}
-                {...listeners}
-                onClick={(e) => e.preventDefault()}
-                className="mt-0.5 flex-shrink-0 text-[var(--color-border)] hover:text-[var(--color-text-muted)] cursor-grab active:cursor-grabbing transition-colors opacity-0 group-hover:opacity-100"
-                aria-label="Drag to reorder"
-              >
-                <GripVertical size={14} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-[var(--color-text-primary)] leading-tight truncate">
-                  {candidate.candidateName}
-                </p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                  {candidate.stage ?? 'No sub-stage'}
-                </p>
-              </div>
-            </div>
-
-            {/* Skills */}
-            {candidate.skills.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2.5 mb-3">
-                {candidate.skills.slice(0, 3).map((skill) => (
-                  <span key={skill} className="text-[10px] px-1.5 py-0.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md text-[var(--color-text-muted)] leading-tight">
-                    {skill}
-                  </span>
-                ))}
-                {candidate.skills.length > 3 && (
-                  <span className="text-[10px] text-[var(--color-text-muted)] self-center">+{candidate.skills.length - 3}</span>
-                )}
-              </div>
-            )}
-
-            {/* Footer row: source + time + recruiter avatar */}
-            <div className="flex items-center justify-between gap-2 mt-auto">
-              <div className="flex items-center gap-2 min-w-0">
-                {/* Source */}
-                <span className="text-[10px] font-medium text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md px-1.5 py-0.5 leading-tight truncate max-w-[90px]">
-                  {source}
-                </span>
-
-                {/* Time in stage */}
-                <span className={[
-                  'flex items-center gap-0.5 text-[10px] whitespace-nowrap',
-                  overdue ? 'text-red-500 font-semibold' : 'text-[var(--color-text-muted)]',
-                ].join(' ')}>
-                  <Clock size={9} className="flex-shrink-0" />
-                  {timeLabel}
-                </span>
-              </div>
-
-              {/* Recruiter avatar */}
-              {recruiterName && (
-                <div className="flex-shrink-0" title={recruiterName}>
-                  <Avatar name={recruiterName} size="sm" />
-                </div>
-              )}
+        {/* Drag handle + main content */}
+        <div className="p-3.5">
+          {/* Top row: drag handle + name */}
+          <div className="flex items-start gap-2 mb-1">
+            <button
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-0.5 flex-shrink-0 text-[var(--color-border)] hover:text-[var(--color-text-muted)] cursor-grab active:cursor-grabbing transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Drag to reorder"
+            >
+              <GripVertical size={14} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-[var(--color-text-primary)] leading-tight truncate">
+                {candidate.candidateName}
+              </p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                {candidate.stage ?? 'No sub-stage'}
+              </p>
             </div>
           </div>
 
-          {/* Overdue banner */}
-          {overdue && !isOverlay && (
-            <div className="bg-red-600 px-3.5 py-1.5 flex items-center gap-1.5">
-              <Clock size={10} className="text-red-100 flex-shrink-0" />
-              <span className="text-[10px] font-bold text-white uppercase tracking-wide leading-tight">
-                In stage since {timeLabel} ago
-              </span>
+          {/* Skills */}
+          {candidate.skills.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2.5 mb-3">
+              {candidate.skills.slice(0, 3).map((skill) => (
+                <span key={skill} className="text-[10px] px-1.5 py-0.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md text-[var(--color-text-muted)] leading-tight">
+                  {skill}
+                </span>
+              ))}
+              {candidate.skills.length > 3 && (
+                <span className="text-[10px] text-[var(--color-text-muted)] self-center">+{candidate.skills.length - 3}</span>
+              )}
             </div>
           )}
+
+          {/* Footer row: source + time + recruiter avatar */}
+          <div className="flex items-center justify-between gap-2 mt-auto">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Source */}
+              <span className="text-[10px] font-medium text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-md px-1.5 py-0.5 leading-tight truncate max-w-[90px]">
+                {source}
+              </span>
+
+              {/* Time in stage */}
+              <span className={[
+                'flex items-center gap-0.5 text-[10px] whitespace-nowrap',
+                overdue ? 'text-red-500 font-semibold' : 'text-[var(--color-text-muted)]',
+              ].join(' ')}>
+                <Clock size={9} className="flex-shrink-0" />
+                {timeLabel}
+              </span>
+            </div>
+
+            {/* Recruiter avatar */}
+            {recruiterName && (
+              <div className="flex-shrink-0" title={recruiterName}>
+                <Avatar name={recruiterName} size="sm" />
+              </div>
+            )}
+          </div>
         </div>
-      </Link>
+
+        {/* Overdue banner */}
+        {overdue && !isOverlay && (
+          <div className="bg-red-600 px-3.5 py-1.5 flex items-center gap-1.5">
+            <Clock size={10} className="text-red-100 flex-shrink-0" />
+            <span className="text-[10px] font-bold text-white uppercase tracking-wide leading-tight">
+              In stage since {timeLabel} ago
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

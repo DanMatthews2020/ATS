@@ -117,4 +117,73 @@ export const candidatesRepository = {
   async create(data: Prisma.CandidateCreateInput) {
     return prisma.candidate.create({ data });
   },
+
+  // ── CandidateNote CRUD ────────────────────────────────────────────────────
+  async findNotes(candidateId: string) {
+    return prisma.candidateNote.findMany({
+      where: { candidateId },
+      orderBy: { createdAt: 'desc' },
+      include: { application: { select: { jobPosting: { select: { title: true } } } } },
+    });
+  },
+
+  async createNote(data: { candidateId: string; applicationId?: string; content: string; authorName: string }) {
+    return prisma.candidateNote.create({
+      data,
+      include: { application: { select: { jobPosting: { select: { title: true } } } } },
+    });
+  },
+
+  async updateNote(id: string, content: string) {
+    return prisma.candidateNote.update({
+      where: { id },
+      data: { content, updatedAt: new Date() },
+      include: { application: { select: { jobPosting: { select: { title: true } } } } },
+    });
+  },
+
+  async deleteNote(id: string) {
+    return prisma.candidateNote.delete({ where: { id } });
+  },
+
+  async updateTags(id: string, tags: string[]) {
+    return prisma.candidate.update({ where: { id }, data: { tags } });
+  },
+
+  async findFeedData(candidateId: string) {
+    return prisma.candidate.findUnique({
+      where: { id: candidateId },
+      include: {
+        applications: {
+          orderBy: { appliedAt: 'asc' },
+          include: {
+            jobPosting: { select: { title: true } },
+            interviews: {
+              orderBy: { scheduledAt: 'asc' },
+              select: {
+                id: true,
+                scheduledAt: true,
+                type: true,
+                status: true,
+                feedback: true,
+                rating: true,
+                recommendation: true,
+                createdAt: true,
+              },
+            },
+            offer: {
+              select: {
+                id: true,
+                status: true,
+                sentAt: true,
+                acceptedAt: true,
+                respondedAt: true,
+              },
+            },
+          },
+        },
+        notes: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+  },
 };

@@ -155,12 +155,14 @@ model Candidate {
   linkedInUrl String?
   source      CandidateSource @default(JOB_BOARD)
   skills      String[]
+  tags        String[]
   location    String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   applications Application[]
   employee     Employee?
+  notes        CandidateNote[]
 }
 
 model Application {
@@ -175,8 +177,9 @@ model Application {
   appliedAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
-  interviews Interview[]
-  offer      Offer?
+  interviews      Interview[]
+  offer           Offer?
+  candidateNotes  CandidateNote[]
 
   @@unique([candidateId, jobPostingId])
 }
@@ -267,4 +270,16 @@ model OnboardingTask {
   notes        String?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+}
+
+model CandidateNote {
+  id            String       @id @default(uuid())
+  candidateId   String
+  candidate     Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  content       String
+  authorName    String       @default("Recruiter")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }

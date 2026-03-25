@@ -306,6 +306,7 @@ export interface CandidateDetailDto {
   location?: string;
   source: string;
   skills: string[];
+  tags: string[];
   createdAt: string;
   applications: {
     id: string;
@@ -998,4 +999,51 @@ export const applicationsApi = {
       `/applications/${id}/notes`,
       { notes },
     ),
+};
+
+// Candidate Panel
+export interface CandidateNoteDto {
+  id: string;
+  content: string;
+  authorName: string;
+  applicationId: string | null;
+  jobTitle: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedEventDto {
+  id: string;
+  type: string;
+  description: string;
+  actor: string;
+  timestamp: string;
+  jobTitle?: string;
+  meta?: Record<string, string | number | null>;
+}
+
+export interface CandidateFeedbackDto {
+  id: string;
+  interviewType: string;
+  scheduledAt: string;
+  status: string;
+  rating: number | null;
+  recommendation: string | null;
+  feedback: string | null;
+  jobTitle?: string;
+}
+
+export const candidatePanelApi = {
+  getFeed:     (id: string) => api.get<{ feed: FeedEventDto[] }>(`/candidates/${id}/feed`),
+  getNotes:    (id: string) => api.get<{ notes: CandidateNoteDto[] }>(`/candidates/${id}/notes`),
+  createNote:  (id: string, data: { content: string; applicationId?: string }) =>
+    api.post<{ note: CandidateNoteDto }>(`/candidates/${id}/notes`, data),
+  updateNote:  (id: string, noteId: string, content: string) =>
+    api.patch<{ note: CandidateNoteDto }>(`/candidates/${id}/notes/${noteId}`, { content }),
+  deleteNote:  (id: string, noteId: string) =>
+    api.delete<{ deleted: boolean }>(`/candidates/${id}/notes/${noteId}`),
+  updateTags:  (id: string, tags: string[]) =>
+    api.patch<{ tags: string[] }>(`/candidates/${id}/tags`, { tags }),
+  getFeedback: (id: string) => api.get<{ feedback: CandidateFeedbackDto[] }>(`/candidates/${id}/feedback`),
+  getEmails:   (id: string) => api.get<{ emails: unknown[] }>(`/candidates/${id}/emails`),
 };
