@@ -4,18 +4,13 @@ A full-stack Applicant Tracking System built with Next.js 14 and Node.js/Express
 
 ---
 
-## Features
+## Live URLs
 
-- **Dashboard** — Live KPIs: open roles, active candidates, interviews scheduled, offers pending
-- **Job Postings** — Create and manage job listings with status tracking (Draft → Open → Closed)
-- **Candidates** — Candidate profiles, application tracking, status pipeline
-- **Pipeline** — Kanban-style hiring pipeline (Applied → Screening → Interview → Offer → Hired)
-- **Sourcing Hub** — People Search, AI Sourcing Agent, Unified multi-channel search
-- **Talent Insights** — Analytics charts: time-to-hire, source breakdown, pipeline funnel
-- **Performance** — Team performance scores, review cycles, competency radar, goals tracker
-- **Reports** — 20 pre-built reports across Workforce, Talent Acquisition, Performance, Compensation, L&D
-- **Onboarding** — Task management for new-hire onboarding workflows
-- **Authentication** — JWT-based auth with httpOnly cookies and silent token refresh
+| Service | URL |
+|---|---|
+| Frontend (Vercel) | https://teamtalentats.vercel.app |
+| Backend API (Render) | https://teamtalent-backend.onrender.com/api |
+| Health Check | https://teamtalent-backend.onrender.com/health |
 
 ---
 
@@ -24,11 +19,12 @@ A full-stack Applicant Tracking System built with Next.js 14 and Node.js/Express
 ### Frontend
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 14.2.35 (App Router) |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS + CSS custom properties |
 | Charts | Recharts |
 | Icons | Lucide React |
+| Drag & Drop | @dnd-kit/core |
 | Testing | Playwright (E2E) |
 
 ### Backend
@@ -37,12 +33,44 @@ A full-stack Applicant Tracking System built with Next.js 14 and Node.js/Express
 | Runtime | Node.js 20+ |
 | Framework | Express.js |
 | Language | TypeScript |
-| ORM | Prisma |
+| ORM | Prisma 5 |
 | Database | PostgreSQL (Supabase) |
 | Auth | JWT (access + refresh tokens, httpOnly cookies) |
 | Hashing | bcryptjs (12 rounds) |
 | Validation | Zod |
 | Dev runner | tsx watch |
+| CV Parsing | Anthropic Claude API |
+
+---
+
+## Pages Built
+
+| Route | Status | Description |
+|---|---|---|
+| `/login` | Live | JWT auth with email + password |
+| `/dashboard` | Live · Supabase | KPI stats, recent jobs, recent candidates — all from DB |
+| `/jobs` | Live · Supabase | Job postings list with status filter, stat cards |
+| `/jobs/create` | Live · Supabase | Create job form (Draft or Publish) → saves to DB |
+| `/jobs/[id]` | Live · Supabase | Job detail: description, applicants table, close role |
+| `/candidates` | Live · Supabase | Candidate list with search, status filter, add candidate drawer |
+| `/candidates/[id]` | Live · Supabase | Full candidate profile: contact, skills, applications, interviews, notes, activity |
+| `/pipeline` | Live · Supabase | Kanban board by hiring stage; drag-and-drop updates DB; side panel |
+| `/interviews` | UI only | Interview calendar view — backend is in-memory, not yet Prisma |
+| `/offers` | UI only | Offer management board — backend is in-memory, not yet Prisma |
+| `/employees` | UI only | Employee directory — backend is in-memory, not yet Prisma |
+| `/employees/[id]` | UI only | Employee profile — backend is in-memory, not yet Prisma |
+| `/inbox` | UI only | Notifications centre — backend is in-memory, not yet Prisma |
+| `/onboarding` | UI only | New-hire task manager |
+| `/performance` | UI only | Team performance dashboard with charts |
+| `/performance/cycles/[id]` | UI only | Review cycle detail |
+| `/performance/employees/[id]` | UI only | Employee performance detail |
+| `/reports` | UI only | 20 pre-built report library |
+| `/settings` | UI only | Account and team settings |
+| `/sourcing` | UI only | Sourcing hub landing page |
+| `/sourcing/people` | Mock data | People search interface |
+| `/sourcing/ai-agent` | Mock data | AI sourcing agent control panel |
+| `/sourcing/unified` | Mock data | Multi-channel search |
+| `/talent-insights` | UI only | Analytics charts (Recharts) |
 
 ---
 
@@ -80,14 +108,14 @@ npm install
 
 **Frontend** — create `.env.local` in the project root:
 ```bash
-cp .env.local.example .env.local
+NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ```
 
-**Backend** — create `.env` in the `backend/` directory:
+**Backend** — create `backend/.env` (copy from `.env.example`):
 ```bash
 cp backend/.env.example backend/.env
+# then fill in your values
 ```
-Fill in your Supabase connection strings, JWT secrets, and port (see [Environment Variables](#environment-variables)).
 
 ### 5. Run database migrations
 
@@ -103,7 +131,7 @@ cd backend
 npx tsx prisma/seed.ts
 ```
 
-This creates two demo accounts:
+Creates two demo accounts:
 - `admin@teamtalent.com` / `Admin123!` (Admin)
 - `hr@teamtalent.com` / `Admin123!` (HR)
 
@@ -134,57 +162,105 @@ Navigate to `http://localhost:3000` and log in with the seed credentials above.
 
 ### Frontend — `.env.local`
 
-| Variable | Description | Default |
+| Variable | Description | Example |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | Backend API base URL | `http://localhost:3001/api` |
 
 ### Backend — `backend/.env`
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | Supabase transaction pooler URL (port 6543, add `?pgbouncer=true`) |
-| `DIRECT_URL` | Supabase session pooler URL (port 5432, used by Prisma migrate) |
-| `JWT_ACCESS_SECRET` | 64-byte hex secret for access tokens |
-| `JWT_REFRESH_SECRET` | 64-byte hex secret for refresh tokens |
-| `JWT_ACCESS_EXPIRY` | Access token TTL (default: `15m`) |
-| `JWT_REFRESH_EXPIRY` | Refresh token TTL (default: `7d`) |
-| `PORT` | API server port (default: `3001`) |
-| `NODE_ENV` | `development` or `production` |
-| `FRONTEND_URL` | Allowed CORS origin (e.g. `http://localhost:3000`) |
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | Supabase **transaction pooler** URL (port 6543) — used at runtime |
+| `DIRECT_URL` | Yes | Supabase **session pooler** URL (port 5432) — used by Prisma migrate |
+| `JWT_ACCESS_SECRET` | Yes | 64-byte hex secret for access tokens |
+| `JWT_REFRESH_SECRET` | Yes | 64-byte hex secret for refresh tokens |
+| `FRONTEND_URL` | Yes | Allowed CORS origin — must exactly match your deployed frontend URL |
+| `NODE_ENV` | Yes | Set to `production` on Render — enables `SameSite=None` cookies for cross-origin auth |
+| `JWT_ACCESS_EXPIRY` | No | Access token TTL (default: `15m`) |
+| `JWT_REFRESH_EXPIRY` | No | Refresh token TTL (default: `7d`) |
+| `PORT` | No | API server port (default: `3001`) |
+| `ANTHROPIC_API_KEY` | No | Enables CV parsing in Add Candidate drawer — graceful fallback if absent |
 
 Generate JWT secrets:
 ```bash
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
+> **Important:** `NODE_ENV=production` is required on Render. Without it, auth cookies use `SameSite=lax` which is dropped by the browser on cross-origin requests (Vercel → Render), causing every API call to return 401 after login.
+
 ---
 
 ## API Endpoints
 
-All routes are prefixed with `/api`.
+All routes are prefixed with `/api` and require authentication (JWT cookie) unless noted.
 
 ### Auth — `/api/auth`
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/login` | No | Login with email + password; sets httpOnly cookies |
+| POST | `/login` | No | Login; sets httpOnly access + refresh token cookies |
 | POST | `/refresh` | No | Rotate refresh token; issues new access token |
 | POST | `/logout` | No | Clears auth cookies |
 | GET | `/me` | Yes | Returns authenticated user profile |
 
 ### Dashboard — `/api/dashboard`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/stats` | Yes | Returns KPI counts (open roles, candidates, interviews, offers) |
+| Method | Path | Description |
+|---|---|---|
+| GET | `/stats` | Live counts: open roles, active candidates, interviews scheduled, offers sent |
 
 ### Jobs — `/api/jobs`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| GET | `/` | Yes | Paginated list of job postings with application counts |
+| Method | Path | Description |
+|---|---|---|
+| GET | `/stats` | Open positions, total applicants, interviews this week, offers extended |
+| GET | `/` | Paginated job postings with applicant counts |
+| POST | `/` | Create job posting (Zod validated) |
+| GET | `/:id` | Full job detail with applicants list |
+| GET | `/:id/applications` | All applications for a job (for Pipeline) |
+| PATCH | `/:id` | Update job status (OPEN / CLOSED / DRAFT) |
 
 ### Candidates — `/api/candidates`
+| Method | Path | Description |
+|---|---|---|
+| GET | `/` | Paginated candidate list with search |
+| POST | `/` | Create candidate (Zod validated) |
+| POST | `/parse-cv` | Parse uploaded CV with Claude API; returns extracted fields |
+| GET | `/tracking` | Applications tracking view (for Dashboard) |
+| GET | `/:id` | Full candidate profile with application + interview history |
+
+### Applications — `/api/applications`
+| Method | Path | Description |
+|---|---|---|
+| POST | `/` | Create application (link candidate to job) |
+| PATCH | `/:id/stage` | Update application stage (Zod validates DB enum) |
+| PATCH | `/:id/notes` | Update internal notes on an application |
+
+### Health
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/tracking` | Yes | Paginated list of candidate applications with job/status info |
+| GET | `/health` | No | Returns `{ status, database, timestamp }` — 503 if DB unreachable |
+
+---
+
+## Database
+
+- **Provider:** Supabase (PostgreSQL)
+- **ORM:** Prisma 5
+- **Schema location:** `backend/prisma/schema.prisma`
+- **Migrations:** `backend/prisma/migrations/`
+
+### Models
+`User` · `JobPosting` · `Candidate` · `Application` · `Interview` · `Offer` · `Employee` · `OnboardingTask`
+
+### Run migrations against production:
+```bash
+cd backend
+npx prisma migrate deploy
+```
+
+### Open Prisma Studio (local DB browser):
+```bash
+cd backend
+npx prisma studio
+```
 
 ---
 
@@ -197,49 +273,75 @@ ATS/
 │   │   ├── (auth)/login/         # Login page (unauthenticated route group)
 │   │   └── (dashboard)/          # Protected route group
 │   │       ├── layout.tsx        # Dashboard shell with sidebar
-│   │       ├── dashboard/        # Main dashboard page
-│   │       ├── job-postings/     # Job listings + create form
-│   │       ├── candidates/       # Candidate tracking list
-│   │       ├── pipeline/         # Kanban hiring pipeline
+│   │       ├── dashboard/        # Main dashboard
+│   │       ├── jobs/             # Job listings + create form + detail
+│   │       ├── candidates/       # Candidate list + add drawer + profile
+│   │       ├── pipeline/         # Kanban hiring pipeline (dnd-kit)
+│   │       ├── interviews/       # Interview calendar
+│   │       ├── offers/           # Offer management
+│   │       ├── employees/        # Employee directory + profiles
+│   │       ├── inbox/            # Notifications centre
 │   │       ├── sourcing/         # Sourcing hub + sub-pages
 │   │       ├── talent-insights/  # Analytics charts
-│   │       ├── performance/      # Team performance dashboard
+│   │       ├── performance/      # Team performance + cycles + profiles
 │   │       ├── reports/          # Report library
-│   │       └── onboarding/       # Onboarding task manager
+│   │       ├── onboarding/       # Onboarding task manager
+│   │       └── settings/         # Account + team settings
 │   ├── components/
-│   │   ├── ui/                   # Reusable primitives (Button, Card, Badge, Input, Avatar)
+│   │   ├── ui/                   # Button, Card, Badge, Input, Avatar
 │   │   ├── layout/               # Sidebar navigation
 │   │   ├── dashboard/            # JobListingCard, CandidateCard
-│   │   ├── candidates/           # CandidateDrawer
 │   │   └── pipeline/             # PipelineCandidateCard
-│   ├── contexts/AuthContext.tsx  # Global auth state (login, logout, user)
-│   ├── hooks/useAuth.ts          # Convenience hook for AuthContext
+│   ├── contexts/
+│   │   ├── AuthContext.tsx       # Global auth state (login, logout, user)
+│   │   └── ToastContext.tsx      # Global toast notifications
 │   ├── lib/
-│   │   ├── api.ts                # Typed fetch wrapper + API clients
-│   │   └── constants.ts          # Shared constants
+│   │   ├── api.ts                # Typed fetch wrapper + all API clients
+│   │   └── constants.ts          # Nav items, shared constants
 │   └── types/index.ts            # Shared TypeScript types
 │
 ├── backend/
-│   ├── server.ts                 # Express entry point
+│   ├── server.ts                 # Express entry point (CORS, middleware, routes)
 │   ├── prisma/
-│   │   ├── schema.prisma         # Database schema
+│   │   ├── schema.prisma         # Database schema (8 models)
 │   │   ├── seed.ts               # Demo data seeder
 │   │   └── migrations/           # SQL migration history
 │   └── src/
 │       ├── controllers/          # HTTP request handlers
-│       ├── services/             # Business logic
-│       ├── repositories/         # Database queries (Prisma)
+│       ├── services/             # Business logic + DTO mapping
+│       ├── repositories/         # Prisma database queries
 │       ├── routes/               # Express route definitions
-│       ├── middleware/           # Auth, validation, error handling
+│       ├── middleware/           # Auth, Zod validation, error handling
 │       ├── lib/prisma.ts         # Singleton PrismaClient
-│       ├── types/                # Shared types + Zod schemas
-│       └── utils/                # JWT, password, env, response helpers
+│       ├── types/schemas.ts      # Zod validation schemas
+│       └── utils/                # JWT, bcrypt, env, response helpers
 │
 ├── tests/                        # Playwright E2E tests
-├── documentation/                # Additional project docs
-├── .env.local.example            # Frontend env template
-└── backend/.env.example          # Backend env template
+├── CHANGELOG.md                  # Version history
+└── backend/.env.example          # Backend env variable template
 ```
+
+---
+
+## Current Status
+
+### Working end-to-end with Supabase
+- Login / logout / session refresh
+- Dashboard KPI stats
+- Jobs: list, create, view detail, close role
+- Candidates: list, search, add, view profile, move stage, save notes
+- Pipeline: kanban board, drag-and-drop stage moves, candidate side panel
+
+### UI built but not yet connected to Supabase
+- Interviews, Offers, Employees, Inbox (all backed by in-memory stores that reset on deploy)
+- Onboarding, Performance, Reports, Settings, Talent Insights (static UI, no real data)
+- Sourcing pages (mock data, no external integration)
+
+### Not yet built
+- Edit job (`PUT /api/jobs/:id`)
+- Schedule interview from candidate profile
+- Send offer from job detail
+- Notifications persistence (unread count resets on deploy)
 
 ---
 
@@ -262,18 +364,17 @@ npm run test:report
 
 **Frontend:**
 ```bash
-npm run build
+npm run build   # builds to .next/
 npm start
 ```
 
-**Backend:**
+**Backend (runs via tsx at runtime — no compile step needed):**
 ```bash
 cd backend
-npm run build     # compiles TypeScript → dist/
-npm start         # runs dist/server.js
+npm start       # runs server.ts via npx tsx
 ```
 
-Set `NODE_ENV=production` and update `FRONTEND_URL` to your deployed frontend domain.
+Set `NODE_ENV=production` and all required env vars before starting.
 
 ---
 
