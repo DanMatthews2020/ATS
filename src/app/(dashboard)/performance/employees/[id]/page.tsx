@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, ChevronRight, Star, Target, CheckCircle2, TrendingUp, Flag, Mail,
@@ -15,8 +15,8 @@ import { performanceApi, type TeamEmployeeDto, type GoalStatus } from '@/lib/api
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function EmployeeReviewPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id }   = use(params);
+export default function EmployeeReviewPage({ params }: { params: { id: string } }) {
+  const { id }   = params;
   const router   = useRouter();
   const { showToast } = useToast();
 

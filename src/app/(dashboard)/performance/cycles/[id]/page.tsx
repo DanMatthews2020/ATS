@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Calendar, Clock, Users, CheckCircle2, Star, ChevronRight,
@@ -13,8 +13,8 @@ import { performanceApi, type ReviewCycleDto, type CycleParticipantDto } from '@
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function CycleDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id }   = use(params);
+export default function CycleDetailPage({ params }: { params: { id: string } }) {
+  const { id }   = params;
   const router   = useRouter();
   const { showToast } = useToast();
 

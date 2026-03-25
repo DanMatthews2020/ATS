@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Mail, Phone, MapPin, Linkedin, Calendar,
@@ -549,9 +549,9 @@ function ActivityTab({ candidate }: { candidate: CandidateDetailDto }) {
 export default function CandidateProfilePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const { showToast } = useToast();
 

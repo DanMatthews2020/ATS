@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -201,8 +201,8 @@ function ApplicantRow({ app, onMoveStage }: ApplicantRowProps) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function JobDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -241,9 +241,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   }
 
   function handleShareLink() {
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => showToast('Link copied to clipboard', 'success'))
-      .catch(() => showToast('Failed to copy link', 'error'));
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => showToast('Link copied to clipboard', 'success'))
+        .catch(() => showToast('Failed to copy link', 'error'));
+    } else {
+      showToast('Clipboard not available', 'error');
+    }
   }
 
   function handleStageUpdated(appId: string, newStatus: string) {
