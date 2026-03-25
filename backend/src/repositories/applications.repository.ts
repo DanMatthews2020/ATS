@@ -19,6 +19,13 @@ export const applicationsRepository = {
     });
   },
 
+  async updateSubStage(id: string, stage: string | null) {
+    return prisma.application.update({
+      where: { id },
+      data: { stage: stage ?? null, updatedAt: new Date() },
+    });
+  },
+
   async updateNotes(id: string, notes: string) {
     return prisma.application.update({
       where: { id },

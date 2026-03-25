@@ -41,6 +41,20 @@ export const applicationsController = {
     }
   },
 
+  async updateSubStage(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { stage } = req.body as { stage?: string | null };
+      const result = await applicationsService.updateSubStage(req.params.id, stage ?? null);
+      if (!result) {
+        sendError(res, 404, 'NOT_FOUND', 'Application not found');
+        return;
+      }
+      sendSuccess(res, result);
+    } catch {
+      sendError(res, 500, 'UPDATE_ERROR', 'Failed to update sub-stage');
+    }
+  },
+
   async updateNotes(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { notes } = req.body as { notes: string };

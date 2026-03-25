@@ -7,7 +7,8 @@ import { UpdateApplicationStageSchema, CreateApplicationSchema } from '../types/
 const router = Router();
 
 router.post('/',           authenticate, validate(CreateApplicationSchema), applicationsController.createApplication);
-router.patch('/:id/stage', authenticate, validate(UpdateApplicationStageSchema), applicationsController.updateStage);
-router.patch('/:id/notes', authenticate, applicationsController.updateNotes);
+router.patch('/:id/stage',     authenticate, validate(UpdateApplicationStageSchema), applicationsController.updateStage);
+router.patch('/:id/sub-stage', authenticate, applicationsController.updateSubStage);
+router.patch('/:id/notes',     authenticate, applicationsController.updateNotes);
 
 export default router;

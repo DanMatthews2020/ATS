@@ -92,6 +92,7 @@ export const jobsRepository = {
             location: true,
             skills: true,
             cvUrl: true,
+            source: true,
           },
         },
         _count: { select: { interviews: true } },

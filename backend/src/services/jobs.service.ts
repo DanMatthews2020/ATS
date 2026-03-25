@@ -84,6 +84,7 @@ export interface PipelineApplicationDto {
   candidatePhone: string | null;
   candidateLocation: string | null;
   cvUrl: string | null;
+  source: string;
   status: string;
   stage: string | null;
   notes: string | null;
@@ -137,6 +138,7 @@ function toApplicationDto(app: AppRow): PipelineApplicationDto {
     candidatePhone:    app.candidate.phone ?? null,
     candidateLocation: app.candidate.location ?? null,
     cvUrl:             app.candidate.cvUrl ?? null,
+    source:            app.candidate.source,
     status:            mapApplicationStatus(app.status),
     stage:             app.stage,
     notes:             app.notes ?? null,

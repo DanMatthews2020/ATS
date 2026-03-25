@@ -229,6 +229,7 @@ export interface PipelineApplicationDto {
   candidatePhone: string | null;
   candidateLocation: string | null;
   cvUrl: string | null;
+  source: string;
   status: string;
   stage: string | null;
   notes: string | null;
@@ -986,6 +987,11 @@ export const applicationsApi = {
     api.patch<{ id: string; status: string; updatedAt: string }>(
       `/applications/${id}/stage`,
       { status },
+    ),
+  updateSubStage: (id: string, stage: string | null) =>
+    api.patch<{ id: string; stage: string | null; updatedAt: string }>(
+      `/applications/${id}/sub-stage`,
+      { stage },
     ),
   updateNotes: (id: string, notes: string) =>
     api.patch<{ id: string; notes: string; updatedAt: string }>(

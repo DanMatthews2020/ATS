@@ -21,6 +21,17 @@ export const applicationsService = {
     };
   },
 
+  async updateSubStage(id: string, stage: string | null) {
+    const app = await applicationsRepository.findById(id);
+    if (!app) return null;
+    const updated = await applicationsRepository.updateSubStage(id, stage);
+    return {
+      id:        updated.id,
+      stage:     updated.stage ?? null,
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  },
+
   async updateNotes(id: string, notes: string) {
     const app = await applicationsRepository.findById(id);
     if (!app) return null;
