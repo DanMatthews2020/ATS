@@ -701,9 +701,10 @@ export const interviewsApi = {
   getById: (id: string) =>
     api.get<{ interview: InterviewDto }>(`/interviews/${id}`),
   create: (data: {
-    candidateId: string; candidateName: string;
-    jobId: string; jobTitle: string;
-    interviewers: InterviewerDto[];
+    applicationId?: string;
+    candidateId?: string; candidateName?: string;
+    jobId?: string; jobTitle?: string;
+    interviewers?: InterviewerDto[];
     type: InterviewType; scheduledAt: string; duration: number;
     meetingLink?: string; location?: string; notes?: string;
   }) => api.post<{ interview: InterviewDto }>('/interviews', data),
@@ -752,11 +753,12 @@ export const offersApi = {
   getById: (id: string) =>
     api.get<{ offer: OfferDto }>(`/offers/${id}`),
   create: (data: {
-    candidateId: string; candidateName: string;
-    jobId: string; jobTitle: string; department: string;
+    applicationId?: string;
+    candidateId?: string; candidateName?: string;
+    jobId?: string; jobTitle?: string; department?: string;
     salary: number; currency: string;
-    startDate: string; expiryDate: string;
-    equity?: string; benefits: string; notes?: string;
+    startDate?: string; expiryDate?: string;
+    equity?: string; benefits?: string; notes?: string;
   }) => api.post<{ offer: OfferDto }>('/offers', data),
   send: (id: string) =>
     api.post<{ offer: OfferDto }>(`/offers/${id}/send`),

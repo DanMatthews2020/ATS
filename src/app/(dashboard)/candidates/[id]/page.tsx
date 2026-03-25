@@ -11,7 +11,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { candidatesApi, applicationsApi, type CandidateDetailDto } from '@/lib/api';
+import { Input } from '@/components/ui/Input';
+import { candidatesApi, applicationsApi, interviewsApi, offersApi, type CandidateDetailDto, type InterviewType } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
 
@@ -160,6 +161,283 @@ function MoveStageModal({ appId, currentStatus, jobTitle, onClose, onMoved }: Mo
           <Button variant="primary" size="sm" className="flex-1" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 size={13} className="animate-spin" /> : null}
             Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Schedule Interview Modal ─────────────────────────────────────────────────
+
+const INTERVIEW_TYPES: InterviewType[] = ['Phone', 'Video', 'On-site', 'Technical'];
+const DURATIONS = [15, 30, 45, 60, 90, 120];
+
+function ScheduleInterviewModal({ candidate, onClose, onCreated }: {
+  candidate: CandidateDetailDto;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const { showToast } = useToast();
+  const [appId, setAppId]   = useState(candidate.applications[0]?.id ?? '');
+  const [form, setForm]     = useState({
+    type: 'Video' as InterviewType,
+    scheduledAt: '',
+    duration: 60,
+    meetingLink: '', location: '', notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function handleSubmit() {
+    const e: Record<string, string> = {};
+    if (!appId)            e.appId       = 'Select a job application';
+    if (!form.scheduledAt) e.scheduledAt = 'Date and time are required';
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setSaving(true);
+    try {
+      await interviewsApi.create({
+        applicationId: appId,
+        candidateId:   candidate.id,
+        type:          form.type,
+        scheduledAt:   new Date(form.scheduledAt).toISOString(),
+        duration:      form.duration,
+        meetingLink:   form.meetingLink || undefined,
+        location:      form.location   || undefined,
+        notes:         form.notes      || undefined,
+      });
+      onCreated();
+      showToast('Interview scheduled');
+      onClose();
+    } catch { showToast('Failed to schedule interview', 'error'); }
+    finally { setSaving(false); }
+  }
+
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  if (candidate.applications.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">Schedule Interview</h3>
+          <p className="text-sm text-[var(--color-text-muted)] mb-4">This candidate has no applications. Add them to a job posting first before scheduling an interview.</p>
+          <Button variant="primary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--color-border)]">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Schedule Interview</h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{candidate.firstName} {candidate.lastName}</p>
+          </div>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          {candidate.applications.length > 1 && (
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Job Application</label>
+              <select value={appId} onChange={(e) => setAppId(e.target.value)}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20">
+                {candidate.applications.map((a) => <option key={a.id} value={a.id}>{a.jobTitle}</option>)}
+              </select>
+              {errors.appId && <p className="text-xs text-red-500 mt-1">{errors.appId}</p>}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Type</label>
+              <select value={form.type} onChange={f('type')}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20">
+                {INTERVIEW_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Duration (min)</label>
+              <select value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: Number(e.target.value) }))}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20">
+                {DURATIONS.map((d) => <option key={d} value={d}>{d} min{d >= 60 ? ` (${d/60}h)` : ''}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Date & Time</label>
+            <input type="datetime-local" value={form.scheduledAt} onChange={f('scheduledAt')}
+              className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]" />
+            {errors.scheduledAt && <p className="text-xs text-red-500 mt-1">{errors.scheduledAt}</p>}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">
+              {form.type === 'On-site' ? 'Location' : 'Meeting link'} <span className="font-normal opacity-60">(optional)</span>
+            </label>
+            {form.type === 'On-site'
+              ? <Input value={form.location} onChange={f('location')} placeholder="e.g. 12 Finsbury Sq, London" />
+              : <Input value={form.meetingLink} onChange={f('meetingLink')} placeholder="https://zoom.us/j/..." />
+            }
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Notes <span className="font-normal opacity-60">(optional)</span></label>
+            <textarea value={form.notes} onChange={f('notes')} rows={2} placeholder="Any prep notes or context…"
+              className="w-full px-3 py-2 text-sm border border-[var(--color-border)] rounded-xl resize-none outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-6 pb-6">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" isLoading={saving} onClick={handleSubmit}>
+            <Calendar size={13} /> Schedule Interview
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Send Offer Modal ─────────────────────────────────────────────────────────
+
+const CURRENCIES = ['GBP', 'USD', 'EUR', 'AUD', 'CAD'];
+
+function SendOfferModal({ candidate, onClose, onCreated }: {
+  candidate: CandidateDetailDto;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const { showToast } = useToast();
+  const [appId, setAppId]   = useState(candidate.applications[0]?.id ?? '');
+  const [form, setForm]     = useState({
+    salary: '', currency: 'GBP',
+    startDate: '', expiryDate: '',
+    equity: '', benefits: '', notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function handleSubmit() {
+    const e: Record<string, string> = {};
+    if (!appId)                                  e.appId      = 'Select a job application';
+    if (!form.salary || isNaN(Number(form.salary))) e.salary = 'Valid salary is required';
+    if (!form.expiryDate)                        e.expiryDate = 'Expiry date is required';
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setSaving(true);
+    try {
+      await offersApi.create({
+        applicationId: appId,
+        candidateId:   candidate.id,
+        salary:        Number(form.salary),
+        currency:      form.currency,
+        startDate:     form.startDate  || undefined,
+        expiryDate:    form.expiryDate || undefined,
+        equity:        form.equity     || undefined,
+        benefits:      form.benefits,
+        notes:         form.notes      || undefined,
+      });
+      onCreated();
+      showToast('Offer created as draft');
+      onClose();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create offer';
+      showToast(msg, 'error');
+    } finally { setSaving(false); }
+  }
+
+  const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  if (candidate.applications.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <h3 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">Send Offer</h3>
+          <p className="text-sm text-[var(--color-text-muted)] mb-4">This candidate has no applications. Add them to a job posting first before sending an offer.</p>
+          <Button variant="primary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--color-border)]">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Send Offer</h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{candidate.firstName} {candidate.lastName}</p>
+          </div>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          {candidate.applications.length > 1 && (
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Job Application</label>
+              <select value={appId} onChange={(e) => setAppId(e.target.value)}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20">
+                {candidate.applications.map((a) => <option key={a.id} value={a.id}>{a.jobTitle}</option>)}
+              </select>
+              {errors.appId && <p className="text-xs text-red-500 mt-1">{errors.appId}</p>}
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Annual salary</label>
+              <Input value={form.salary} onChange={f('salary')} type="number" placeholder="85000" />
+              {errors.salary && <p className="text-xs text-red-500 mt-1">{errors.salary}</p>}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Currency</label>
+              <select value={form.currency} onChange={f('currency')}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20">
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Start date <span className="font-normal opacity-60">(optional)</span></label>
+              <input type="date" value={form.startDate} onChange={f('startDate')}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Expiry date</label>
+              <input type="date" value={form.expiryDate} onChange={f('expiryDate')}
+                className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20" />
+              {errors.expiryDate && <p className="text-xs text-red-500 mt-1">{errors.expiryDate}</p>}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Equity <span className="font-normal opacity-60">(optional)</span></label>
+            <Input value={form.equity} onChange={f('equity')} placeholder="e.g. 0.05% over 4 years" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Benefits summary <span className="font-normal opacity-60">(optional)</span></label>
+            <textarea value={form.benefits} onChange={f('benefits')} rows={2}
+              placeholder="Private health, 25 days annual leave…"
+              className="w-full px-3 py-2 text-sm border border-[var(--color-border)] rounded-xl resize-none outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Internal notes <span className="font-normal opacity-60">(optional)</span></label>
+            <textarea value={form.notes} onChange={f('notes')} rows={2}
+              placeholder="Internal context about this offer…"
+              className="w-full px-3 py-2 text-sm border border-[var(--color-border)] rounded-xl resize-none outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-6 pb-6">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" isLoading={saving} onClick={handleSubmit}>
+            <FileText size={13} /> Create Offer Draft
           </Button>
         </div>
       </div>
@@ -573,6 +851,10 @@ export default function CandidateProfilePage({
   // Move stage modal
   const [stageModal, setStageModal] = useState<{ appId: string; jobTitle: string; currentStatus: string } | null>(null);
 
+  // Schedule interview / send offer modals
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [offerOpen, setOfferOpen]       = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
@@ -671,14 +953,14 @@ export default function CandidateProfilePage({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => showToast('Schedule Interview — coming soon', 'info')}
+                  onClick={() => setScheduleOpen(true)}
                 >
                   <Calendar size={13} /> Schedule Interview
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => showToast('Send Offer — coming soon', 'info')}
+                  onClick={() => setOfferOpen(true)}
                 >
                   <FileText size={13} /> Send Offer
                 </Button>
@@ -772,6 +1054,24 @@ export default function CandidateProfilePage({
           jobTitle={stageModal.jobTitle}
           onClose={() => setStageModal(null)}
           onMoved={handleStageUpdated}
+        />
+      )}
+
+      {/* Schedule Interview Modal */}
+      {scheduleOpen && candidate && (
+        <ScheduleInterviewModal
+          candidate={candidate}
+          onClose={() => setScheduleOpen(false)}
+          onCreated={() => setScheduleOpen(false)}
+        />
+      )}
+
+      {/* Send Offer Modal */}
+      {offerOpen && candidate && (
+        <SendOfferModal
+          candidate={candidate}
+          onClose={() => setOfferOpen(false)}
+          onCreated={() => setOfferOpen(false)}
         />
       )}
     </div>
