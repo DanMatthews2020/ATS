@@ -333,9 +333,10 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
       setActiveTab('manual');
       showToast('CV parsed — review the auto-filled details below');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Parsing failed';
-      if (msg.includes('ANTHROPIC_API_KEY') || msg.includes('not configured')) {
-        setParseErrorMsg('CV parsing is not configured on this server. Please fill in the details manually.');
+      const msg = err instanceof Error ? err.message : '';
+      // Use the server's descriptive message if available, otherwise provide a helpful fallback
+      if (msg && msg.length > 0) {
+        setParseErrorMsg(msg);
       } else {
         setParseErrorMsg('Could not parse this CV. Please fill in the details manually.');
       }

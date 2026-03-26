@@ -86,9 +86,13 @@ export const candidatesController = {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'CV parsing failed';
       if (msg.includes('ANTHROPIC_API_KEY')) {
-        sendError(res, 503, 'CV_PARSE_UNAVAILABLE', msg);
+        sendError(res, 503, 'CV_PARSE_UNAVAILABLE', 'CV parsing is not available — the AI API key is not configured. Please contact your administrator or fill in the details manually.');
+      } else if (msg.includes('credit balance') || msg.includes('credit') || msg.includes('billing') || msg.includes('payment')) {
+        sendError(res, 503, 'CV_PARSE_UNAVAILABLE', 'CV parsing is temporarily unavailable — the AI account has insufficient credits. Please contact your administrator or fill in the details manually.');
+      } else if (msg.includes('401') || msg.includes('invalid_api_key') || msg.includes('authentication')) {
+        sendError(res, 503, 'CV_PARSE_UNAVAILABLE', 'CV parsing is not available — the AI API key is invalid. Please contact your administrator or fill in the details manually.');
       } else {
-        sendError(res, 500, 'CV_PARSE_ERROR', 'Failed to parse CV. Please fill in the details manually.');
+        sendError(res, 500, 'CV_PARSE_ERROR', 'Failed to parse CV. The file may be corrupted, password-protected, or in an unsupported format. Please fill in the details manually.');
       }
     }
   },

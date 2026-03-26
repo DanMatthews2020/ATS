@@ -7,9 +7,18 @@ import { CreateCandidateSchema } from '../types/schemas';
 
 const router = Router();
 
+const ALLOWED_MIME_TYPES = ['application/pdf', 'text/plain'];
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF and plain-text files are supported.'));
+    }
+  },
 });
 
 router.get('/',           authenticate, candidatesController.getCandidates);
