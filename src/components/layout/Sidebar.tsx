@@ -19,6 +19,7 @@ import {
   Building2,
   Bell,
   FolderOpen,
+  Mail,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,6 +45,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   Building2,
   Bell,
   FolderOpen,
+  Mail,
 };
 
 function NavIcon({ name }: { name: IconName }) {

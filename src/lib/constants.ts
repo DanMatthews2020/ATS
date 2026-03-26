@@ -30,6 +30,11 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    label: 'Sequences',
+    href: '/sequences',
+    icon: 'Mail',
+  },
+  {
     label: 'Candidates',
     href: '/candidates',
     icon: 'Users',

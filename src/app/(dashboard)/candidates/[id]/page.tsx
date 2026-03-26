@@ -476,7 +476,7 @@ function EnrollInSequenceModal({ candidateId, candidateName, onClose }: {
     if (!selected) return;
     setEnrolling(true);
     try {
-      await sequencesApi.enroll(selected.id, candidateId);
+      await sequencesApi.enroll(selected.id, { candidateId });
       showToast(`${candidateName} enrolled in ${selected.name}`, 'success');
       onClose();
     } catch (err: unknown) {

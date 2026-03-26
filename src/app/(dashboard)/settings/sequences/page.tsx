@@ -183,13 +183,10 @@ export default function SequencesPage() {
                       </div>
                       <div>
                         <p className="font-medium text-[var(--color-text-primary)] hover:text-[var(--color-primary)] transition-colors">{seq.name}</p>
-                        {seq.steps.length > 0 && (
-                          <div className="flex items-center gap-1 mt-1">
-                            {seq.steps.slice(0, 5).map((step) => (
-                              <StepTypePip key={step.id} type={step.type} />
-                            ))}
-                            {seq.steps.length > 5 && <span className="text-[10px] text-[var(--color-text-muted)]">+{seq.steps.length - 5}</span>}
-                          </div>
+                        {seq.stepCount > 0 && (
+                          <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                            {seq.stepCount} step{seq.stepCount !== 1 ? 's' : ''}
+                          </p>
                         )}
                       </div>
                     </Link>

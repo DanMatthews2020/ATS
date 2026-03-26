@@ -1147,6 +1147,171 @@ export const followUpsApi = {
     api.delete<{ deleted: boolean }>(`/follow-ups/${id}`),
 };
 
+// ── Sequences ─────────────────────────────────────────────────────────────────
+
+export interface SequenceStatsDto {
+  totalEnrolled: number;
+  active: number;
+  completed: number;
+  stopped: number;
+  replied: number;
+  opens: number;
+  clicks: number;
+}
+
+export interface SequenceListDto {
+  id: string;
+  name: string;
+  status: string;
+  stepCount: number;
+  enrolledCount: number;
+  senderEmail: string | null;
+  linkedJobId: string | null;
+  stopOnReply: boolean;
+  stopOnInterview: boolean;
+  stopOnHired: boolean;
+  skipWeekends: boolean;
+  isShared: boolean;
+  maxEmails: number;
+  sendingDays: string[];
+  createdById: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SequenceDetailDto extends SequenceListDto {
+  steps: SequenceStepDto[];
+  stats: SequenceStatsDto;
+}
+
+export interface SequenceStepDto {
+  id: string;
+  sequenceId: string;
+  position: number;
+  type: string;
+  subject: string | null;
+  body: string | null;
+  templateId: string | null;
+  templateName: string | null;
+  waitDays: number | null;
+  delayDays: number;
+  taskDescription: string | null;
+  sendTime: string | null;
+  sendFrom: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnrollmentDto {
+  id: string;
+  sequenceId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  candidateCurrentCompany: string | null;
+  currentStep: number;
+  status: string;
+  sendFrom: string | null;
+  startDate: string;
+  response: string | null;
+  opens: number;
+  clicks: number;
+  enrolledAt: string;
+  completedAt: string | null;
+  stoppedAt: string | null;
+  stoppedReason: string | null;
+}
+
+export interface CreateSequenceDto {
+  name: string;
+  senderEmail?: string;
+  linkedJobId?: string;
+  stopOnReply?: boolean;
+  stopOnInterview?: boolean;
+  stopOnHired?: boolean;
+  skipWeekends?: boolean;
+  isShared?: boolean;
+  maxEmails?: number;
+  sendingDays?: string[];
+}
+
+export interface UpdateSequenceDto extends Partial<CreateSequenceDto> {
+  status?: 'ACTIVE' | 'PAUSED';
+}
+
+export const sequencesApi = {
+  getAll: (params?: { status?: string; search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.search) qs.set('search', params.search);
+    const query = qs.toString();
+    return api.get<{ sequences: SequenceListDto[] }>(`/sequences${query ? `?${query}` : ''}`);
+  },
+
+  getById: (id: string) =>
+    api.get<{ sequence: SequenceDetailDto }>(`/sequences/${id}`),
+
+  create: (data: CreateSequenceDto) =>
+    api.post<{ sequence: SequenceDetailDto }>('/sequences', data),
+
+  update: (id: string, data: UpdateSequenceDto) =>
+    api.patch<{ sequence: SequenceListDto }>(`/sequences/${id}`, data),
+
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/sequences/${id}`),
+
+  updateStatus: (id: string, status: 'ACTIVE' | 'PAUSED') =>
+    api.patch<{ sequence: SequenceListDto }>(`/sequences/${id}/status`, { status }),
+
+  getEnrollments: (id: string, params?: { status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    const query = qs.toString();
+    return api.get<{ enrollments: EnrollmentDto[] }>(`/sequences/${id}/enrolled${query ? `?${query}` : ''}`);
+  },
+
+  enroll: (id: string, data: { candidateId: string; sendFrom?: string; startDate?: string }) =>
+    api.post<{ enrollment: EnrollmentDto }>(`/sequences/${id}/enroll`, data),
+
+  unenroll: (id: string, candidateId: string) =>
+    api.delete<{ unenrolled: boolean }>(`/sequences/${id}/enroll/${candidateId}`),
+
+  setResponse: (id: string, enrollmentId: string, response: string) =>
+    api.patch<{ enrollment: EnrollmentDto }>(
+      `/sequences/${id}/enrollments/${enrollmentId}/response`,
+      { response },
+    ),
+
+  // Step management
+  addStep: (id: string, data: {
+    type: 'EMAIL' | 'WAIT' | 'TASK';
+    subject?: string;
+    body?: string;
+    templateId?: string;
+    waitDays?: number;
+    delayDays?: number;
+    taskDescription?: string;
+    sendTime?: string;
+    sendFrom?: string;
+    position?: number;
+  }) => api.post<{ step: SequenceStepDto }>(`/sequences/${id}/steps`, data),
+
+  updateStep: (id: string, stepId: string, data: Partial<SequenceStepDto>) =>
+    api.patch<{ step: SequenceStepDto }>(`/sequences/${id}/steps/${stepId}`, data),
+
+  deleteStep: (id: string, stepId: string) =>
+    api.delete<{ deleted: boolean }>(`/sequences/${id}/steps/${stepId}`),
+
+  // Legacy alias for toggleStatus
+  toggleStatus: (id: string, status: 'ACTIVE' | 'PAUSED') =>
+    api.patch<{ sequence: SequenceListDto }>(`/sequences/${id}/status`, { status }),
+};
+
+// Backwards-compat alias used by candidate profile page
+export type SequenceDto = SequenceListDto;
+export type SequenceEnrollmentDto = EnrollmentDto;
+
 // ── Email Templates ───────────────────────────────────────────────────────────
 
 export interface EmailTemplateDto {
@@ -1231,77 +1396,6 @@ export const projectsApi = {
     api.get<{ notes: ProjectNoteDto[] }>(`/projects/${id}/notes`),
   createNote: (id: string, content: string) =>
     api.post<{ note: ProjectNoteDto }>(`/projects/${id}/notes`, { content }),
-};
-
-// ── Sequences ─────────────────────────────────────────────────────────────────
-
-export interface SequenceStepDto {
-  id: string;
-  sequenceId: string;
-  position: number;
-  type: 'EMAIL' | 'WAIT' | 'TASK';
-  templateId: string | null;
-  templateName: string | null;
-  waitDays: number | null;
-  taskDescription: string | null;
-  sendTime: string | null;
-}
-
-export interface SequenceDto {
-  id: string;
-  name: string;
-  status: 'ACTIVE' | 'PAUSED';
-  stepCount: number;
-  enrolledCount: number;
-  stopOnReply: boolean;
-  stopOnInterview: boolean;
-  maxEmails: number;
-  sendingDays: string[];
-  steps: SequenceStepDto[];
-  createdById: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface SequenceEnrollmentDto {
-  id: string;
-  sequenceId: string;
-  candidateId: string;
-  candidateName: string;
-  candidateEmail: string;
-  currentStep: number;
-  status: 'ACTIVE' | 'COMPLETED' | 'STOPPED';
-  enrolledAt: string;
-  completedAt: string | null;
-  stoppedAt: string | null;
-  stoppedReason: string | null;
-}
-
-export const sequencesApi = {
-  getAll: () =>
-    api.get<{ sequences: SequenceDto[] }>('/sequences'),
-  getById: (id: string) =>
-    api.get<{ sequence: SequenceDto }>(`/sequences/${id}`),
-  create: (data: { name: string; stopOnReply?: boolean; stopOnInterview?: boolean; maxEmails?: number; sendingDays?: string[] }) =>
-    api.post<{ sequence: SequenceDto }>('/sequences', data),
-  update: (id: string, data: { name?: string; status?: 'ACTIVE' | 'PAUSED'; stopOnReply?: boolean; stopOnInterview?: boolean; maxEmails?: number; sendingDays?: string[] }) =>
-    api.patch<{ sequence: SequenceDto }>(`/sequences/${id}`, data),
-  delete: (id: string) =>
-    api.delete<{ deleted: boolean }>(`/sequences/${id}`),
-  toggleStatus: (id: string, status: 'ACTIVE' | 'PAUSED') =>
-    api.patch<{ sequence: SequenceDto }>(`/sequences/${id}/status`, { status }),
-  addStep: (id: string, data: { type: 'EMAIL' | 'WAIT' | 'TASK'; templateId?: string; waitDays?: number; taskDescription?: string; sendTime?: string }) =>
-    api.post<{ step: SequenceStepDto }>(`/sequences/${id}/steps`, data),
-  updateStep: (id: string, stepId: string, data: Partial<SequenceStepDto>) =>
-    api.patch<{ step: SequenceStepDto }>(`/sequences/${id}/steps/${stepId}`, data),
-  deleteStep: (id: string, stepId: string) =>
-    api.delete<{ deleted: boolean }>(`/sequences/${id}/steps/${stepId}`),
-  getEnrollments: (id: string) =>
-    api.get<{ enrollments: SequenceEnrollmentDto[] }>(`/sequences/${id}/enrolled`),
-  enroll: (id: string, candidateId: string) =>
-    api.post<{ enrollment: SequenceEnrollmentDto }>(`/sequences/${id}/enroll`, { candidateId }),
-  unenroll: (id: string, candidateId: string) =>
-    api.delete<{ enrollment: SequenceEnrollmentDto }>(`/sequences/${id}/enroll/${candidateId}`),
 };
 
 // ── Feedback Forms ────────────────────────────────────────────────────────────

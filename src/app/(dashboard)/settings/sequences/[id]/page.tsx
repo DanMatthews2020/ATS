@@ -12,8 +12,8 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/contexts/ToastContext';
 import {
   sequencesApi, emailTemplatesApi, candidatesApi,
-  type SequenceDto, type SequenceStepDto, type EmailTemplateDto,
-  type SequenceEnrollmentDto,
+  type SequenceDetailDto as SequenceDto, type SequenceStepDto, type EmailTemplateDto,
+  type EnrollmentDto as SequenceEnrollmentDto,
 } from '@/lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -215,7 +215,7 @@ function EnrollModal({ sequenceId, enrolledIds, onEnrolled, onCancel }: {
   async function handleEnroll(candidateId: string) {
     setEnrollingId(candidateId);
     try {
-      const res = await sequencesApi.enroll(sequenceId, candidateId);
+      const res = await sequencesApi.enroll(sequenceId, { candidateId });
       onEnrolled(res.enrollment);
       showToast('Candidate enrolled', 'success');
     } catch {
@@ -294,7 +294,7 @@ function StepCard({ step, position, onDelete }: {
   position: number;
   onDelete: () => void;
 }) {
-  const meta = stepMeta(step.type);
+  const meta = stepMeta(step.type as StepType);
 
   return (
     <div className="flex items-start gap-3">
@@ -369,7 +369,7 @@ function SettingsPanel({ sequence, onUpdated }: { sequence: SequenceDto; onUpdat
     setSaving(true);
     try {
       const res = await sequencesApi.update(sequence.id, { name: name.trim(), stopOnReply, stopOnInterview, maxEmails, sendingDays });
-      onUpdated(res.sequence);
+      onUpdated({ ...sequence, ...res.sequence });
       showToast('Settings saved', 'success');
     } catch {
       showToast('Failed to save settings', 'error');
@@ -496,7 +496,7 @@ export default function SequenceBuilderPage({ params }: { params: { id: string }
     setTogglingStatus(true);
     try {
       const res = await sequencesApi.toggleStatus(id, next);
-      setSequence(res.sequence);
+      setSequence((prev) => prev ? { ...prev, ...res.sequence } : prev);
     } catch {
       showToast('Failed to update status', 'error');
     } finally {

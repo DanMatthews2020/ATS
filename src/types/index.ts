@@ -15,7 +15,8 @@ export type IconName =
   | 'FileCheck'
   | 'Building2'
   | 'Bell'
-  | 'FolderOpen';
+  | 'FolderOpen'
+  | 'Mail';
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
 
