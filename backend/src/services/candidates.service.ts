@@ -99,6 +99,21 @@ export interface CandidateDetailDto {
   source: string;
   skills: string[];
   tags: string[];
+  doNotContact: boolean;
+  doNotContactReason?: string;
+  doNotContactNote?: string;
+  doNotContactAt?: string;
+  referrals: {
+    id: string;
+    referredByName: string;
+    referredByEmail: string | null;
+    relationship: string;
+    jobId: string | null;
+    jobTitle: string | null;
+    note: string | null;
+    referralDate: string;
+    createdAt: string;
+  }[];
   createdAt: string;
   applications: {
     id: string;
@@ -197,6 +212,21 @@ export const candidatesService = {
       source: mapSource(c.source),
       skills: c.skills,
       tags: c.tags,
+      doNotContact: c.doNotContact,
+      doNotContactReason: c.doNotContactReason ?? undefined,
+      doNotContactNote: c.doNotContactNote ?? undefined,
+      doNotContactAt: c.doNotContactAt?.toISOString(),
+      referrals: c.referrals.map((r) => ({
+        id: r.id,
+        referredByName: r.referredByName,
+        referredByEmail: r.referredByEmail,
+        relationship: r.relationship,
+        jobId: r.jobId,
+        jobTitle: r.jobTitle,
+        note: r.note,
+        referralDate: r.referralDate.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+      })),
       createdAt: c.createdAt.toISOString(),
       applications: c.applications.map((app) => ({
         id: app.id,
@@ -266,6 +296,8 @@ export const candidatesService = {
       source: mapSource(c.source),
       skills: c.skills,
       tags: c.tags,
+      doNotContact: c.doNotContact,
+      referrals: [],
       createdAt: c.createdAt.toISOString(),
       applications: [],
     };
@@ -315,6 +347,36 @@ export const candidatesService = {
 
   async deleteNote(noteId: string): Promise<boolean> {
     try { await candidatesRepository.deleteNote(noteId); return true; } catch { return false; }
+  },
+
+  async deleteCandidate(id: string): Promise<boolean> {
+    try { await candidatesRepository.deleteById(id); return true; } catch { return false; }
+  },
+
+  async setDoNotContact(id: string, data: {
+    doNotContact: boolean;
+    reason?: string;
+    note?: string;
+  }): Promise<boolean> {
+    try {
+      await candidatesRepository.updateDoNotContact(id, {
+        doNotContact: data.doNotContact,
+        doNotContactReason: data.doNotContact ? (data.reason ?? null) : null,
+        doNotContactNote: data.doNotContact ? (data.note ?? null) : null,
+        doNotContactAt: data.doNotContact ? new Date() : null,
+      });
+      if (data.doNotContact) {
+        await candidatesRepository.unenrollAllSequences(id);
+      }
+      return true;
+    } catch { return false; }
+  },
+
+  async merge(keepId: string, mergeId: string, fieldResolutions: Record<string, 'keep' | 'merge'>): Promise<boolean> {
+    try {
+      await candidatesRepository.merge(keepId, mergeId, fieldResolutions);
+      return true;
+    } catch { return false; }
   },
 
   async updateTags(candidateId: string, tags: string[]): Promise<string[]> {

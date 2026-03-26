@@ -153,9 +153,9 @@ function toApplicationDto(app: AppRow): PipelineApplicationDto {
 }
 
 export const jobsService = {
-  async getJobs(page: number, limit: number): Promise<PaginatedResponse<JobListingDto>> {
+  async getJobs(page: number, limit: number, status?: string): Promise<PaginatedResponse<JobListingDto>> {
     const skip = (page - 1) * limit;
-    const { items, total } = await jobsRepository.findMany({ skip, take: limit });
+    const { items, total } = await jobsRepository.findMany({ skip, take: limit, status });
 
     return {
       items: items.map((job) => ({

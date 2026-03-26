@@ -159,19 +159,23 @@ model JobPosting {
 }
 
 model Candidate {
-  id          String          @id @default(uuid())
-  firstName   String
-  lastName    String
-  email       String          @unique
-  phone       String?
-  cvUrl       String?
-  linkedInUrl String?
-  source      CandidateSource @default(JOB_BOARD)
-  skills      String[]
-  tags        String[]
-  location    String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id                 String          @id @default(uuid())
+  firstName          String
+  lastName           String
+  email              String          @unique
+  phone              String?
+  cvUrl              String?
+  linkedInUrl        String?
+  source             CandidateSource @default(JOB_BOARD)
+  skills             String[]
+  tags               String[]
+  location           String?
+  doNotContact       Boolean         @default(false)
+  doNotContactReason String?
+  doNotContactNote   String?
+  doNotContactAt     DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   applications        Application[]
   employee            Employee?
@@ -181,6 +185,7 @@ model Candidate {
   projectCandidates   ProjectCandidate[]
   sequenceEnrollments SequenceEnrollment[]
   feedbackSubmissions FeedbackSubmission[]
+  referrals           Referral[]
 }
 
 model Application {
@@ -568,4 +573,20 @@ model FeedbackSubmission {
   overallRating  Int?
   recommendation String?
   submittedAt    DateTime     @default(now())
+}
+
+// ─── Referrals ─────────────────────────────────────────────────────────────────
+
+model Referral {
+  id              String    @id @default(uuid())
+  candidateId     String
+  candidate       Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  referredByName  String
+  referredByEmail String?
+  relationship    String    // former-colleague | friend | university | professional-network | other
+  jobId           String?
+  jobTitle        String?
+  note            String?
+  referralDate    DateTime  @default(now())
+  createdAt       DateTime  @default(now())
 }

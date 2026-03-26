@@ -253,8 +253,8 @@ export interface PaginatedResponse<T> {
 export const jobsApi = {
   getStats: () =>
     api.get<JobStatsDto>('/jobs/stats'),
-  getJobs: (page = 1, limit = 20) =>
-    api.get<PaginatedResponse<JobListingDto>>(`/jobs?page=${page}&limit=${limit}`),
+  getJobs: (page = 1, limit = 20, status?: string) =>
+    api.get<PaginatedResponse<JobListingDto>>(`/jobs?page=${page}&limit=${limit}${status ? `&status=${encodeURIComponent(status)}` : ''}`),
   getJob: (id: string) =>
     api.get<{ job: JobDetailDto }>(`/jobs/${id}`),
   createJob: (data: {
@@ -295,6 +295,19 @@ export interface CandidateListDto {
   createdAt: string;
 }
 
+export interface ReferralDto {
+  id: string;
+  candidateId: string;
+  referredByName: string;
+  referredByEmail: string | null;
+  relationship: string;
+  jobId: string | null;
+  jobTitle: string | null;
+  note: string | null;
+  referralDate: string;
+  createdAt: string;
+}
+
 export interface CandidateDetailDto {
   id: string;
   firstName: string;
@@ -307,6 +320,11 @@ export interface CandidateDetailDto {
   source: string;
   skills: string[];
   tags: string[];
+  doNotContact: boolean;
+  doNotContactReason?: string;
+  doNotContactNote?: string;
+  doNotContactAt?: string;
+  referrals: ReferralDto[];
   createdAt: string;
   applications: {
     id: string;
@@ -392,6 +410,21 @@ export const candidatesApi = {
     fd.append('cv', file);
     return uploadFile<{ parsed: ParsedCvData }>('/candidates/parse-cv', fd);
   },
+  deleteCandidate: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/candidates/${id}`),
+  setDoNotContact: (id: string, data: { doNotContact: boolean; reason?: string; note?: string }) =>
+    api.patch<{ updated: boolean }>(`/candidates/${id}/do-not-contact`, data),
+  merge: (keepId: string, mergeId: string, fieldResolutions: Record<string, 'keep' | 'merge'>) =>
+    api.post<{ merged: boolean; keepId: string }>('/candidates/merge', { keepId, mergeId, fieldResolutions }),
+};
+
+export const referralsApi = {
+  create: (data: { candidateId: string; referredByName: string; referredByEmail?: string; relationship: string; jobId?: string; jobTitle?: string; note?: string; referralDate?: string }) =>
+    api.post<{ referral: ReferralDto }>('/referrals', data),
+  getByCandidateId: (candidateId: string) =>
+    api.get<{ referrals: ReferralDto[] }>(`/referrals?candidateId=${encodeURIComponent(candidateId)}`),
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/referrals/${id}`),
 };
 
 // Onboarding

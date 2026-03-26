@@ -22,6 +22,7 @@ import emailTemplatesRoutes from './email-templates.routes';
 import projectsRoutes from './projects.routes';
 import sequencesRoutes from './sequences.routes';
 import feedbackFormsRoutes from './feedback-forms.routes';
+import referralsRoutes from './referrals.routes';
 
 const router = Router();
 
@@ -48,5 +49,6 @@ router.use('/email-templates',  emailTemplatesRoutes);
 router.use('/projects',         projectsRoutes);
 router.use('/sequences',        sequencesRoutes);
 router.use('/feedback-forms',   feedbackFormsRoutes);
+router.use('/referrals',        referralsRoutes);
 
 export default router;

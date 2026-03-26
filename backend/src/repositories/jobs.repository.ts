@@ -9,9 +9,13 @@ import { prisma } from '../lib/prisma';
 import type { Prisma } from '@prisma/client';
 
 export const jobsRepository = {
-  async findMany(params: { skip: number; take: number }) {
+  async findMany(params: { skip: number; take: number; status?: string }) {
+    const where: Prisma.JobPostingWhereInput = params.status
+      ? { status: params.status.toUpperCase() as Prisma.EnumJobStatusFilter['equals'] }
+      : {};
     const [items, total] = await Promise.all([
       prisma.jobPosting.findMany({
+        where,
         skip: params.skip,
         take: params.take,
         orderBy: { createdAt: 'desc' },
@@ -19,7 +23,7 @@ export const jobsRepository = {
           _count: { select: { applications: true } },
         },
       }),
-      prisma.jobPosting.count(),
+      prisma.jobPosting.count({ where }),
     ]);
     return { items, total };
   },

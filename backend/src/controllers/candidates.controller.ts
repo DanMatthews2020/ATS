@@ -184,4 +184,63 @@ export const candidatesController = {
   async getEmails(req: AuthRequest, res: Response): Promise<void> {
     sendSuccess(res, { emails: [] });
   },
+
+  // DELETE /candidates/:id
+  async deleteCandidate(req: Request, res: Response): Promise<void> {
+    try {
+      const ok = await candidatesService.deleteCandidate(req.params.id);
+      if (!ok) {
+        sendError(res, 404, 'NOT_FOUND', 'Candidate not found');
+        return;
+      }
+      sendSuccess(res, { deleted: true });
+    } catch {
+      sendError(res, 500, 'DELETE_ERROR', 'Failed to delete candidate');
+    }
+  },
+
+  // PATCH /candidates/:id/do-not-contact
+  async setDoNotContact(req: Request, res: Response): Promise<void> {
+    try {
+      const { doNotContact, reason, note } = req.body as { doNotContact: boolean; reason?: string; note?: string };
+      if (typeof doNotContact !== 'boolean') {
+        sendError(res, 400, 'INVALID_BODY', 'doNotContact must be a boolean');
+        return;
+      }
+      const ok = await candidatesService.setDoNotContact(req.params.id, { doNotContact, reason, note });
+      if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Candidate not found'); return; }
+      sendSuccess(res, { updated: true });
+    } catch {
+      sendError(res, 500, 'UPDATE_ERROR', 'Failed to update Do Not Contact status');
+    }
+  },
+
+  // POST /candidates/merge
+  async merge(req: Request, res: Response): Promise<void> {
+    try {
+      const { keepId, mergeId, fieldResolutions } = req.body as {
+        keepId: string;
+        mergeId: string;
+        fieldResolutions: Record<string, 'keep' | 'merge'>;
+      };
+      if (!keepId || !mergeId) {
+        sendError(res, 400, 'INVALID_BODY', 'keepId and mergeId are required');
+        return;
+      }
+      if (keepId === mergeId) {
+        sendError(res, 400, 'INVALID_BODY', 'keepId and mergeId must be different');
+        return;
+      }
+      const ok = await candidatesService.merge(keepId, mergeId, fieldResolutions ?? {});
+      if (!ok) { sendError(res, 500, 'MERGE_ERROR', 'Failed to merge profiles'); return; }
+      sendSuccess(res, { merged: true, keepId });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('not found')) {
+        sendError(res, 404, 'NOT_FOUND', 'One or both candidates not found');
+      } else {
+        sendError(res, 500, 'MERGE_ERROR', 'Failed to merge profiles');
+      }
+    }
+  },
 };

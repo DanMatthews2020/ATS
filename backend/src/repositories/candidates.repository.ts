@@ -79,6 +79,9 @@ export const candidatesRepository = {
     return prisma.candidate.findUnique({
       where: { id },
       include: {
+        referrals: {
+          orderBy: { createdAt: 'desc' },
+        },
         applications: {
           orderBy: { appliedAt: 'desc' },
           include: {
@@ -148,6 +151,105 @@ export const candidatesRepository = {
 
   async updateTags(id: string, tags: string[]) {
     return prisma.candidate.update({ where: { id }, data: { tags } });
+  },
+
+  async deleteById(id: string) {
+    return prisma.candidate.delete({ where: { id } });
+  },
+
+  async updateDoNotContact(id: string, data: {
+    doNotContact: boolean;
+    doNotContactReason?: string | null;
+    doNotContactNote?: string | null;
+    doNotContactAt?: Date | null;
+  }) {
+    return prisma.candidate.update({ where: { id }, data });
+  },
+
+  async unenrollAllSequences(candidateId: string) {
+    return prisma.sequenceEnrollment.updateMany({
+      where: { candidateId, status: 'ACTIVE' },
+      data: { status: 'STOPPED', stoppedAt: new Date(), stoppedReason: 'Do Not Contact' },
+    });
+  },
+
+  async findReferrals(candidateId: string) {
+    return prisma.referral.findMany({
+      where: { candidateId },
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
+  async merge(keepId: string, mergeId: string, fieldResolutions: Record<string, 'keep' | 'merge'>): Promise<void> {
+    const mergeCandidate = await prisma.candidate.findUnique({ where: { id: mergeId } });
+    if (!mergeCandidate) throw new Error('Merge candidate not found');
+
+    await prisma.$transaction(async (tx) => {
+      // Identify conflicting applications (same job already in keepId pipeline)
+      const keepJobIds = new Set(
+        (await tx.application.findMany({ where: { candidateId: keepId }, select: { jobPostingId: true } }))
+          .map(a => a.jobPostingId)
+      );
+      const mergeApps = await tx.application.findMany({ where: { candidateId: mergeId } });
+      const conflictingAppIds = mergeApps.filter(a => keepJobIds.has(a.jobPostingId)).map(a => a.id);
+
+      // Detach notes from conflicting apps before deletion
+      if (conflictingAppIds.length > 0) {
+        await tx.candidateNote.updateMany({
+          where: { applicationId: { in: conflictingAppIds } },
+          data: { applicationId: null },
+        });
+        await tx.application.deleteMany({ where: { id: { in: conflictingAppIds } } });
+      }
+
+      // Move all remaining records to keepId
+      await tx.candidateNote.updateMany({ where: { candidateId: mergeId }, data: { candidateId: keepId } });
+      await tx.application.updateMany({ where: { candidateId: mergeId }, data: { candidateId: keepId } });
+      await tx.candidateEvaluation.updateMany({ where: { candidateId: mergeId }, data: { candidateId: keepId } });
+      await tx.followUp.updateMany({ where: { candidateId: mergeId }, data: { candidateId: keepId } });
+      await tx.feedbackSubmission.updateMany({ where: { candidateId: mergeId }, data: { candidateId: keepId } });
+      await tx.referral.updateMany({ where: { candidateId: mergeId }, data: { candidateId: keepId } });
+
+      // Project candidates — skip conflicts
+      const keepProjectIds = new Set(
+        (await tx.projectCandidate.findMany({ where: { candidateId: keepId }, select: { projectId: true } }))
+          .map(p => p.projectId)
+      );
+      for (const pc of await tx.projectCandidate.findMany({ where: { candidateId: mergeId } })) {
+        if (!keepProjectIds.has(pc.projectId)) {
+          await tx.projectCandidate.update({ where: { id: pc.id }, data: { candidateId: keepId } });
+        }
+      }
+
+      // Sequence enrollments — skip conflicts
+      const keepSeqIds = new Set(
+        (await tx.sequenceEnrollment.findMany({ where: { candidateId: keepId }, select: { sequenceId: true } }))
+          .map(s => s.sequenceId)
+      );
+      for (const se of await tx.sequenceEnrollment.findMany({ where: { candidateId: mergeId } })) {
+        if (!keepSeqIds.has(se.sequenceId)) {
+          await tx.sequenceEnrollment.update({ where: { id: se.id }, data: { candidateId: keepId } });
+        }
+      }
+
+      // Detach Employee if any (no cascade on Employee.candidateId)
+      await tx.employee.updateMany({ where: { candidateId: mergeId }, data: { candidateId: null } });
+
+      // Apply field resolutions
+      const updateData: Record<string, unknown> = {};
+      const allowedFields = ['firstName', 'lastName', 'phone', 'linkedInUrl', 'location', 'skills', 'tags'];
+      for (const [field, resolution] of Object.entries(fieldResolutions)) {
+        if (resolution === 'merge' && allowedFields.includes(field)) {
+          updateData[field] = (mergeCandidate as Record<string, unknown>)[field];
+        }
+      }
+      if (Object.keys(updateData).length > 0) {
+        await tx.candidate.update({ where: { id: keepId }, data: updateData });
+      }
+
+      // Delete merge candidate — cascade removes remaining records
+      await tx.candidate.delete({ where: { id: mergeId } });
+    });
   },
 
   async findFeedData(candidateId: string) {

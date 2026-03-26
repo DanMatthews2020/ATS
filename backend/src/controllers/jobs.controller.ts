@@ -26,7 +26,8 @@ export const jobsController = {
     try {
       const page = Math.max(1, Number(req.query.page ?? 1));
       const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 20)));
-      const result = await jobsService.getJobs(page, limit);
+      const status = req.query.status as string | undefined;
+      const result = await jobsService.getJobs(page, limit, status);
       sendSuccess(res, result);
     } catch {
       sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch job postings');

@@ -17,12 +17,16 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import {
   candidatesApi, applicationsApi, interviewsApi, offersApi,
-  candidatePanelApi, followUpsApi,
+  candidatePanelApi, followUpsApi, sequencesApi, projectsApi, jobsApi,
+  referralsApi, teamApi,
   type CandidateDetailDto, type InterviewType,
   type CandidateNoteDto, type FeedEventDto, type CandidateFeedbackDto,
+  type SequenceDto, type ProjectDto, type JobListingDto,
+  type TeamMemberDto, type ReferralDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
+import ScorecardModal from '@/components/ScorecardModal';
 import type { BadgeVariant } from '@/types';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -446,12 +450,1022 @@ function ChangeStageDropdown({ candidate, onStageChanged }: {
   );
 }
 
+// ─── Enroll in Sequence Modal ─────────────────────────────────────────────────
+
+function EnrollInSequenceModal({ candidateId, candidateName, onClose }: {
+  candidateId: string;
+  candidateName: string;
+  onClose: () => void;
+  onEnrolled: () => void;
+}) {
+  const { showToast } = useToast();
+  const [sequences, setSequences] = useState<SequenceDto[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState<SequenceDto | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
+
+  useEffect(() => {
+    sequencesApi.getAll()
+      .then((d) => setSequences(d.sequences.filter((s) => s.status === 'ACTIVE')))
+      .catch(() => showToast('Failed to load sequences', 'error'))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleEnroll() {
+    if (!selected) return;
+    setEnrolling(true);
+    try {
+      await sequencesApi.enroll(selected.id, candidateId);
+      showToast(`${candidateName} enrolled in ${selected.name}`, 'success');
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('already enrolled') || msg.includes('P2002')) {
+        showToast(`${candidateName} is already enrolled in this sequence`, 'error');
+      } else {
+        showToast('Failed to enroll in sequence', 'error');
+      }
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Enroll in Sequence</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4 max-h-[360px] overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+            </div>
+          ) : sequences.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-[var(--color-text-muted)] mb-3">No active sequences found.</p>
+              <a href="/sequences" className="text-sm text-[var(--color-primary)] hover:underline">
+                Create a sequence →
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sequences.map((seq) => (
+                <button
+                  key={seq.id}
+                  onClick={() => setSelected(seq)}
+                  className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                    selected?.id === seq.id
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                      : 'border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-[var(--color-text-primary)]">{seq.name}</span>
+                    {selected?.id === seq.id && <Check size={14} className="text-[var(--color-primary)]" />}
+                  </div>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                    {seq.stepCount} step{seq.stepCount !== 1 ? 's' : ''} · {seq.enrolledCount} enrolled
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleEnroll}
+            disabled={!selected || enrolling}
+          >
+            {enrolling ? <><Loader2 size={13} className="animate-spin" /> Enrolling…</> : 'Enroll'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add to Project Modal ─────────────────────────────────────────────────────
+
+function AddToProjectModal({ candidateId, candidateName, onClose }: {
+  candidateId: string;
+  candidateName: string;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const { showToast } = useToast();
+  const [projects, setProjects]   = useState<ProjectDto[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [selected, setSelected]   = useState<Set<string>>(new Set());
+  const [saving, setSaving]       = useState(false);
+
+  useEffect(() => {
+    projectsApi.getAll()
+      .then((d) => setProjects(d.projects))
+      .catch(() => showToast('Failed to load projects', 'error'))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleAdd() {
+    if (selected.size === 0) return;
+    setSaving(true);
+    let added = 0;
+    let skipped = 0;
+    for (const projectId of Array.from(selected)) {
+      try {
+        await projectsApi.addCandidate(projectId, candidateId);
+        added++;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : '';
+        if (msg.includes('P2002') || msg.includes('already')) {
+          skipped++;
+        } else {
+          showToast('Failed to add to one or more projects', 'error');
+          setSaving(false);
+          return;
+        }
+      }
+    }
+    if (added > 0) {
+      showToast(`${candidateName} added to ${added} project${added !== 1 ? 's' : ''}${skipped > 0 ? ` (${skipped} already a member)` : ''}`, 'success');
+    } else {
+      showToast(`${candidateName} is already a member of all selected projects`, 'info');
+    }
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Add to Project</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4 max-h-[360px] overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+            </div>
+          ) : projects.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-[var(--color-text-muted)] mb-3">No projects found.</p>
+              <a href="/projects" className="text-sm text-[var(--color-primary)] hover:underline">
+                Create a project →
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {projects.map((proj) => {
+                const checked = selected.has(proj.id);
+                return (
+                  <button
+                    key={proj.id}
+                    onClick={() => toggle(proj.id)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                      checked
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                        : 'border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{proj.name}</span>
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                        checked ? 'bg-[var(--color-primary)] border-[var(--color-primary)]' : 'border-[var(--color-border)]'
+                      }`}>
+                        {checked && <Check size={10} className="text-white" />}
+                      </div>
+                    </div>
+                    {proj.description && (
+                      <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">{proj.description}</p>
+                    )}
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                      {proj.candidateCount} candidate{proj.candidateCount !== 1 ? 's' : ''} · {proj.category}
+                    </p>
+                  </button>
+                );
+              })}
+              <a
+                href="/projects"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-primary)] hover:bg-[var(--color-surface)] rounded-xl transition-colors"
+              >
+                <FolderOpen size={13} /> Create New Project
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleAdd}
+            disabled={selected.size === 0 || saving}
+          >
+            {saving ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : `Add to ${selected.size > 0 ? selected.size : ''} Project${selected.size !== 1 ? 's' : ''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Do Not Contact Modal ─────────────────────────────────────────────────────
+
+const DNC_REASONS = [
+  { value: 'candidate_requested', label: 'Candidate requested' },
+  { value: 'unsubscribed',        label: 'Unsubscribed' },
+  { value: 'gdpr_request',        label: 'GDPR request' },
+  { value: 'other',               label: 'Other' },
+];
+
+function DoNotContactModal({ candidateId, candidateName, onClose, onConfirmed }: {
+  candidateId: string;
+  candidateName: string;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  const { showToast } = useToast();
+  const [reason, setReason] = useState('candidate_requested');
+  const [note, setNote]     = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleConfirm() {
+    setSaving(true);
+    try {
+      await candidatesApi.setDoNotContact(candidateId, { doNotContact: true, reason, note: note.trim() || undefined });
+      showToast(`${candidateName} marked as Do Not Contact`, 'success');
+      onConfirmed();
+      onClose();
+    } catch {
+      showToast('Failed to update Do Not Contact status', 'error');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+          <h2 className="text-base font-semibold text-red-600">Mark as Do Not Contact</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={16} /></button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+            <AlertTriangle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-red-800">
+              This will block all emails to {candidateName} and remove them from all active sequences. This flag can be removed later.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Reason</label>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+            >
+              {DNC_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Note (optional)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add context…"
+              rows={3}
+              className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] resize-none"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleConfirm} disabled={saving}
+            className="!bg-red-600 hover:!bg-red-700 !border-red-600">
+            {saving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : 'Mark as Do Not Contact'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RemoveDoNotContactModal({ candidateId, candidateName, onClose, onConfirmed }: {
+  candidateId: string;
+  candidateName: string;
+  onClose: () => void;
+  onConfirmed: () => void;
+}) {
+  const { showToast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  async function handleRemove() {
+    setSaving(true);
+    try {
+      await candidatesApi.setDoNotContact(candidateId, { doNotContact: false });
+      showToast('Do Not Contact flag removed', 'success');
+      onConfirmed();
+      onClose();
+    } catch {
+      showToast('Failed to remove flag', 'error');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Remove Do Not Contact Flag</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={16} /></button>
+        </div>
+        <div className="px-6 py-5">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Remove the Do Not Contact flag from <strong className="text-[var(--color-text-primary)]">{candidateName}</strong>? You will be able to contact and enrol them in sequences again.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleRemove} disabled={saving}>
+            {saving ? <><Loader2 size={13} className="animate-spin" /> Removing…</> : 'Remove flag'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Add Referral Modal ───────────────────────────────────────────────────────
+
+const REFERRAL_RELATIONSHIPS = [
+  { value: 'former-colleague',      label: 'Former colleague' },
+  { value: 'friend',                label: 'Friend' },
+  { value: 'university',            label: 'University connection' },
+  { value: 'professional-network',  label: 'Professional network' },
+  { value: 'other',                 label: 'Other' },
+];
+
+function AddReferralModal({ candidateId, onClose, onAdded }: {
+  candidateId: string;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const { showToast } = useToast();
+  const [members, setMembers]       = useState<TeamMemberDto[]>([]);
+  const [openJobs, setOpenJobs]     = useState<JobListingDto[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [selectedMember, setSelectedMember] = useState<TeamMemberDto | null>(null);
+  const [relationship, setRelationship] = useState('former-colleague');
+  const [selectedJob, setSelectedJob]   = useState<JobListingDto | null>(null);
+  const [note, setNote]                 = useState('');
+  const [referralDate, setReferralDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving]             = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      teamApi.getAll().catch(() => ({ members: [] as TeamMemberDto[] })),
+      jobsApi.getJobs(1, 100, 'OPEN').catch(() => ({ items: [] as JobListingDto[], total: 0, page: 1, limit: 100, totalPages: 0 })),
+    ]).then(([teamData, jobData]) => {
+      setMembers(teamData.members);
+      setOpenJobs(jobData.items);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const filteredMembers = members.filter((m) =>
+    !memberSearch || m.name.toLowerCase().includes(memberSearch.toLowerCase()) || m.email.toLowerCase().includes(memberSearch.toLowerCase())
+  );
+
+  async function handleSubmit() {
+    if (!selectedMember) { showToast('Please select who is referring this candidate', 'error'); return; }
+    setSaving(true);
+    try {
+      await referralsApi.create({
+        candidateId,
+        referredByName: selectedMember.name,
+        referredByEmail: selectedMember.email,
+        relationship,
+        jobId: selectedJob?.id,
+        jobTitle: selectedJob?.title,
+        note: note.trim() || undefined,
+        referralDate,
+      });
+      showToast(`Referral added from ${selectedMember.name}`, 'success');
+      onAdded();
+      onClose();
+    } catch {
+      showToast('Failed to add referral', 'error');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Add Referral</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={16} /></button>
+        </div>
+
+        <div className="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" /></div>
+          ) : (
+            <>
+              {/* Referred by */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Referred by *</label>
+                <Input placeholder="Search team members…" value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)} />
+                {!selectedMember && (
+                  <div className="mt-2 max-h-40 overflow-y-auto border border-[var(--color-border)] rounded-xl">
+                    {filteredMembers.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-[var(--color-text-muted)]">No members found</p>
+                    ) : filteredMembers.map((m) => (
+                      <button key={m.id} onClick={() => { setSelectedMember(m); setMemberSearch(m.name); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--color-surface)] transition-colors text-left">
+                        <Avatar name={m.name} size="sm" />
+                        <div>
+                          <p className="font-medium text-[var(--color-text-primary)]">{m.name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{m.department}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedMember && (
+                  <div className="mt-2 flex items-center justify-between px-3 py-2 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <Avatar name={selectedMember.name} size="sm" />
+                      <span className="text-sm text-[var(--color-text-primary)]">{selectedMember.name}</span>
+                    </div>
+                    <button onClick={() => { setSelectedMember(null); setMemberSearch(''); }} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={13} /></button>
+                  </div>
+                )}
+              </div>
+
+              {/* Relationship */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Relationship</label>
+                <select value={relationship} onChange={(e) => setRelationship(e.target.value)}
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]">
+                  {REFERRAL_RELATIONSHIPS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+
+              {/* Referred for job */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Referred for job (optional)</label>
+                <select value={selectedJob?.id ?? ''} onChange={(e) => setSelectedJob(openJobs.find(j => j.id === e.target.value) ?? null)}
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]">
+                  <option value="">No specific job</option>
+                  {openJobs.map((j) => <option key={j.id} value={j.id}>{j.title} ({j.department})</option>)}
+                </select>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Note (optional)</label>
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Add context about the referral…" rows={3}
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] resize-none" />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Referral date</label>
+                <Input type="date" value={referralDate} onChange={(e) => setReferralDate(e.target.value)} />
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)] flex-shrink-0">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={!selectedMember || saving}>
+            {saving ? <><Loader2 size={13} className="animate-spin" /> Saving…</> : 'Add Referral'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Merge Profiles Modal ─────────────────────────────────────────────────────
+
+const MERGEABLE_FIELDS: { key: keyof CandidateDetailDto; label: string }[] = [
+  { key: 'firstName',   label: 'First Name' },
+  { key: 'lastName',    label: 'Last Name' },
+  { key: 'phone',       label: 'Phone' },
+  { key: 'linkedInUrl', label: 'LinkedIn' },
+  { key: 'location',    label: 'Location' },
+];
+
+function MergeProfilesModal({ currentCandidate, onClose, onMerged }: {
+  currentCandidate: CandidateDetailDto;
+  onClose: () => void;
+  onMerged: (keepId: string) => void;
+}) {
+  const { showToast } = useToast();
+  const [step, setStep]             = useState<'search' | 'resolve'>('search');
+  const [search, setSearch]         = useState('');
+  const [results, setResults]       = useState<import('@/lib/api').CandidateListDto[]>([]);
+  const [searching, setSearching]   = useState(false);
+  const [duplicate, setDuplicate]   = useState<CandidateDetailDto | null>(null);
+  const [loadingDup, setLoadingDup] = useState(false);
+  const [resolutions, setResolutions] = useState<Record<string, 'keep' | 'merge'>>({});
+  const [merging, setMerging]       = useState(false);
+
+  // Debounced search
+  useEffect(() => {
+    if (!search.trim()) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const d = await candidatesApi.getCandidates(1, 20, search);
+        setResults(d.items.filter((c) => c.id !== currentCandidate.id));
+      } catch {/* ignore */}
+      setSearching(false);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search, currentCandidate.id]);
+
+  async function selectDuplicate(id: string) {
+    setLoadingDup(true);
+    try {
+      const d = await candidatesApi.getCandidate(id);
+      setDuplicate(d.candidate);
+      // Pre-set resolutions: always keep for current, merge for dup when current is empty
+      const initial: Record<string, 'keep' | 'merge'> = {};
+      for (const { key } of MERGEABLE_FIELDS) {
+        const keepVal = currentCandidate[key];
+        const mergeVal = d.candidate[key];
+        initial[key as string] = keepVal ? 'keep' : (mergeVal ? 'merge' : 'keep');
+      }
+      setResolutions(initial);
+      setStep('resolve');
+    } catch { showToast('Failed to load candidate', 'error'); }
+    setLoadingDup(false);
+  }
+
+  async function handleMerge() {
+    if (!duplicate) return;
+    setMerging(true);
+    try {
+      await candidatesApi.merge(currentCandidate.id, duplicate.id, resolutions);
+      showToast('Profiles merged successfully', 'success');
+      onMerged(currentCandidate.id);
+      onClose();
+    } catch {
+      showToast('Failed to merge profiles', 'error');
+    } finally { setMerging(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Merge Profiles</h2>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              {step === 'search' ? 'Find the duplicate profile to merge' : 'Resolve field conflicts'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"><X size={16} /></button>
+        </div>
+
+        {step === 'search' ? (
+          <>
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              <div className="flex items-start gap-2.5 mb-4 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                <AlertTriangle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-800">All data from the duplicate will be merged into the current profile. This cannot be undone.</p>
+              </div>
+              <Input placeholder="Search by name or email…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <div className="mt-3 space-y-2">
+                {searching && <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" /></div>}
+                {!searching && results.map((c) => (
+                  <button key={c.id} onClick={() => selectDuplicate(c.id)} disabled={loadingDup}
+                    className="w-full flex items-center gap-3 px-4 py-3 border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-surface)] transition-colors text-left">
+                    <Avatar name={c.name} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{c.name}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{c.email}</p>
+                      {c.latestJobTitle && <p className="text-xs text-[var(--color-text-muted)]">{c.latestJobTitle}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-[var(--color-text-muted)]">{c.source}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{formatDate(c.createdAt)}</p>
+                    </div>
+                    {loadingDup && <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)]" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end px-6 py-4 border-t border-[var(--color-border)] flex-shrink-0">
+              <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+            </div>
+          </>
+        ) : duplicate ? (
+          <>
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              {/* Summary row */}
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                {[{ label: 'Keeping (current)', cand: currentCandidate }, { label: 'Merging (duplicate)', cand: duplicate }].map(({ label, cand }) => (
+                  <div key={cand.id} className="px-4 py-3 border border-[var(--color-border)] rounded-xl">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-muted)] mb-1">{label}</p>
+                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">{cand.firstName} {cand.lastName}</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">{cand.email}</p>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{cand.applications.length} application{cand.applications.length !== 1 ? 's' : ''}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Field conflict table */}
+              <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-2">Field Conflicts</p>
+              <div className="border border-[var(--color-border)] rounded-xl overflow-hidden mb-4">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--color-surface)]">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-[var(--color-text-muted)]">Field</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-[var(--color-text-muted)]">Current</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-[var(--color-text-muted)]">Duplicate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {MERGEABLE_FIELDS.map(({ key, label }) => {
+                      const keepVal = String(currentCandidate[key] ?? '—');
+                      const mergeVal = String(duplicate[key] ?? '—');
+                      const hasBoth = currentCandidate[key] && duplicate[key];
+                      return (
+                        <tr key={key as string} className={hasBoth ? '' : 'opacity-60'}>
+                          <td className="px-3 py-2 text-[var(--color-text-muted)] font-medium">{label}</td>
+                          <td className="px-3 py-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input type="radio" name={key as string} value="keep"
+                                checked={resolutions[key as string] === 'keep'}
+                                onChange={() => setResolutions((r) => ({ ...r, [key as string]: 'keep' }))}
+                                className="accent-[var(--color-primary)]" />
+                              <span className={`text-xs ${resolutions[key as string] === 'keep' ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>{keepVal}</span>
+                            </label>
+                          </td>
+                          <td className="px-3 py-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input type="radio" name={key as string} value="merge"
+                                checked={resolutions[key as string] === 'merge'}
+                                onChange={() => setResolutions((r) => ({ ...r, [key as string]: 'merge' }))}
+                                className="accent-[var(--color-primary)]" />
+                              <span className={`text-xs ${resolutions[key as string] === 'merge' ? 'font-semibold text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>{mergeVal}</span>
+                            </label>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="text-xs text-[var(--color-text-muted)] space-y-1">
+                <p className="font-semibold text-[var(--color-text-primary)]">Automatically merged:</p>
+                <p>• All applications, interviews, and offers from the duplicate</p>
+                <p>• All notes, feedback, and activity history</p>
+                <p>• Sequence enrollments and project memberships</p>
+                <p>• Referrals and follow-ups</p>
+              </div>
+            </div>
+            <div className="flex justify-between gap-2 px-6 py-4 border-t border-[var(--color-border)] flex-shrink-0">
+              <Button variant="secondary" size="sm" onClick={() => { setStep('search'); setDuplicate(null); }}>← Back</Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+                <Button variant="primary" size="sm" onClick={handleMerge} disabled={merging}
+                  className="!bg-red-600 hover:!bg-red-700 !border-red-600">
+                  {merging ? <><Loader2 size={13} className="animate-spin" /> Merging…</> : 'Confirm Merge'}
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Consider for Job Modal ───────────────────────────────────────────────────
+
+const PIPELINE_STAGES = [
+  { value: 'APPLIED',   label: 'New Lead' },
+  { value: 'SCREENING', label: 'Replied / Phone Screen' },
+  { value: 'INTERVIEW', label: 'Hiring Manager Interview' },
+  { value: 'OFFER',     label: 'Final Interview' },
+];
+
+function ConsiderForJobModal({ candidateId, candidateName, existingJobIds, onClose, onAdded }: {
+  candidateId: string;
+  candidateName: string;
+  existingJobIds: string[];
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const { showToast } = useToast();
+  const [allJobs, setAllJobs]   = useState<JobListingDto[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
+  const [selected, setSelected] = useState<JobListingDto | null>(null);
+  const [stage, setStage]       = useState('APPLIED');
+  const [saving, setSaving]     = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+
+  useEffect(() => {
+    jobsApi.getJobs(1, 100, 'OPEN')
+      .then((d) => setAllJobs(d.items))
+      .catch(() => showToast('Failed to load jobs', 'error'))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filtered = allJobs.filter((j) =>
+    !search || j.title.toLowerCase().includes(search.toLowerCase()) || j.department.toLowerCase().includes(search.toLowerCase())
+  );
+
+  async function handleConfirm() {
+    if (!selected) return;
+    const alreadyIn = existingJobIds.includes(selected.id);
+    if (alreadyIn && !showWarning) { setShowWarning(true); return; }
+    setSaving(true);
+    try {
+      await applicationsApi.createApplication({ candidateId, jobPostingId: selected.id, status: stage });
+      showToast(`Added to ${selected.title} pipeline`, 'success');
+      onAdded();
+      onClose();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('ALREADY_EXISTS') || msg.includes('already applied')) {
+        showToast(`${candidateName} is already in the ${selected.title} pipeline`, 'error');
+      } else {
+        showToast('Failed to add to pipeline', 'error');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const alreadyIn = selected ? existingJobIds.includes(selected.id) : false;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Consider for Job</h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4 overflow-y-auto flex-1">
+          {/* Search */}
+          <div className="mb-4">
+            <Input
+              placeholder="Search jobs by title or department…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {search ? 'No jobs match your search.' : 'No open jobs found.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {filtered.map((job) => {
+                const inPipeline = existingJobIds.includes(job.id);
+                return (
+                  <button
+                    key={job.id}
+                    onClick={() => { setSelected(job); setShowWarning(false); }}
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                      selected?.id === job.id
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                        : 'border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{job.title}</span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {inPipeline && <Badge variant="warning">In pipeline</Badge>}
+                        {selected?.id === job.id && <Check size={14} className="text-[var(--color-primary)]" />}
+                      </div>
+                    </div>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                      {job.department} · {job.location} · {job.applicantCount} applicant{job.applicantCount !== 1 ? 's' : ''}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Stage selector — shown once a job is picked */}
+          {selected && (
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Add at stage</label>
+              <select
+                value={stage}
+                onChange={(e) => setStage(e.target.value)}
+                className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+              >
+                {PIPELINE_STAGES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Already in pipeline warning */}
+          {showWarning && alreadyIn && (
+            <div className="mt-3 flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <AlertTriangle size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-amber-800">
+                {candidateName} is already in the <strong>{selected?.title}</strong> pipeline. Add anyway?
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)] flex-shrink-0">
+          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleConfirm}
+            disabled={!selected || saving}
+          >
+            {saving ? <><Loader2 size={13} className="animate-spin" /> Adding…</> : showWarning ? 'Add anyway' : 'Add to pipeline'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Delete Profile Modal ─────────────────────────────────────────────────────
+
+function DeleteProfileModal({ candidateId, candidateName, applicationCount, interviewCount, noteCount, onClose, onDeleted }: {
+  candidateId: string;
+  candidateName: string;
+  applicationCount: number;
+  interviewCount: number;
+  noteCount: number;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const { showToast } = useToast();
+  const [step, setStep]         = useState<1 | 2>(1);
+  const [typed, setTyped]       = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmed = typed === candidateName;
+
+  async function handleDelete() {
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      await candidatesApi.deleteCandidate(candidateId);
+      showToast('Profile permanently deleted', 'success');
+      onDeleted();
+    } catch {
+      showToast('Failed to delete profile', 'error');
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+          <h2 className="text-base font-semibold text-red-600">
+            {step === 1 ? 'Delete Profile' : 'Confirm Deletion'}
+          </h2>
+          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+
+        {step === 1 ? (
+          <>
+            <div className="px-6 py-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={18} className="text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-text-primary)] mb-1">This will permanently delete:</p>
+                  <ul className="space-y-1 text-sm text-[var(--color-text-muted)]">
+                    <li>• Profile and all contact details</li>
+                    <li>• All applications ({applicationCount})</li>
+                    <li>• All interviews ({interviewCount})</li>
+                    <li>• All notes and feedback ({noteCount})</li>
+                    <li>• All emails and activity history</li>
+                    <li>• All sequence enrollments and project memberships</li>
+                  </ul>
+                  <p className="text-sm font-semibold text-red-600 mt-3">This CANNOT be undone.</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+              <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setStep(2)}
+                className="!bg-red-600 hover:!bg-red-700 !border-red-600"
+              >
+                Continue to delete →
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="px-6 py-5">
+              <p className="text-sm text-[var(--color-text-muted)] mb-3">
+                Type <strong className="text-[var(--color-text-primary)]">{candidateName}</strong> to confirm:
+              </p>
+              <Input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={candidateName}
+                autoFocus
+              />
+              {typed.length > 0 && !confirmed && (
+                <p className="text-xs text-red-500 mt-1.5">Name doesn&apos;t match — type it exactly</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
+              <Button variant="secondary" size="sm" onClick={() => { setStep(1); setTyped(''); }}>Back</Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleDelete}
+                disabled={!confirmed || deleting}
+                className={confirmed ? '!bg-red-600 hover:!bg-red-700 !border-red-600' : ''}
+              >
+                {deleting ? <><Loader2 size={13} className="animate-spin" /> Deleting…</> : 'Delete permanently'}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── More Dropdown ────────────────────────────────────────────────────────────
 
-function MoreDropdown({ candidate, onScheduleInterview, onSendOffer }: {
+function MoreDropdown({ candidate, onScheduleInterview, onSendOffer, onSubmitFeedback, onEnrollInSequence, onAddToProject, onConsiderForJob, onDeleteProfile, onDoNotContact, onAddReferral, onMergeProfiles }: {
   candidate: CandidateDetailDto;
   onScheduleInterview: () => void;
   onSendOffer: () => void;
+  onSubmitFeedback: () => void;
+  onEnrollInSequence: () => void;
+  onAddToProject: () => void;
+  onConsiderForJob: () => void;
+  onDeleteProfile: () => void;
+  onDoNotContact: () => void;
+  onAddReferral: () => void;
+  onMergeProfiles: () => void;
 }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -474,32 +1488,32 @@ function MoreDropdown({ candidate, onScheduleInterview, onSendOffer }: {
     {
       title: 'Engagement',
       items: [
-        { label: 'Enroll in Sequence', icon: RefreshCw, action: () => comingSoon('Enroll in Sequence') },
+        { label: 'Enroll in Sequence', icon: RefreshCw, action: () => { setOpen(false); onEnrollInSequence(); } },
         { label: 'Schedule Interview', icon: Calendar, action: () => { setOpen(false); onScheduleInterview(); } },
-        { label: 'Submit Feedback', icon: MessageSquare, action: () => comingSoon('Submit Feedback') },
+        { label: 'Submit Feedback', icon: MessageSquare, action: () => { setOpen(false); onSubmitFeedback(); } },
       ],
     },
     {
       title: 'Job Management',
       items: [
-        { label: 'Consider for Job', icon: Briefcase, action: () => comingSoon('Consider for Job') },
+        { label: 'Consider for Job', icon: Briefcase, action: () => { setOpen(false); onConsiderForJob(); } },
         { label: 'Send Offer', icon: FileText, action: () => { setOpen(false); onSendOffer(); } },
       ],
     },
     {
       title: 'Organisation',
       items: [
-        { label: 'Add to Project', icon: FolderOpen, action: () => comingSoon('Add to Project') },
+        { label: 'Add to Project', icon: FolderOpen, action: () => { setOpen(false); onAddToProject(); } },
         { label: 'Find Email', icon: Search, action: () => comingSoon('Find Email') },
-        { label: 'Merge Profiles', icon: GitMerge, action: () => comingSoon('Merge Profiles') },
-        { label: 'Add Referral', icon: UserPlus, action: () => comingSoon('Add Referral') },
+        { label: 'Merge Profiles', icon: GitMerge, action: () => { setOpen(false); onMergeProfiles(); } },
+        { label: 'Add Referral', icon: UserPlus, action: () => { setOpen(false); onAddReferral(); } },
       ],
     },
     {
       title: 'Admin',
       items: [
-        { label: 'Do Not Contact', icon: UserX, action: () => comingSoon('Do Not Contact') },
-        { label: 'Delete Profile', icon: Trash2, action: () => comingSoon('Delete Profile'), danger: true },
+        { label: 'Do Not Contact', icon: UserX, action: () => { setOpen(false); onDoNotContact(); } },
+        { label: 'Delete Profile', icon: Trash2, action: () => { setOpen(false); onDeleteProfile(); }, danger: true },
       ],
     },
   ];
@@ -1465,6 +2479,19 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [offerOpen, setOfferOpen]       = useState(false);
   const [emailOpen, setEmailOpen]       = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [enrollOpen, setEnrollOpen]     = useState(false);
+  const [projectOpen, setProjectOpen]   = useState(false);
+  const [jobModalOpen, setJobModalOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen]     = useState(false);
+  const [dncOpen, setDncOpen]           = useState(false);
+  const [removeDncOpen, setRemoveDncOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
+  const [mergeOpen, setMergeOpen]       = useState(false);
+
+  // Feed refresh key — increment to force FeedTab remount
+  const [feedKey, setFeedKey] = useState(0);
+  const [feedbackKey, setFeedbackKey] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -1529,6 +2556,8 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const latestApp  = candidate.applications[0];
   const latestStatus = latestApp ? (STATUS_CONFIG[latestApp.status] ?? null) : null;
   const totalInterviews = candidate.applications.reduce((sum, a) => sum + a.interviews.length, 0);
+  const existingJobIds = candidate.applications.map((a) => a.jobId);
+  const totalNotes = 0; // notes count not available in CandidateDetailDto without separate fetch
 
   return (
     <div className="p-8 max-w-4xl">
@@ -1540,6 +2569,38 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
       >
         <ArrowLeft size={14} /> Back to Candidates
       </button>
+
+      {/* Do Not Contact Banner */}
+      {candidate.doNotContact && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 mb-4 bg-red-600 text-white rounded-xl">
+          <div className="flex items-center gap-2.5">
+            <UserX size={16} className="flex-shrink-0" />
+            <span className="text-sm font-semibold">
+              DO NOT CONTACT
+              {candidate.doNotContactReason && ` — ${DNC_REASONS.find(r => r.value === candidate.doNotContactReason)?.label ?? candidate.doNotContactReason}`}
+              {candidate.doNotContactAt && ` · Marked on ${formatDate(candidate.doNotContactAt)}`}
+            </span>
+          </div>
+          <button
+            onClick={() => setRemoveDncOpen(true)}
+            className="text-xs text-white/80 hover:text-white underline flex-shrink-0"
+          >
+            Remove flag
+          </button>
+        </div>
+      )}
+
+      {/* Referral Badge */}
+      {candidate.referrals.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl">
+          <UserPlus size={13} className="text-[var(--color-text-muted)]" />
+          <span className="text-sm text-[var(--color-text-muted)]">
+            Referred by <strong className="text-[var(--color-text-primary)]">{candidate.referrals[0].referredByName}</strong>
+            {candidate.referrals[0].jobTitle && ` for ${candidate.referrals[0].jobTitle}`}
+            {candidate.referrals.length > 1 && ` (+${candidate.referrals.length - 1} more)`}
+          </span>
+        </div>
+      )}
 
       {/* Header */}
       <Card padding="lg" className="mb-6">
@@ -1567,7 +2628,13 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
                   onChanged={reloadFollowUps}
                 />
 
-                <Button variant="secondary" size="sm" onClick={() => setEmailOpen(true)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => !candidate.doNotContact && setEmailOpen(true)}
+                  disabled={candidate.doNotContact}
+                  title={candidate.doNotContact ? 'Cannot email — marked as Do Not Contact' : undefined}
+                >
                   <Mail size={13} /> Email
                 </Button>
 
@@ -1580,6 +2647,14 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
                   candidate={candidate}
                   onScheduleInterview={() => setScheduleOpen(true)}
                   onSendOffer={() => setOfferOpen(true)}
+                  onSubmitFeedback={() => setFeedbackOpen(true)}
+                  onEnrollInSequence={() => setEnrollOpen(true)}
+                  onAddToProject={() => setProjectOpen(true)}
+                  onConsiderForJob={() => setJobModalOpen(true)}
+                  onDeleteProfile={() => setDeleteOpen(true)}
+                  onDoNotContact={() => setDncOpen(true)}
+                  onAddReferral={() => setReferralOpen(true)}
+                  onMergeProfiles={() => setMergeOpen(true)}
                 />
               </div>
             </div>
@@ -1636,9 +2711,9 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
       </div>
 
       {/* Tab content */}
-      {activeTab === 'feed'         && <FeedTab candidateId={id} />}
+      {activeTab === 'feed'         && <FeedTab key={feedKey} candidateId={id} />}
       {activeTab === 'notes'        && <NotesTab candidateId={id} candidate={candidate} />}
-      {activeTab === 'feedback'     && <FeedbackTab candidateId={id} />}
+      {activeTab === 'feedback'     && <FeedbackTab key={feedbackKey} candidateId={id} />}
       {activeTab === 'emails'       && <EmailsTab candidateId={id} onCompose={() => setEmailOpen(true)} />}
       {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} />}
       {activeTab === 'overview'     && <OverviewTab candidate={candidate} />}
@@ -1680,6 +2755,120 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
         <EmailModal
           candidate={candidate}
           onClose={() => setEmailOpen(false)}
+        />
+      )}
+
+      {feedbackOpen && latestApp && (
+        <ScorecardModal
+          candidateId={id}
+          candidateName={fullName}
+          jobId={latestApp.jobId}
+          onClose={() => setFeedbackOpen(false)}
+          onSubmitted={() => {
+            setFeedbackOpen(false);
+            setFeedbackKey((k) => k + 1);
+            setFeedKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {feedbackOpen && !latestApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 text-center">
+            <p className="text-sm text-[var(--color-text-muted)] mb-4">
+              This candidate has no active applications. Feedback requires a linked job.
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => setFeedbackOpen(false)}>Close</Button>
+          </div>
+        </div>
+      )}
+
+      {enrollOpen && (
+        <EnrollInSequenceModal
+          candidateId={id}
+          candidateName={fullName}
+          onClose={() => setEnrollOpen(false)}
+          onEnrolled={() => setFeedKey((k) => k + 1)}
+        />
+      )}
+
+      {projectOpen && (
+        <AddToProjectModal
+          candidateId={id}
+          candidateName={fullName}
+          onClose={() => setProjectOpen(false)}
+          onAdded={() => setFeedKey((k) => k + 1)}
+        />
+      )}
+
+      {jobModalOpen && (
+        <ConsiderForJobModal
+          candidateId={id}
+          candidateName={fullName}
+          existingJobIds={existingJobIds}
+          onClose={() => setJobModalOpen(false)}
+          onAdded={() => {
+            setFeedKey((k) => k + 1);
+            // Reload candidate to update applications list
+            candidatesApi.getCandidate(id).then((d) => setCandidate(d.candidate)).catch(() => {});
+          }}
+        />
+      )}
+
+      {deleteOpen && (
+        <DeleteProfileModal
+          candidateId={id}
+          candidateName={fullName}
+          applicationCount={candidate.applications.length}
+          interviewCount={totalInterviews}
+          noteCount={totalNotes}
+          onClose={() => setDeleteOpen(false)}
+          onDeleted={() => router.push('/candidates')}
+        />
+      )}
+
+      {dncOpen && (
+        <DoNotContactModal
+          candidateId={id}
+          candidateName={fullName}
+          onClose={() => setDncOpen(false)}
+          onConfirmed={() => {
+            candidatesApi.getCandidate(id).then((d) => setCandidate(d.candidate)).catch(() => {});
+            setFeedKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {removeDncOpen && (
+        <RemoveDoNotContactModal
+          candidateId={id}
+          candidateName={fullName}
+          onClose={() => setRemoveDncOpen(false)}
+          onConfirmed={() => {
+            candidatesApi.getCandidate(id).then((d) => setCandidate(d.candidate)).catch(() => {});
+            setFeedKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {referralOpen && (
+        <AddReferralModal
+          candidateId={id}
+          onClose={() => setReferralOpen(false)}
+          onAdded={() => {
+            candidatesApi.getCandidate(id).then((d) => setCandidate(d.candidate)).catch(() => {});
+            setFeedKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      {mergeOpen && (
+        <MergeProfilesModal
+          currentCandidate={candidate}
+          onClose={() => setMergeOpen(false)}
+          onMerged={(keepId) => {
+            router.push(`/candidates/${keepId}`);
+          }}
         />
       )}
     </div>
