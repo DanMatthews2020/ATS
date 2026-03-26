@@ -1,31 +1,63 @@
+/**
+ * @file sequences.service.ts
+ * @description Business logic and DTOs for sequences, steps, and enrollments.
+ */
 import { sequencesRepository } from '../repositories/sequences.repository';
 
-export interface SequenceStepDto {
+// ─── DTOs ─────────────────────────────────────────────────────────────────────
+
+export interface StepDto {
   id: string;
   sequenceId: string;
   position: number;
   type: string;
+  subject: string | null;
+  body: string | null;
   templateId: string | null;
   templateName: string | null;
   waitDays: number | null;
+  delayDays: number;
   taskDescription: string | null;
   sendTime: string | null;
+  sendFrom: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface SequenceDto {
+export interface SequenceStatsDto {
+  totalEnrolled: number;
+  active: number;
+  completed: number;
+  stopped: number;
+  replied: number;
+  opens: number;
+  clicks: number;
+}
+
+export interface SequenceListDto {
   id: string;
   name: string;
   status: string;
   stepCount: number;
   enrolledCount: number;
+  senderEmail: string | null;
+  linkedJobId: string | null;
   stopOnReply: boolean;
   stopOnInterview: boolean;
-  maxEmails: number | null;
+  stopOnHired: boolean;
+  skipWeekends: boolean;
+  isShared: boolean;
+  maxEmails: number;
   sendingDays: string[];
-  steps: SequenceStepDto[];
   createdById: string;
+  createdByName: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SequenceDetailDto extends SequenceListDto {
+  steps: StepDto[];
+  stats: SequenceStatsDto;
 }
 
 export interface EnrollmentDto {
@@ -33,42 +65,61 @@ export interface EnrollmentDto {
   sequenceId: string;
   candidateId: string;
   candidateName: string;
-  candidateEmail: string | null;
+  candidateEmail: string;
+  candidateCurrentCompany: string | null;
   currentStep: number;
   status: string;
+  sendFrom: string | null;
+  startDate: string;
+  response: string | null;
+  opens: number;
+  clicks: number;
   enrolledAt: string;
   completedAt: string | null;
   stoppedAt: string | null;
   stoppedReason: string | null;
 }
 
-function mapStep(s: any): SequenceStepDto {
+// ─── Mappers ──────────────────────────────────────────────────────────────────
+
+function mapStep(s: any): StepDto {
   return {
     id: s.id,
     sequenceId: s.sequenceId,
     position: s.position,
     type: s.type,
+    subject: s.subject ?? null,
+    body: s.body ?? null,
     templateId: s.templateId ?? null,
     templateName: s.template?.name ?? null,
     waitDays: s.waitDays ?? null,
+    delayDays: s.delayDays ?? 0,
     taskDescription: s.taskDescription ?? null,
     sendTime: s.sendTime ?? null,
+    sendFrom: s.sendFrom ?? null,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
   };
 }
 
-function mapSequence(s: any): SequenceDto {
+function mapSequenceBase(s: any): SequenceListDto {
   return {
     id: s.id,
     name: s.name,
     status: s.status,
     stepCount: s._count?.steps ?? (s.steps?.length ?? 0),
     enrolledCount: s._count?.enrollments ?? 0,
-    stopOnReply: s.stopOnReply ?? false,
-    stopOnInterview: s.stopOnInterview ?? false,
-    maxEmails: s.maxEmails ?? null,
+    senderEmail: s.senderEmail ?? null,
+    linkedJobId: s.linkedJobId ?? null,
+    stopOnReply: s.stopOnReply ?? true,
+    stopOnInterview: s.stopOnInterview ?? true,
+    stopOnHired: s.stopOnHired ?? false,
+    skipWeekends: s.skipWeekends ?? true,
+    isShared: s.isShared ?? false,
+    maxEmails: s.maxEmails ?? 10,
     sendingDays: s.sendingDays ?? [],
-    steps: (s.steps ?? []).map(mapStep),
     createdById: s.createdById,
+    createdByName: s.createdBy ? `${s.createdBy.firstName} ${s.createdBy.lastName}` : null,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
   };
@@ -80,9 +131,15 @@ function mapEnrollment(e: any): EnrollmentDto {
     sequenceId: e.sequenceId,
     candidateId: e.candidateId,
     candidateName: `${e.candidate.firstName} ${e.candidate.lastName}`,
-    candidateEmail: e.candidate.email ?? null,
+    candidateEmail: e.candidate.email,
+    candidateCurrentCompany: e.candidate.currentCompany ?? null,
     currentStep: e.currentStep ?? 0,
     status: e.status,
+    sendFrom: e.sendFrom ?? null,
+    startDate: e.startDate.toISOString(),
+    response: e.response ?? null,
+    opens: e.opens ?? 0,
+    clicks: e.clicks ?? 0,
     enrolledAt: e.enrolledAt.toISOString(),
     completedAt: e.completedAt ? e.completedAt.toISOString() : null,
     stoppedAt: e.stoppedAt ? e.stoppedAt.toISOString() : null,
@@ -90,77 +147,150 @@ function mapEnrollment(e: any): EnrollmentDto {
   };
 }
 
+// ─── Service ──────────────────────────────────────────────────────────────────
+
 export const sequencesService = {
-  getAll: async (userId: string): Promise<SequenceDto[]> => {
-    const items = await sequencesRepository.findAll(userId);
-    return items.map(mapSequence);
+  async getAll(opts: { search?: string; status?: string }): Promise<SequenceListDto[]> {
+    const items = await sequencesRepository.findAll(opts);
+    return items.map(mapSequenceBase);
   },
 
-  getById: async (id: string): Promise<SequenceDto | null> => {
-    const item = await sequencesRepository.findById(id);
-    return item ? mapSequence(item) : null;
+  async getById(id: string): Promise<SequenceDetailDto | null> {
+    const [item, stats] = await Promise.all([
+      sequencesRepository.findById(id),
+      sequencesRepository.getStats(id),
+    ]);
+    if (!item) return null;
+    return {
+      ...mapSequenceBase(item),
+      steps: ((item as any).steps ?? []).map(mapStep),
+      stats: {
+        totalEnrolled: stats.total,
+        active: stats.active,
+        completed: stats.completed,
+        stopped: stats.stopped,
+        replied: stats.replied,
+        opens: stats.opens,
+        clicks: stats.clicks,
+      },
+    };
   },
 
-  create: async (data: {
+  async create(data: {
     name: string;
+    senderEmail?: string;
+    linkedJobId?: string;
     stopOnReply?: boolean;
     stopOnInterview?: boolean;
+    stopOnHired?: boolean;
+    skipWeekends?: boolean;
+    isShared?: boolean;
     maxEmails?: number;
     sendingDays?: string[];
     createdById: string;
-  }): Promise<SequenceDto> => {
+  }): Promise<SequenceDetailDto> {
     const item = await sequencesRepository.create(data);
-    return mapSequence(item);
+    return {
+      ...mapSequenceBase(item),
+      steps: [],
+      stats: { totalEnrolled: 0, active: 0, completed: 0, stopped: 0, replied: 0, opens: 0, clicks: 0 },
+    };
   },
 
-  update: async (
+  async update(
     id: string,
-    data: { name?: string; status?: 'ACTIVE' | 'PAUSED'; stopOnReply?: boolean; stopOnInterview?: boolean; maxEmails?: number; sendingDays?: string[] },
-  ): Promise<SequenceDto> => {
+    data: {
+      name?: string;
+      status?: 'ACTIVE' | 'PAUSED';
+      senderEmail?: string;
+      linkedJobId?: string;
+      stopOnReply?: boolean;
+      stopOnInterview?: boolean;
+      stopOnHired?: boolean;
+      skipWeekends?: boolean;
+      isShared?: boolean;
+      maxEmails?: number;
+      sendingDays?: string[];
+    },
+  ): Promise<SequenceListDto> {
     const item = await sequencesRepository.update(id, data);
-    return mapSequence(item);
+    return mapSequenceBase(item);
   },
 
-  delete: async (id: string): Promise<void> => {
+  async delete(id: string): Promise<void> {
     await sequencesRepository.delete(id);
   },
 
-  addStep: async (data: {
+  async addStep(data: {
     sequenceId: string;
     position: number;
     type: 'EMAIL' | 'WAIT' | 'TASK';
+    subject?: string;
+    body?: string;
     templateId?: string;
     waitDays?: number;
+    delayDays?: number;
     taskDescription?: string;
     sendTime?: string;
-  }): Promise<SequenceStepDto> => {
+    sendFrom?: string;
+  }): Promise<StepDto> {
     const item = await sequencesRepository.addStep(data);
     return mapStep(item);
   },
 
-  updateStep: async (
+  async updateStep(
     id: string,
-    data: { position?: number; type?: 'EMAIL' | 'WAIT' | 'TASK'; templateId?: string | null; waitDays?: number; taskDescription?: string; sendTime?: string },
-  ): Promise<SequenceStepDto> => {
+    data: {
+      position?: number;
+      type?: 'EMAIL' | 'WAIT' | 'TASK';
+      subject?: string;
+      body?: string;
+      templateId?: string | null;
+      waitDays?: number;
+      delayDays?: number;
+      taskDescription?: string;
+      sendTime?: string;
+      sendFrom?: string;
+    },
+  ): Promise<StepDto> {
     const item = await sequencesRepository.updateStep(id, data);
     return mapStep(item);
   },
 
-  deleteStep: async (id: string): Promise<void> => {
+  async deleteStep(id: string): Promise<void> {
     await sequencesRepository.deleteStep(id);
   },
 
-  getEnrollments: async (sequenceId: string): Promise<EnrollmentDto[]> => {
-    const items = await sequencesRepository.getEnrollments(sequenceId);
+  async getEnrollments(sequenceId: string, opts: { status?: string } = {}): Promise<EnrollmentDto[]> {
+    const items = await sequencesRepository.getEnrollments(sequenceId, opts);
     return items.map(mapEnrollment);
   },
 
-  enroll: async (data: { sequenceId: string; candidateId: string }): Promise<{ id: string }> => {
-    const item = await sequencesRepository.enroll(data);
-    return { id: item.id };
+  async enroll(data: {
+    sequenceId: string;
+    candidateId: string;
+    sendFrom?: string;
+    startDate?: string;
+  }): Promise<{ alreadyEnrolled: boolean; enrollment: EnrollmentDto | null }> {
+    const existing = await sequencesRepository.findEnrollment(data.sequenceId, data.candidateId);
+    if (existing && existing.status !== 'STOPPED') {
+      return { alreadyEnrolled: true, enrollment: null };
+    }
+    const enrollment = await sequencesRepository.enroll({
+      sequenceId: data.sequenceId,
+      candidateId: data.candidateId,
+      sendFrom: data.sendFrom,
+      startDate: data.startDate ? new Date(data.startDate) : undefined,
+    });
+    return { alreadyEnrolled: false, enrollment: mapEnrollment(enrollment) };
   },
 
-  unenroll: async (sequenceId: string, candidateId: string): Promise<void> => {
+  async unenroll(sequenceId: string, candidateId: string): Promise<void> {
     await sequencesRepository.unenroll(sequenceId, candidateId);
+  },
+
+  async setEnrollmentResponse(enrollmentId: string, response: string): Promise<EnrollmentDto> {
+    const enrollment = await sequencesRepository.updateEnrollmentResponse(enrollmentId, response);
+    return mapEnrollment(enrollment);
   },
 };

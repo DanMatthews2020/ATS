@@ -170,6 +170,7 @@ model Candidate {
   skills             String[]
   tags               String[]
   location           String?
+  currentCompany     String?
   doNotContact       Boolean         @default(false)
   doNotContactReason String?
   doNotContactNote   String?
@@ -491,17 +492,27 @@ enum SequenceStepType {
 }
 
 enum EnrollmentStatus {
-  ACTIVE
-  COMPLETED
-  STOPPED
+  ACTIVE      // legacy alias kept for existing rows
+  ENROLLED    // just enrolled, not yet started
+  IN_PROGRESS // actively sending
+  COMPLETED   // all steps sent
+  REPLIED     // candidate replied
+  INTERESTED  // recruiter marked interested
+  CONVERTED   // became an application
+  STOPPED     // manually stopped or DNC
 }
 
 model Sequence {
   id              String         @id @default(uuid())
   name            String
   status          SequenceStatus @default(ACTIVE)
+  senderEmail     String?
+  linkedJobId     String?
   stopOnReply     Boolean        @default(true)
   stopOnInterview Boolean        @default(true)
+  stopOnHired     Boolean        @default(false)
+  skipWeekends    Boolean        @default(true)
+  isShared        Boolean        @default(false)
   maxEmails       Int            @default(10)
   sendingDays     String[]       @default(["Mon", "Tue", "Wed", "Thu", "Fri"])
   createdById     String
@@ -519,11 +530,15 @@ model SequenceStep {
   sequence        Sequence         @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
   position        Int
   type            SequenceStepType
+  subject         String?
+  body            String?
   templateId      String?
   template        EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
   waitDays        Int?
+  delayDays       Int              @default(0)
   taskDescription String?
   sendTime        String?          @default("09:00")
+  sendFrom        String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -536,6 +551,11 @@ model SequenceEnrollment {
   candidate     Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   currentStep   Int              @default(0)
   status        EnrollmentStatus @default(ACTIVE)
+  sendFrom      String?
+  startDate     DateTime         @default(now())
+  response      String?
+  opens         Int              @default(0)
+  clicks        Int              @default(0)
   enrolledAt    DateTime         @default(now())
   completedAt   DateTime?
   stoppedAt     DateTime?

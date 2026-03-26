@@ -13,5 +13,6 @@ router.patch('/:id/steps/:stepId',                  authenticate, sequencesContr
 router.delete('/:id/steps/:stepId',                 authenticate, sequencesController.removeStep);
 router.get('/:id/enrolled',                         authenticate, sequencesController.getEnrollments);
 router.post('/:id/enroll',                          authenticate, sequencesController.enroll);
-router.delete('/:id/enroll/:candidateId',           authenticate, sequencesController.unenroll);
+router.delete('/:id/enroll/:candidateId',                     authenticate, sequencesController.unenroll);
+router.patch('/:id/enrollments/:enrollmentId/response',        authenticate, sequencesController.setResponse);
 export default router;
