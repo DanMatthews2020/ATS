@@ -116,6 +116,7 @@ model User {
   workflowTemplates     WorkflowTemplate[]    @relation("WorkflowCreatedBy")
   scorecards            Scorecard[]           @relation("ScorecardCreatedBy")
   evaluationsSubmitted  CandidateEvaluation[] @relation("EvaluationSubmittedBy")
+  followUpsCreated      FollowUp[]            @relation("FollowUpCreatedBy")
 }
 
 model RefreshToken {
@@ -169,6 +170,7 @@ model Candidate {
   employee     Employee?
   notes        CandidateNote[]
   evaluations  CandidateEvaluation[]
+  followUps    FollowUp[]
 }
 
 model Application {
@@ -379,4 +381,17 @@ model EvaluationResponse {
   responseValue String
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
+}
+
+model FollowUp {
+  id           String    @id @default(uuid())
+  candidateId  String
+  candidate    Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  followUpDate DateTime
+  note         String?
+  isCompleted  Boolean   @default(false)
+  createdById  String
+  createdBy    User      @relation("FollowUpCreatedBy", fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

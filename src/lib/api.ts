@@ -1090,6 +1090,30 @@ export const candidatePanelApi = {
   getEmails:   (id: string) => api.get<{ emails: unknown[] }>(`/candidates/${id}/emails`),
 };
 
+// ── Follow-ups ────────────────────────────────────────────────────────────────
+
+export interface FollowUpDto {
+  id: string;
+  candidateId: string;
+  followUpDate: string;
+  note: string | null;
+  isCompleted: boolean;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const followUpsApi = {
+  getByCandidateId: (candidateId: string) =>
+    api.get<{ followUps: FollowUpDto[] }>(`/follow-ups?candidateId=${candidateId}`),
+  create: (data: { candidateId: string; followUpDate: string; note?: string }) =>
+    api.post<{ followUp: FollowUpDto }>('/follow-ups', data),
+  update: (id: string, data: { followUpDate?: string; note?: string; isCompleted?: boolean }) =>
+    api.patch<{ followUp: FollowUpDto }>(`/follow-ups/${id}`, data),
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/follow-ups/${id}`),
+};
+
 // ── Scorecards ────────────────────────────────────────────────────────────────
 
 export interface ScorecardCriterionDto {

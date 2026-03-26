@@ -17,6 +17,7 @@ import notificationsRoutes from './notifications.routes';
 import workflowsRoutes from './workflows.routes';
 import scorecardsRoutes from './scorecards.routes';
 import evaluationsRoutes from './evaluations.routes';
+import followUpsRoutes from './followups.routes';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/notifications', notificationsRoutes);
 router.use('/workflows',    workflowsRoutes);
 router.use('/scorecards',   scorecardsRoutes);
 router.use('/evaluations',  evaluationsRoutes);
+router.use('/follow-ups',   followUpsRoutes);
 
 export default router;
