@@ -18,6 +18,10 @@ import workflowsRoutes from './workflows.routes';
 import scorecardsRoutes from './scorecards.routes';
 import evaluationsRoutes from './evaluations.routes';
 import followUpsRoutes from './followups.routes';
+import emailTemplatesRoutes from './email-templates.routes';
+import projectsRoutes from './projects.routes';
+import sequencesRoutes from './sequences.routes';
+import feedbackFormsRoutes from './feedback-forms.routes';
 
 const router = Router();
 
@@ -39,6 +43,10 @@ router.use('/notifications', notificationsRoutes);
 router.use('/workflows',    workflowsRoutes);
 router.use('/scorecards',   scorecardsRoutes);
 router.use('/evaluations',  evaluationsRoutes);
-router.use('/follow-ups',   followUpsRoutes);
+router.use('/follow-ups',       followUpsRoutes);
+router.use('/email-templates',  emailTemplatesRoutes);
+router.use('/projects',         projectsRoutes);
+router.use('/sequences',        sequencesRoutes);
+router.use('/feedback-forms',   feedbackFormsRoutes);
 
 export default router;

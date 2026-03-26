@@ -1,0 +1,17 @@
+import { Router } from 'express';
+import { sequencesController } from '../controllers/sequences.controller';
+import { authenticate } from '../middleware/auth.middleware';
+const router = Router();
+router.get('/',                                     authenticate, sequencesController.list);
+router.post('/',                                    authenticate, sequencesController.create);
+router.get('/:id',                                  authenticate, sequencesController.getOne);
+router.patch('/:id',                                authenticate, sequencesController.update);
+router.delete('/:id',                               authenticate, sequencesController.remove);
+router.patch('/:id/status',                         authenticate, sequencesController.toggleStatus);
+router.post('/:id/steps',                           authenticate, sequencesController.addStep);
+router.patch('/:id/steps/:stepId',                  authenticate, sequencesController.updateStep);
+router.delete('/:id/steps/:stepId',                 authenticate, sequencesController.removeStep);
+router.get('/:id/enrolled',                         authenticate, sequencesController.getEnrollments);
+router.post('/:id/enroll',                          authenticate, sequencesController.enroll);
+router.delete('/:id/enroll/:candidateId',           authenticate, sequencesController.unenroll);
+export default router;

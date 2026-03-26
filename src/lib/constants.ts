@@ -75,6 +75,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: 'Star',
   },
   {
+    label: 'Projects',
+    href: '/projects',
+    icon: 'FolderOpen',
+  },
+  {
     label: 'Reports',
     href: '/reports',
     icon: 'FileText',

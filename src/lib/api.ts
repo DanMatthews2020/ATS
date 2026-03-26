@@ -1114,6 +1114,214 @@ export const followUpsApi = {
     api.delete<{ deleted: boolean }>(`/follow-ups/${id}`),
 };
 
+// ── Email Templates ───────────────────────────────────────────────────────────
+
+export interface EmailTemplateDto {
+  id: string;
+  name: string;
+  category: string;
+  subject: string;
+  body: string;
+  isShared: boolean;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const emailTemplatesApi = {
+  getAll: () =>
+    api.get<{ templates: EmailTemplateDto[] }>('/email-templates'),
+  getById: (id: string) =>
+    api.get<{ template: EmailTemplateDto }>(`/email-templates/${id}`),
+  create: (data: { name: string; category: string; subject: string; body: string; isShared?: boolean }) =>
+    api.post<{ template: EmailTemplateDto }>('/email-templates', data),
+  update: (id: string, data: { name?: string; category?: string; subject?: string; body?: string; isShared?: boolean }) =>
+    api.patch<{ template: EmailTemplateDto }>(`/email-templates/${id}`, data),
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/email-templates/${id}`),
+};
+
+// ── Projects ──────────────────────────────────────────────────────────────────
+
+export interface ProjectDto {
+  id: string;
+  name: string;
+  description: string | null;
+  category: string;
+  visibility: 'PRIVATE' | 'TEAM';
+  tags: string[];
+  candidateCount: number;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectCandidateDto {
+  id: string;
+  projectId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  candidateSkills: string[];
+  addedByName: string;
+  notes: string | null;
+  addedAt: string;
+}
+
+export interface ProjectNoteDto {
+  id: string;
+  projectId: string;
+  content: string;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const projectsApi = {
+  getAll: () =>
+    api.get<{ projects: ProjectDto[] }>('/projects'),
+  getById: (id: string) =>
+    api.get<{ project: ProjectDto }>(`/projects/${id}`),
+  create: (data: { name: string; description?: string; category?: string; visibility?: 'PRIVATE' | 'TEAM'; tags?: string[] }) =>
+    api.post<{ project: ProjectDto }>('/projects', data),
+  update: (id: string, data: { name?: string; description?: string; category?: string; visibility?: 'PRIVATE' | 'TEAM'; tags?: string[] }) =>
+    api.patch<{ project: ProjectDto }>(`/projects/${id}`, data),
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/projects/${id}`),
+  getCandidates: (id: string) =>
+    api.get<{ candidates: ProjectCandidateDto[] }>(`/projects/${id}/candidates`),
+  addCandidate: (id: string, candidateId: string) =>
+    api.post<{ projectCandidate: ProjectCandidateDto }>(`/projects/${id}/candidates`, { candidateId }),
+  removeCandidate: (id: string, candidateId: string) =>
+    api.delete<{ deleted: boolean }>(`/projects/${id}/candidates/${candidateId}`),
+  getNotes: (id: string) =>
+    api.get<{ notes: ProjectNoteDto[] }>(`/projects/${id}/notes`),
+  createNote: (id: string, content: string) =>
+    api.post<{ note: ProjectNoteDto }>(`/projects/${id}/notes`, { content }),
+};
+
+// ── Sequences ─────────────────────────────────────────────────────────────────
+
+export interface SequenceStepDto {
+  id: string;
+  sequenceId: string;
+  position: number;
+  type: 'EMAIL' | 'WAIT' | 'TASK';
+  templateId: string | null;
+  templateName: string | null;
+  waitDays: number | null;
+  taskDescription: string | null;
+  sendTime: string | null;
+}
+
+export interface SequenceDto {
+  id: string;
+  name: string;
+  status: 'ACTIVE' | 'PAUSED';
+  stepCount: number;
+  enrolledCount: number;
+  stopOnReply: boolean;
+  stopOnInterview: boolean;
+  maxEmails: number;
+  sendingDays: string[];
+  steps: SequenceStepDto[];
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SequenceEnrollmentDto {
+  id: string;
+  sequenceId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  currentStep: number;
+  status: 'ACTIVE' | 'COMPLETED' | 'STOPPED';
+  enrolledAt: string;
+  completedAt: string | null;
+  stoppedAt: string | null;
+  stoppedReason: string | null;
+}
+
+export const sequencesApi = {
+  getAll: () =>
+    api.get<{ sequences: SequenceDto[] }>('/sequences'),
+  getById: (id: string) =>
+    api.get<{ sequence: SequenceDto }>(`/sequences/${id}`),
+  create: (data: { name: string; stopOnReply?: boolean; stopOnInterview?: boolean; maxEmails?: number; sendingDays?: string[] }) =>
+    api.post<{ sequence: SequenceDto }>('/sequences', data),
+  update: (id: string, data: { name?: string; status?: 'ACTIVE' | 'PAUSED'; stopOnReply?: boolean; stopOnInterview?: boolean; maxEmails?: number; sendingDays?: string[] }) =>
+    api.patch<{ sequence: SequenceDto }>(`/sequences/${id}`, data),
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/sequences/${id}`),
+  toggleStatus: (id: string, status: 'ACTIVE' | 'PAUSED') =>
+    api.patch<{ sequence: SequenceDto }>(`/sequences/${id}/status`, { status }),
+  addStep: (id: string, data: { type: 'EMAIL' | 'WAIT' | 'TASK'; templateId?: string; waitDays?: number; taskDescription?: string; sendTime?: string }) =>
+    api.post<{ step: SequenceStepDto }>(`/sequences/${id}/steps`, data),
+  updateStep: (id: string, stepId: string, data: Partial<SequenceStepDto>) =>
+    api.patch<{ step: SequenceStepDto }>(`/sequences/${id}/steps/${stepId}`, data),
+  deleteStep: (id: string, stepId: string) =>
+    api.delete<{ deleted: boolean }>(`/sequences/${id}/steps/${stepId}`),
+  getEnrollments: (id: string) =>
+    api.get<{ enrollments: SequenceEnrollmentDto[] }>(`/sequences/${id}/enrolled`),
+  enroll: (id: string, candidateId: string) =>
+    api.post<{ enrollment: SequenceEnrollmentDto }>(`/sequences/${id}/enroll`, { candidateId }),
+  unenroll: (id: string, candidateId: string) =>
+    api.delete<{ enrollment: SequenceEnrollmentDto }>(`/sequences/${id}/enroll/${candidateId}`),
+};
+
+// ── Feedback Forms ────────────────────────────────────────────────────────────
+
+export interface FeedbackQuestion {
+  id: string;
+  type: 'rating' | 'yes-no' | 'recommendation' | 'text' | 'skill';
+  label: string;
+  skillName?: string;
+  isRequired: boolean;
+}
+
+export interface FeedbackFormDto {
+  id: string;
+  name: string;
+  stage: string | null;
+  questions: FeedbackQuestion[];
+  submissionCount: number;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedbackSubmissionDto {
+  id: string;
+  formId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string;
+  submittedByName: string;
+  answers: Record<string, unknown>;
+  overallRating: number | null;
+  recommendation: string | null;
+  submittedAt: string;
+}
+
+export const feedbackFormsApi = {
+  getAll: () =>
+    api.get<{ forms: FeedbackFormDto[] }>('/feedback-forms'),
+  getById: (id: string) =>
+    api.get<{ form: FeedbackFormDto }>(`/feedback-forms/${id}`),
+  create: (data: { name: string; stage?: string; questions?: FeedbackQuestion[] }) =>
+    api.post<{ form: FeedbackFormDto }>('/feedback-forms', data),
+  update: (id: string, data: { name?: string; stage?: string; questions?: FeedbackQuestion[] }) =>
+    api.patch<{ form: FeedbackFormDto }>(`/feedback-forms/${id}`, data),
+  delete: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/feedback-forms/${id}`),
+  getSubmissions: (id: string) =>
+    api.get<{ submissions: FeedbackSubmissionDto[] }>(`/feedback-forms/${id}/submissions`),
+  createSubmission: (id: string, data: { candidateId: string; applicationId?: string; answers: Record<string, unknown>; overallRating?: number; recommendation?: string }) =>
+    api.post<{ submission: FeedbackSubmissionDto }>(`/feedback-forms/${id}/submissions`, data),
+};
+
 // ── Scorecards ────────────────────────────────────────────────────────────────
 
 export interface ScorecardCriterionDto {

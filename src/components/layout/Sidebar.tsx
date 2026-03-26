@@ -18,6 +18,7 @@ import {
   FileCheck,
   Building2,
   Bell,
+  FolderOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,6 +43,7 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   FileCheck,
   Building2,
   Bell,
+  FolderOpen,
 };
 
 function NavIcon({ name }: { name: IconName }) {

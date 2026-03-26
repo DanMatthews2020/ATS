@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { feedbackFormsController } from '../controllers/feedback-forms.controller';
+import { authenticate } from '../middleware/auth.middleware';
+const router = Router();
+router.get('/',                        authenticate, feedbackFormsController.list);
+router.post('/',                       authenticate, feedbackFormsController.create);
+router.get('/:id',                     authenticate, feedbackFormsController.getOne);
+router.patch('/:id',                   authenticate, feedbackFormsController.update);
+router.delete('/:id',                  authenticate, feedbackFormsController.remove);
+router.get('/:id/submissions',         authenticate, feedbackFormsController.listSubmissions);
+router.post('/:id/submissions',        authenticate, feedbackFormsController.createSubmission);
+export default router;

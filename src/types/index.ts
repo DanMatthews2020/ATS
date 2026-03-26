@@ -14,7 +14,8 @@ export type IconName =
   | 'Calendar'
   | 'FileCheck'
   | 'Building2'
-  | 'Bell';
+  | 'Bell'
+  | 'FolderOpen';
 
 // ─── Navigation ──────────────────────────────────────────────────────────────
 

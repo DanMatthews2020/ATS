@@ -1,0 +1,15 @@
+import { Router } from 'express';
+import { projectsController } from '../controllers/projects.controller';
+import { authenticate } from '../middleware/auth.middleware';
+const router = Router();
+router.get('/',                               authenticate, projectsController.list);
+router.post('/',                              authenticate, projectsController.create);
+router.get('/:id',                            authenticate, projectsController.getOne);
+router.patch('/:id',                          authenticate, projectsController.update);
+router.delete('/:id',                         authenticate, projectsController.remove);
+router.get('/:id/candidates',                 authenticate, projectsController.listCandidates);
+router.post('/:id/candidates',                authenticate, projectsController.addCandidate);
+router.delete('/:id/candidates/:candidateId', authenticate, projectsController.removeCandidate);
+router.get('/:id/notes',                      authenticate, projectsController.listNotes);
+router.post('/:id/notes',                     authenticate, projectsController.createNote);
+export default router;

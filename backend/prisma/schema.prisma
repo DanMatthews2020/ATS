@@ -117,6 +117,13 @@ model User {
   scorecards            Scorecard[]           @relation("ScorecardCreatedBy")
   evaluationsSubmitted  CandidateEvaluation[] @relation("EvaluationSubmittedBy")
   followUpsCreated      FollowUp[]            @relation("FollowUpCreatedBy")
+  emailTemplates        EmailTemplate[]       @relation("EmailTemplateCreatedBy")
+  projectsCreated       Project[]             @relation("ProjectCreatedBy")
+  projectCandidatesAdded ProjectCandidate[]   @relation("ProjectCandidateAddedBy")
+  projectNotesCreated   ProjectNote[]         @relation("ProjectNoteCreatedBy")
+  sequencesCreated      Sequence[]            @relation("SequenceCreatedBy")
+  feedbackFormsCreated  FeedbackForm[]        @relation("FeedbackFormCreatedBy")
+  feedbackSubmissions   FeedbackSubmission[]  @relation("FeedbackSubmittedBy")
 }
 
 model RefreshToken {
@@ -166,11 +173,14 @@ model Candidate {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  applications Application[]
-  employee     Employee?
-  notes        CandidateNote[]
-  evaluations  CandidateEvaluation[]
-  followUps    FollowUp[]
+  applications        Application[]
+  employee            Employee?
+  notes               CandidateNote[]
+  evaluations         CandidateEvaluation[]
+  followUps           FollowUp[]
+  projectCandidates   ProjectCandidate[]
+  sequenceEnrollments SequenceEnrollment[]
+  feedbackSubmissions FeedbackSubmission[]
 }
 
 model Application {
@@ -185,9 +195,10 @@ model Application {
   appliedAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
-  interviews      Interview[]
-  offer           Offer?
-  candidateNotes  CandidateNote[]
+  interviews          Interview[]
+  offer               Offer?
+  candidateNotes      CandidateNote[]
+  feedbackSubmissions FeedbackSubmission[]
 
   @@unique([candidateId, jobPostingId])
 }
@@ -394,4 +405,167 @@ model FollowUp {
   createdBy    User      @relation("FollowUpCreatedBy", fields: [createdById], references: [id])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+// ─── Email Templates ──────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  category    String   @default("custom") // outreach | follow-up | interview | offer | rejection | onboarding | custom
+  subject     String
+  body        String
+  isShared    Boolean  @default(true)
+  createdById String
+  createdBy   User     @relation("EmailTemplateCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sequenceSteps SequenceStep[]
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+
+enum ProjectVisibility {
+  PRIVATE
+  TEAM
+}
+
+model Project {
+  id          String            @id @default(uuid())
+  name        String
+  description String?
+  category    String            @default("talent-pool") // talent-pool | longlist | event | campaign | custom
+  visibility  ProjectVisibility @default(TEAM)
+  tags        String[]
+  createdById String
+  createdBy   User              @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  candidates ProjectCandidate[]
+  notes      ProjectNote[]
+}
+
+model ProjectCandidate {
+  id          String    @id @default(uuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  addedById   String
+  addedBy     User      @relation("ProjectCandidateAddedBy", fields: [addedById], references: [id])
+  notes       String?
+  addedAt     DateTime  @default(now())
+
+  @@unique([projectId, candidateId])
+}
+
+model ProjectNote {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  content     String
+  createdById String
+  createdBy   User     @relation("ProjectNoteCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── Email Sequences ──────────────────────────────────────────────────────────
+
+enum SequenceStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum SequenceStepType {
+  EMAIL
+  WAIT
+  TASK
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  STOPPED
+}
+
+model Sequence {
+  id              String         @id @default(uuid())
+  name            String
+  status          SequenceStatus @default(ACTIVE)
+  stopOnReply     Boolean        @default(true)
+  stopOnInterview Boolean        @default(true)
+  maxEmails       Int            @default(10)
+  sendingDays     String[]       @default(["Mon", "Tue", "Wed", "Thu", "Fri"])
+  createdById     String
+  createdBy       User           @relation("SequenceCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+}
+
+model SequenceStep {
+  id              String           @id @default(uuid())
+  sequenceId      String
+  sequence        Sequence         @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  position        Int
+  type            SequenceStepType
+  templateId      String?
+  template        EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  waitDays        Int?
+  taskDescription String?
+  sendTime        String?          @default("09:00")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model SequenceEnrollment {
+  id            String           @id @default(uuid())
+  sequenceId    String
+  sequence      Sequence         @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  candidateId   String
+  candidate     Candidate        @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  currentStep   Int              @default(0)
+  status        EnrollmentStatus @default(ACTIVE)
+  enrolledAt    DateTime         @default(now())
+  completedAt   DateTime?
+  stoppedAt     DateTime?
+  stoppedReason String?
+
+  @@unique([sequenceId, candidateId])
+}
+
+// ─── Feedback Forms ───────────────────────────────────────────────────────────
+
+model FeedbackForm {
+  id          String   @id @default(uuid())
+  name        String
+  stage       String?
+  questions   Json     @default("[]")
+  createdById String
+  createdBy   User     @relation("FeedbackFormCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submissions FeedbackSubmission[]
+}
+
+model FeedbackSubmission {
+  id             String       @id @default(uuid())
+  formId         String
+  form           FeedbackForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  candidateId    String
+  candidate      Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  applicationId  String?
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  submittedById  String
+  submittedBy    User         @relation("FeedbackSubmittedBy", fields: [submittedById], references: [id])
+  answers        Json         @default("{}")
+  overallRating  Int?
+  recommendation String?
+  submittedAt    DateTime     @default(now())
 }
