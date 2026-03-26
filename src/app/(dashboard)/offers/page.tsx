@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
-import { offersApi, type OfferDto, type OfferStatus, type OfferStatsDto } from '@/lib/api';
+import { offersApi, candidatesApi, type OfferDto, type OfferStatus, type OfferStatsDto, type CandidateListDto } from '@/lib/api';
 import type { BadgeVariant } from '@/types';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -275,22 +275,61 @@ function OfferDetailModal({ offer, onClose, onStatusChange, onSend }: {
 
 function CreateOfferModal({ onClose, onCreated }: { onClose: () => void; onCreated: (o: OfferDto) => void }) {
   const { showToast } = useToast();
+
+  // Candidate search
+  const [search, setSearch]               = useState('');
+  const [results, setResults]             = useState<CandidateListDto[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selected, setSelected]           = useState<{ id: string; name: string } | null>(null);
+  const [apps, setApps]                   = useState<{ id: string; jobId: string; jobTitle: string }[]>([]);
+  const [appsLoading, setAppsLoading]     = useState(false);
+  const [appId, setAppId]                 = useState('');
+
+  // Offer details
   const [form, setForm] = useState({
-    candidateName: '', candidateId: 'c-new',
-    jobTitle: '', jobId: 'j-new', department: '',
     salary: '', currency: 'GBP',
     startDate: '', expiryDate: '',
     equity: '', benefits: '', notes: '',
   });
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving]   = useState(false);
+  const [errors, setErrors]   = useState<Record<string, string>>({});
+
+  // Debounced candidate search
+  useEffect(() => {
+    if (search.length < 2) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const { items } = await candidatesApi.getCandidates(1, 10, search);
+        setResults(items);
+      } catch { /* silently ignore */ }
+      finally { setSearchLoading(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  async function pickCandidate(c: CandidateListDto) {
+    setSelected({ id: c.id, name: c.name });
+    setSearch(c.name);
+    setResults([]);
+    setAppId('');
+    setAppsLoading(true);
+    try {
+      const { candidate } = await candidatesApi.getCandidate(c.id);
+      const mapped = candidate.applications.map((a) => ({ id: a.id, jobId: a.jobId, jobTitle: a.jobTitle }));
+      setApps(mapped);
+      if (mapped.length === 1) setAppId(mapped[0].id);
+    } catch { showToast('Failed to load candidate details', 'error'); }
+    finally { setAppsLoading(false); }
+  }
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!form.candidateName.trim()) e.candidateName = 'Candidate name is required';
+    if (!selected)                              e.candidate  = 'Please select a candidate';
+    if (!appId)                                 e.application = apps.length === 0 ? 'Candidate has no applications — add them to a job first' : 'Please select a job application';
     if (!form.salary || isNaN(Number(form.salary))) e.salary = 'Valid salary is required';
-    if (!form.startDate)   e.startDate   = 'Start date is required';
-    if (!form.expiryDate)  e.expiryDate  = 'Expiry date is required';
+    if (!form.startDate)                        e.startDate  = 'Start date is required';
+    if (!form.expiryDate)                       e.expiryDate = 'Expiry date is required';
     return e;
   }
 
@@ -301,18 +340,14 @@ function CreateOfferModal({ onClose, onCreated }: { onClose: () => void; onCreat
     setSaving(true);
     try {
       const { offer } = await offersApi.create({
-        candidateId:   form.candidateId,
-        candidateName: form.candidateName,
-        jobId:         form.jobId,
-        jobTitle:      form.jobTitle,
-        department:    form.department,
+        applicationId: appId,
         salary:        Number(form.salary),
         currency:      form.currency,
         startDate:     form.startDate,
         expiryDate:    form.expiryDate,
         equity:        form.equity || undefined,
-        benefits:      form.benefits,
-        notes:         form.notes || undefined,
+        benefits:      form.benefits || undefined,
+        notes:         form.notes   || undefined,
       });
       onCreated(offer);
       showToast('Offer created as draft');
@@ -335,21 +370,59 @@ function CreateOfferModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </button>
         </div>
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Candidate name</label>
-              <Input value={form.candidateName} onChange={f('candidateName')} placeholder="e.g. Emily Carter" />
-              {errors.candidateName && <p className="text-xs text-red-500 mt-1">{errors.candidateName}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Job title</label>
-              <Input value={form.jobTitle} onChange={f('jobTitle')} placeholder="e.g. Senior Engineer" />
-            </div>
-          </div>
+
+          {/* Candidate search */}
           <div>
-            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Department</label>
-            <Input value={form.department} onChange={f('department')} placeholder="e.g. Engineering" />
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Candidate</label>
+            <div className="relative">
+              <Input
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setSelected(null); setApps([]); setAppId(''); }}
+                placeholder="Search by name or email…"
+              />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] animate-pulse text-xs">
+                  searching…
+                </div>
+              )}
+              {results.length > 0 && (
+                <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-[var(--color-border)] rounded-xl shadow-lg z-10 max-h-48 overflow-y-auto">
+                  {results.map((c) => (
+                    <button key={c.id} type="button" onClick={() => pickCandidate(c)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[var(--color-surface)] text-left transition-colors">
+                      <Avatar name={c.name} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{c.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] truncate">{c.email}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {errors.candidate && <p className="text-xs text-red-500 mt-1">{errors.candidate}</p>}
           </div>
+
+          {/* Application picker */}
+          {selected && (
+            <div>
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Job Application</label>
+              {appsLoading ? (
+                <p className="text-xs text-[var(--color-text-muted)]">Loading applications…</p>
+              ) : apps.length === 0 ? (
+                <p className="text-xs text-amber-600">No applications found — add this candidate to a job first.</p>
+              ) : (
+                <select value={appId} onChange={(e) => setAppId(e.target.value)}
+                  className="w-full h-10 px-3 text-sm border border-[var(--color-border)] rounded-xl bg-white text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20">
+                  <option value="">Select a job…</option>
+                  {apps.map((a) => <option key={a.id} value={a.id}>{a.jobTitle}</option>)}
+                </select>
+              )}
+              {errors.application && <p className="text-xs text-red-500 mt-1">{errors.application}</p>}
+            </div>
+          )}
+
+          {/* Salary */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Annual salary</label>
@@ -364,6 +437,8 @@ function CreateOfferModal({ onClose, onCreated }: { onClose: () => void; onCreat
               </select>
             </div>
           </div>
+
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Start date</label>
@@ -378,12 +453,13 @@ function CreateOfferModal({ onClose, onCreated }: { onClose: () => void; onCreat
               {errors.expiryDate && <p className="text-xs text-red-500 mt-1">{errors.expiryDate}</p>}
             </div>
           </div>
+
           <div>
             <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Equity <span className="font-normal opacity-60">(optional)</span></label>
             <Input value={form.equity} onChange={f('equity')} placeholder="e.g. 0.05% over 4 years" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Benefits summary</label>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Benefits summary <span className="font-normal opacity-60">(optional)</span></label>
             <textarea value={form.benefits} onChange={f('benefits')} rows={2} placeholder="Private health, 25 days annual leave..."
               className="w-full px-3 py-2 text-sm border border-[var(--color-border)] rounded-xl resize-none outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20" />
           </div>
