@@ -282,6 +282,7 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [parseErrorMsg, setParseErrorMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formBodyRef = useRef<HTMLDivElement>(null);
 
   // Reset when drawer closes
   useEffect(() => {
@@ -359,7 +360,7 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
   }
 
   // ── Submit ─────────────────────────────────────────────────────────────────
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const newErrors: Partial<ManualForm> = {};
     if (!form.firstName.trim()) newErrors.firstName = 'Required';
@@ -369,7 +370,12 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       newErrors.email = 'Enter a valid email address';
     }
-    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+    if (Object.keys(newErrors).length) {
+      setErrors(newErrors);
+      // Scroll to the top of the form so validation errors are visible
+      formBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -443,8 +449,8 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          {activeTab === 'cv' ? (
+        {activeTab === 'cv' ? (
+          <div className="flex-1 overflow-y-auto">
             <CvUploadTab
               uploadState={uploadState}
               uploadedFile={uploadedFile}
@@ -456,8 +462,12 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
               onDrop={handleDrop}
               onSwitchToManual={() => setActiveTab('manual')}
             />
-          ) : (
-            <form id="manual-form" onSubmit={handleSubmit} noValidate className="p-6 space-y-4">
+          </div>
+        ) : (
+          /* Form wraps both the scrollable fields AND the footer so the submit
+             button is naturally inside the form — no cross-form id reference needed */
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 overflow-hidden">
+            <div ref={formBodyRef} className="flex-1 overflow-y-auto p-6 space-y-4">
               {uploadState === 'success' && (
                 <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
                   <CheckCircle2 size={15} className="flex-shrink-0 text-emerald-600" />
@@ -497,20 +507,18 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
                 </select>
               </div>
               <Input label="Notes" multiline rows={3} placeholder="Any relevant notes about this candidate…" value={form.notes} onChange={(e) => updateField('notes', e.target.value)} hint="Attached to their first application when one is created." />
-            </form>
-          )}
-        </div>
+            </div>
 
-        {/* Footer */}
-        {activeTab === 'manual' && (
-          <div className="p-6 border-t border-[var(--color-border)] flex gap-3 flex-shrink-0">
-            <Button type="button" variant="secondary" size="md" className="flex-1 justify-center" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" form="manual-form" variant="primary" size="md" className="flex-1 justify-center" isLoading={isSubmitting}>
-              Add Candidate
-            </Button>
-          </div>
+            {/* Footer is inside the form — button is a natural type="submit" */}
+            <div className="p-6 border-t border-[var(--color-border)] flex gap-3 flex-shrink-0">
+              <Button type="button" variant="secondary" size="md" className="flex-1 justify-center" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="md" className="flex-1 justify-center" isLoading={isSubmitting}>
+                Add Candidate
+              </Button>
+            </div>
+          </form>
         )}
       </div>
     </>
