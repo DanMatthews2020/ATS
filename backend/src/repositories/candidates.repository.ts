@@ -149,6 +149,10 @@ export const candidatesRepository = {
     return prisma.candidateNote.delete({ where: { id } });
   },
 
+  async update(id: string, data: { currentCompany?: string | null }) {
+    return prisma.candidate.update({ where: { id }, data });
+  },
+
   async updateTags(id: string, tags: string[]) {
     return prisma.candidate.update({ where: { id }, data: { tags } });
   },

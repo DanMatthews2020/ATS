@@ -8,7 +8,7 @@ import {
   MessageSquare, Activity, ChevronRight, X, Check,
   ChevronDown, MoreHorizontal, Pencil, Trash2, Send,
   Bell, UserPlus, RefreshCw, FolderOpen, Search,
-  GitMerge, UserX, AlertTriangle,
+  GitMerge, UserX, AlertTriangle, Building2,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -21,8 +21,8 @@ import {
   referralsApi, teamApi,
   type CandidateDetailDto, type InterviewType,
   type CandidateNoteDto, type FeedEventDto, type CandidateFeedbackDto,
-  type SequenceDto, type ProjectDto, type JobListingDto,
-  type TeamMemberDto, type ReferralDto,
+  type SequenceDto, type SequenceDetailDto, type ProjectDto, type JobListingDto,
+  type TeamMemberDto, type ReferralDto, type CandidateSequenceEnrollmentDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -450,108 +450,296 @@ function ChangeStageDropdown({ candidate, onStageChanged }: {
   );
 }
 
-// ─── Enroll in Sequence Modal ─────────────────────────────────────────────────
+// ─── Enroll in Sequence Modal (two-step) ──────────────────────────────────────
 
-function EnrollInSequenceModal({ candidateId, candidateName, onClose }: {
+const ACTIVE_ENROLLMENT_STATUSES = new Set([
+  'ENROLLED', 'ACTIVE', 'IN_PROGRESS', 'REPLIED', 'INTERESTED', 'CONVERTED',
+]);
+
+function EnrollInSequenceModal({
+  candidateId, candidateName, candidateEmail, onClose, onEnrolled,
+}: {
   candidateId: string;
   candidateName: string;
+  candidateEmail: string;
   onClose: () => void;
-  onEnrolled: () => void;
+  onEnrolled: (e: CandidateSequenceEnrollmentDto) => void;
 }) {
   const { showToast } = useToast();
-  const [sequences, setSequences] = useState<SequenceDto[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [selected, setSelected]   = useState<SequenceDto | null>(null);
-  const [enrolling, setEnrolling] = useState(false);
+  const { user } = useAuth();
+
+  // Step 1
+  const [step, setStep]                   = useState<1 | 2>(1);
+  const [sequences, setSequences]         = useState<SequenceDto[]>([]);
+  const [enrolledSeqIds, setEnrolledSeqIds] = useState<Set<string>>(new Set());
+  const [loadingSeqs, setLoadingSeqs]     = useState(true);
+  const [search, setSearch]               = useState('');
+  const [selected, setSelected]           = useState<SequenceDto | null>(null);
+
+  // Step 2
+  const [selectedDetail, setSelectedDetail] = useState<SequenceDetailDto | null>(null);
+  const [teamMembers, setTeamMembers]       = useState<TeamMemberDto[]>([]);
+  const [sendFrom, setSendFrom]             = useState('');
+  const [startDate, setStartDate]           = useState('');
+  const [loadingStep2, setLoadingStep2]     = useState(false);
+  const [enrolling, setEnrolling]           = useState(false);
+  const [errorMsg, setErrorMsg]             = useState('');
 
   useEffect(() => {
-    sequencesApi.getAll()
-      .then((d) => setSequences(d.sequences.filter((s) => s.status === 'ACTIVE')))
+    Promise.all([
+      sequencesApi.getAll({ status: 'ACTIVE' }),
+      candidatesApi.getEnrollments(candidateId),
+    ])
+      .then(([seqData, enrollData]) => {
+        setSequences(seqData.sequences);
+        const ids = new Set(
+          enrollData.enrollments.filter((e) => ACTIVE_ENROLLMENT_STATUSES.has(e.status)).map((e) => e.sequenceId),
+        );
+        setEnrolledSeqIds(ids);
+      })
       .catch(() => showToast('Failed to load sequences', 'error'))
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingSeqs(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function goToStep2() {
+    if (!selected) return;
+    setLoadingStep2(true);
+    try {
+      const [detailData, teamData] = await Promise.all([
+        sequencesApi.getById(selected.id),
+        teamApi.getAll(),
+      ]);
+      setSelectedDetail(detailData.sequence);
+      setTeamMembers(teamData.members);
+      const me = teamData.members.find((m) => m.email === user?.email);
+      setSendFrom(me?.email ?? teamData.members[0]?.email ?? '');
+      setStep(2);
+    } catch {
+      showToast('Failed to load sequence details', 'error');
+    } finally {
+      setLoadingStep2(false);
+    }
+  }
 
   async function handleEnroll() {
     if (!selected) return;
     setEnrolling(true);
+    setErrorMsg('');
     try {
-      await sequencesApi.enroll(selected.id, { candidateId });
+      const res = await sequencesApi.enroll(selected.id, {
+        candidateId,
+        sendFrom: sendFrom || undefined,
+        startDate: startDate || undefined,
+      });
       showToast(`${candidateName} enrolled in ${selected.name}`, 'success');
+      onEnrolled({
+        id: res.enrollment.id,
+        sequenceId: selected.id,
+        sequenceName: selected.name,
+        status: res.enrollment.status,
+        currentStep: res.enrollment.currentStep,
+        enrolledAt: res.enrollment.enrolledAt,
+      });
       onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg.includes('already enrolled') || msg.includes('P2002')) {
-        showToast(`${candidateName} is already enrolled in this sequence`, 'error');
+      const status = (err as { status?: number })?.status;
+      if (status === 409) {
+        setErrorMsg(`${candidateName} is already enrolled in "${selected.name}"`);
       } else {
-        showToast('Failed to enroll in sequence', 'error');
+        setErrorMsg('Failed to enroll — please try again');
       }
     } finally {
       setEnrolling(false);
     }
   }
 
+  const filtered = sequences.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Enroll in Sequence</h2>
-          <button onClick={onClose} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
-            <X size={16} />
+          <div>
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">
+              {step === 1 ? 'Enroll in Sequence' : 'Confirm Enrollment'}
+            </h2>
+            {step === 1 && (
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Select a sequence for {candidateName}</p>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] transition-colors">
+            <X size={15} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-4 max-h-[360px] overflow-y-auto">
-          {loading ? (
-            <div className="flex justify-center py-10">
-              <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+        {step === 1 ? (
+          <>
+            {/* Search */}
+            <div className="px-5 pt-4 pb-2">
+              <div className="flex items-center gap-2 bg-[var(--color-surface)] rounded-xl px-3 py-2 border border-[var(--color-border)]">
+                <Search size={13} className="text-[var(--color-text-muted)] flex-shrink-0" />
+                <input
+                  autoFocus
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search sequences..."
+                  className="flex-1 text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                />
+              </div>
             </div>
-          ) : sequences.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-sm text-[var(--color-text-muted)] mb-3">No active sequences found.</p>
-              <a href="/sequences" className="text-sm text-[var(--color-primary)] hover:underline">
-                Create a sequence →
-              </a>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {sequences.map((seq) => (
-                <button
-                  key={seq.id}
-                  onClick={() => setSelected(seq)}
-                  className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
-                    selected?.id === seq.id
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
-                      : 'border-[var(--color-border)] hover:bg-[var(--color-surface)]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">{seq.name}</span>
-                    {selected?.id === seq.id && <Check size={14} className="text-[var(--color-primary)]" />}
-                  </div>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                    {seq.stepCount} step{seq.stepCount !== 1 ? 's' : ''} · {seq.enrolledCount} enrolled
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--color-border)]">
-          <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleEnroll}
-            disabled={!selected || enrolling}
-          >
-            {enrolling ? <><Loader2 size={13} className="animate-spin" /> Enrolling…</> : 'Enroll'}
-          </Button>
-        </div>
+            {/* List */}
+            <div className="px-5 pb-2 max-h-[340px] overflow-y-auto">
+              {loadingSeqs ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-sm text-[var(--color-text-muted)] mb-3">
+                    {sequences.length === 0 ? 'No active sequences yet.' : 'No sequences match your search.'}
+                  </p>
+                  {sequences.length === 0 && (
+                    <a href="/sequences/new" target="_blank" rel="noopener noreferrer" className="text-sm text-[var(--color-primary)] hover:underline">
+                      Create a sequence →
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  {filtered.map((seq) => {
+                    const isEnrolled = enrolledSeqIds.has(seq.id);
+                    const isSelected = selected?.id === seq.id;
+                    return (
+                      <button
+                        key={seq.id}
+                        onClick={() => !isEnrolled && setSelected(seq)}
+                        disabled={isEnrolled}
+                        className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                          isEnrolled ? 'border-[var(--color-border)] opacity-60 cursor-default'
+                          : isSelected ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                          : 'border-[var(--color-border)] hover:bg-[var(--color-surface)]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{seq.name}</p>
+                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                              {seq.stepCount} stage{seq.stepCount !== 1 ? 's' : ''} · {seq.enrolledCount} enrolled
+                            </p>
+                          </div>
+                          {isEnrolled ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 flex-shrink-0">
+                              Already enrolled
+                            </span>
+                          ) : isSelected ? (
+                            <Check size={14} className="text-[var(--color-primary)] flex-shrink-0" />
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 px-5 py-4 border-t border-[var(--color-border)]">
+              <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={goToStep2} disabled={!selected || loadingStep2} isLoading={loadingStep2}>
+                Next →
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="px-5 py-4 max-h-[440px] overflow-y-auto space-y-4">
+              {/* Candidate card */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)]">
+                <Avatar name={candidateName} size="sm" />
+                <div>
+                  <p className="text-sm font-semibold text-[var(--color-text-primary)]">{candidateName}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">{candidateEmail}</p>
+                </div>
+              </div>
+
+              {/* Sequence + timeline */}
+              <div>
+                <p className="text-xs font-medium text-[var(--color-text-muted)] mb-1">Sequence</p>
+                <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">{selected?.name}</p>
+                {selectedDetail?.steps && selectedDetail.steps.length > 0 && (
+                  <div className="space-y-0.5">
+                    {[...selectedDetail.steps].sort((a, b) => a.position - b.position).reduce<{ nodes: React.ReactNode[]; days: number }>(
+                      ({ nodes, days }, s, i, arr) => {
+                        const cumDays = days + s.delayDays;
+                        const dayLabel = cumDays === 0 ? 'Sends today' : `Sends in ${cumDays} day${cumDays !== 1 ? 's' : ''}`;
+                        nodes.push(
+                          <div key={s.id} className="flex items-start gap-2.5">
+                            <div className="flex flex-col items-center">
+                              <div className="w-6 h-6 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
+                                <Mail size={10} className="text-blue-500" />
+                              </div>
+                              {i < arr.length - 1 && <div className="w-px h-5 bg-[var(--color-border)] mt-0.5" />}
+                            </div>
+                            <div className="pb-1">
+                              <p className="text-xs font-medium text-[var(--color-text-primary)]">
+                                Stage {i + 1}{s.subject ? `: ${s.subject.slice(0, 45)}${s.subject.length > 45 ? '…' : ''}` : ''}
+                              </p>
+                              <p className="text-[11px] text-[var(--color-text-muted)]">{dayLabel}</p>
+                            </div>
+                          </div>,
+                        );
+                        return { nodes, days: cumDays };
+                      },
+                      { nodes: [], days: 0 },
+                    ).nodes}
+                  </div>
+                )}
+              </div>
+
+              {/* Send from */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Send from</label>
+                <select
+                  value={sendFrom}
+                  onChange={(e) => setSendFrom(e.target.value)}
+                  className="w-full h-9 px-3 text-sm border border-[var(--color-border)] rounded-xl outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 bg-white text-[var(--color-text-primary)]"
+                >
+                  {teamMembers.map((m) => (
+                    <option key={m.id} value={m.email}>{m.name} &lt;{m.email}&gt;</option>
+                  ))}
+                  {!teamMembers.length && <option value="">— No team members —</option>}
+                </select>
+              </div>
+
+              {/* Start date */}
+              <div>
+                <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Start date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full h-9 px-3 text-sm border border-[var(--color-border)] rounded-xl outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 bg-white text-[var(--color-text-primary)]"
+                />
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-1">Leave blank to start today</p>
+              </div>
+
+              {errorMsg && (
+                <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+                  {errorMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 px-5 py-4 border-t border-[var(--color-border)]">
+              <Button variant="secondary" size="sm" onClick={() => { setStep(1); setErrorMsg(''); }}>← Back</Button>
+              <Button variant="primary" size="sm" onClick={handleEnroll} isLoading={enrolling} disabled={enrolling}>Enroll</Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -2298,8 +2486,28 @@ function InterviewsTab({ candidate }: { candidate: CandidateDetailDto }) {
 
 // ─── Tab: Overview ────────────────────────────────────────────────────────────
 
-function OverviewTab({ candidate }: { candidate: CandidateDetailDto }) {
+function OverviewTab({ candidate, onUpdate }: { candidate: CandidateDetailDto; onUpdate: (updates: Partial<CandidateDetailDto>) => void }) {
+  const { showToast } = useToast();
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [companyDraft, setCompanyDraft] = useState(candidate.currentCompany ?? '');
+  const [savingCompany, setSavingCompany] = useState(false);
   const latestApp = candidate.applications[0];
+
+  async function saveCompany() {
+    const val = companyDraft.trim() || null;
+    if (val === (candidate.currentCompany ?? null)) { setEditingCompany(false); return; }
+    setSavingCompany(true);
+    try {
+      await candidatesApi.updateCandidate(candidate.id, { currentCompany: val });
+      onUpdate({ currentCompany: val ?? undefined });
+      setEditingCompany(false);
+    } catch {
+      showToast('Failed to update company', 'error');
+    } finally {
+      setSavingCompany(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Card padding="lg">
@@ -2349,6 +2557,40 @@ function OverviewTab({ candidate }: { candidate: CandidateDetailDto }) {
               </div>
             </div>
           )}
+
+          {/* Current Company — always shown, inline-editable */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-surface)] flex items-center justify-center flex-shrink-0">
+              <Building2 size={14} className="text-[var(--color-text-muted)]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-[var(--color-text-muted)]">Current Company</p>
+              {editingCompany ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <input
+                    autoFocus
+                    value={companyDraft}
+                    onChange={(e) => setCompanyDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') saveCompany(); if (e.key === 'Escape') setEditingCompany(false); }}
+                    onBlur={saveCompany}
+                    placeholder="e.g. Google"
+                    className="flex-1 h-7 px-2 text-sm border border-[var(--color-primary)]/40 rounded-lg outline-none focus:ring-1 focus:ring-[var(--color-primary)]/30"
+                  />
+                  {savingCompany && <Loader2 size={12} className="animate-spin text-[var(--color-text-muted)] flex-shrink-0" />}
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setCompanyDraft(candidate.currentCompany ?? ''); setEditingCompany(true); }}
+                  className="flex items-center gap-1.5 group w-full text-left"
+                >
+                  <span className={`text-sm ${candidate.currentCompany ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)] italic'}`}>
+                    {candidate.currentCompany ?? 'Not set — click to add'}
+                  </span>
+                  <Pencil size={11} className="text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -2493,15 +2735,22 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const [feedKey, setFeedKey] = useState(0);
   const [feedbackKey, setFeedbackKey] = useState(0);
 
+  // Sequence enrollments for badge display
+  const [activeEnrollments, setActiveEnrollments] = useState<CandidateSequenceEnrollmentDto[]>([]);
+
   useEffect(() => {
     async function load() {
       try {
-        const [candData, fuData] = await Promise.all([
+        const [candData, fuData, enrollData] = await Promise.all([
           candidatesApi.getCandidate(id),
           followUpsApi.getByCandidateId(id).catch(() => ({ followUps: [] })),
+          candidatesApi.getEnrollments(id).catch(() => ({ enrollments: [] })),
         ]);
         setCandidate(candData.candidate);
         setFollowUps(fuData.followUps);
+        setActiveEnrollments(
+          enrollData.enrollments.filter((e) => ACTIVE_ENROLLMENT_STATUSES.has(e.status)),
+        );
       } catch {
         setError('Candidate not found.');
       } finally {
@@ -2599,6 +2848,26 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
             {candidate.referrals[0].jobTitle && ` for ${candidate.referrals[0].jobTitle}`}
             {candidate.referrals.length > 1 && ` (+${candidate.referrals.length - 1} more)`}
           </span>
+        </div>
+      )}
+
+      {/* Sequence Enrollment Badges */}
+      {activeEnrollments.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {activeEnrollments.slice(0, 3).map((e) => (
+            <a
+              key={e.id}
+              href={`/sequences/${e.sequenceId}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              <Mail size={11} /> In Sequence: {e.sequenceName}
+            </a>
+          ))}
+          {activeEnrollments.length > 3 && (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
+              +{activeEnrollments.length - 3} more
+            </span>
+          )}
         </div>
       )}
 
@@ -2716,7 +2985,12 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
       {activeTab === 'feedback'     && <FeedbackTab key={feedbackKey} candidateId={id} />}
       {activeTab === 'emails'       && <EmailsTab candidateId={id} onCompose={() => setEmailOpen(true)} />}
       {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} />}
-      {activeTab === 'overview'     && <OverviewTab candidate={candidate} />}
+      {activeTab === 'overview'     && (
+        <OverviewTab
+          candidate={candidate}
+          onUpdate={(updates) => setCandidate((prev) => prev ? { ...prev, ...updates } : prev)}
+        />
+      )}
       {activeTab === 'applications' && (
         <ApplicationsTab
           candidate={candidate}
@@ -2787,8 +3061,12 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
         <EnrollInSequenceModal
           candidateId={id}
           candidateName={fullName}
+          candidateEmail={candidate.email}
           onClose={() => setEnrollOpen(false)}
-          onEnrolled={() => setFeedKey((k) => k + 1)}
+          onEnrolled={(e) => {
+            setActiveEnrollments((prev) => [e, ...prev]);
+            setFeedKey((k) => k + 1);
+          }}
         />
       )}
 

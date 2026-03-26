@@ -4,6 +4,7 @@
  * Maps Prisma enums to frontend-compatible lowercase strings.
  */
 import { candidatesRepository } from '../repositories/candidates.repository';
+import { sequencesRepository } from '../repositories/sequences.repository';
 import type { ApplicationStatus, CandidateSource } from '@prisma/client';
 import type { PaginatedResponse } from '../types';
 
@@ -96,6 +97,7 @@ export interface CandidateDetailDto {
   linkedInUrl?: string;
   cvUrl?: string;
   location?: string;
+  currentCompany?: string;
   source: string;
   skills: string[];
   tags: string[];
@@ -209,6 +211,7 @@ export const candidatesService = {
       linkedInUrl: c.linkedInUrl ?? undefined,
       cvUrl: c.cvUrl ?? undefined,
       location: c.location ?? undefined,
+      currentCompany: c.currentCompany ?? undefined,
       source: mapSource(c.source),
       skills: c.skills,
       tags: c.tags,
@@ -471,5 +474,23 @@ export const candidatesService = {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  },
+
+  // PATCH /candidates/:id — update basic profile fields
+  async updateCandidate(id: string, data: { currentCompany?: string | null }) {
+    await candidatesRepository.update(id, data);
+  },
+
+  // GET /candidates/:id/enrollments — all sequence enrollments for this candidate
+  async getCandidateEnrollments(candidateId: string) {
+    const rows = await sequencesRepository.findEnrollmentsByCandidate(candidateId);
+    return rows.map((e) => ({
+      id: e.id,
+      sequenceId: e.sequenceId,
+      sequenceName: (e.sequence as { name: string }).name,
+      status: e.status,
+      currentStep: e.currentStep,
+      enrolledAt: e.enrolledAt.toISOString(),
+    }));
   },
 };

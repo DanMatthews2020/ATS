@@ -154,6 +154,23 @@ export const candidatesController = {
     } catch { sendError(res, 500, 'DELETE_ERROR', 'Failed to delete note'); }
   },
 
+  // PATCH /candidates/:id — update profile fields (currentCompany etc.)
+  async updateCandidate(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { currentCompany } = req.body as { currentCompany?: string | null };
+      await candidatesService.updateCandidate(req.params.id, { currentCompany });
+      sendSuccess(res, { updated: true });
+    } catch { sendError(res, 500, 'UPDATE_ERROR', 'Failed to update candidate'); }
+  },
+
+  // GET /candidates/:id/enrollments — sequence enrollments for this candidate
+  async getCandidateEnrollments(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const enrollments = await candidatesService.getCandidateEnrollments(req.params.id);
+      sendSuccess(res, { enrollments });
+    } catch { sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch enrollments'); }
+  },
+
   // PATCH /candidates/:id/tags
   async updateTags(req: AuthRequest, res: Response): Promise<void> {
     try {

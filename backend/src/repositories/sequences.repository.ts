@@ -205,4 +205,12 @@ export const sequencesRepository = {
       clicks: groups.reduce((acc, g) => acc + (g._sum.clicks ?? 0), 0),
     };
   },
+
+  // Get all sequence enrollments for a candidate (across all sequences)
+  findEnrollmentsByCandidate: (candidateId: string) =>
+    prisma.sequenceEnrollment.findMany({
+      where: { candidateId },
+      include: { sequence: { select: { id: true, name: true } } },
+      orderBy: { enrolledAt: 'desc' },
+    }),
 };

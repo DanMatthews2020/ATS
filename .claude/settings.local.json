@@ -11,7 +11,13 @@
       "Bash(mkdir -p /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/cycles/\\\\[id\\\\]\nmkdir -p /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/performance/employees/\\\\[id\\\\])",
       "Bash(git commit:*)",
       "Bash(mv \"/Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\(dashboard\\)/job-postings\" \"/Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\(dashboard\\)/jobs\" && echo \"Done\" && ls \"/Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\(dashboard\\)/jobs/\")",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx tsx:*)",
+      "Bash(lsof -ti:3001 | xargs kill -9 2>/dev/null; true)",
+      "Bash(grep -n \"sequencesApi\\\\.\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/settings/sequences/\\\\[id\\\\]/page.tsx | head -20)",
+      "Bash(grep -n \"StepType\\\\|type StepType\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/settings/sequences/\\\\[id\\\\]/page.tsx | head -10)",
+      "Bash(grep -n \"SequenceDto\\\\|useState.*sequence\\\\b\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/settings/sequences/\\\\[id\\\\]/page.tsx | head -15)",
+      "Bash(cat /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/projects/\\\\[id\\\\]/page.tsx | head -100)"
     ]
   }
 }

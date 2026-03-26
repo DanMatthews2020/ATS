@@ -317,6 +317,7 @@ export interface CandidateDetailDto {
   linkedInUrl?: string;
   cvUrl?: string;
   location?: string;
+  currentCompany?: string;
   source: string;
   skills: string[];
   tags: string[];
@@ -355,6 +356,16 @@ export interface CandidateDetailDto {
       expiresAt?: string;
     } | null;
   }[];
+}
+
+// Candidate sequence enrollment summary (cross-sequence view)
+export interface CandidateSequenceEnrollmentDto {
+  id: string;
+  sequenceId: string;
+  sequenceName: string;
+  status: string;
+  currentStep: number;
+  enrolledAt: string;
 }
 
 // Candidates / tracking
@@ -410,6 +421,10 @@ export const candidatesApi = {
     fd.append('cv', file);
     return uploadFile<{ parsed: ParsedCvData }>('/candidates/parse-cv', fd);
   },
+  updateCandidate: (id: string, data: { currentCompany?: string | null }) =>
+    api.patch<{ updated: boolean }>(`/candidates/${id}`, data),
+  getEnrollments: (id: string) =>
+    api.get<{ enrollments: CandidateSequenceEnrollmentDto[] }>(`/candidates/${id}/enrollments`),
   deleteCandidate: (id: string) =>
     api.delete<{ deleted: boolean }>(`/candidates/${id}`),
   setDoNotContact: (id: string, data: { doNotContact: boolean; reason?: string; note?: string }) =>
