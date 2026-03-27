@@ -1,0 +1,14 @@
+name: Keep backend alive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # every 10 minutes
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render backend
+        run: |
+          curl -f https://teamtalent-backend.onrender.com/health
+          echo "Backend is awake"
