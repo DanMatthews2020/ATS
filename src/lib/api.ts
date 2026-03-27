@@ -32,11 +32,23 @@ export class ApiError extends Error {
 
 type FetchOptions = Omit<RequestInit, 'body'> & { body?: unknown };
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
+function withTimeout(signal?: AbortSignal): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  // If the caller supplied their own signal, abort on that too
+  signal?.addEventListener('abort', () => controller.abort());
+  return { signal: controller.signal, cleanup: () => clearTimeout(timer) };
+}
+
 async function request<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
   const { body, ...rest } = options;
+  const { signal, cleanup } = withTimeout(rest.signal as AbortSignal | undefined);
 
   const init: RequestInit = {
     ...rest,
+    signal,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -45,13 +57,24 @@ async function request<T>(endpoint: string, options: FetchOptions = {}): Promise
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   };
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, init);
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${endpoint}`, init);
+  } catch (err) {
+    cleanup();
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(408, 'Request timed out. The server may be starting up — please try again.', 'TIMEOUT');
+    }
+    throw err;
+  }
+  cleanup();
 
   // ── Auto-refresh on 401 ──────────────────────────────────────────────────
   if (response.status === 401) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      const retry = await fetch(`${BASE_URL}${endpoint}`, init);
+      const { signal: retrySignal, cleanup: retryCleanup } = withTimeout();
+      const retry = await fetch(`${BASE_URL}${endpoint}`, { ...init, signal: retrySignal }).finally(retryCleanup);
       if (!retry.ok) {
         const errData = await retry.json().catch(() => null);
         throw new ApiError(retry.status, errData?.error?.message ?? 'Request failed', errData?.error?.code);
@@ -79,20 +102,27 @@ async function request<T>(endpoint: string, options: FetchOptions = {}): Promise
 // ── Multipart upload (FormData) — does NOT set Content-Type, lets browser add boundary ──
 
 async function uploadFile<T>(endpoint: string, formData: FormData): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    method: 'POST',
-    credentials: 'include',
-    body: formData,
-  });
+  // Uploads get a longer timeout (60 s) for large files
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60_000);
+  const baseInit = { method: 'POST', credentials: 'include' as const, body: formData, signal: controller.signal };
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${endpoint}`, baseInit);
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError(408, 'Upload timed out. Please try again.', 'TIMEOUT');
+    }
+    throw err;
+  }
+  clearTimeout(timer);
 
   if (response.status === 401) {
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      const retry = await fetch(`${BASE_URL}${endpoint}`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
+      const retry = await fetch(`${BASE_URL}${endpoint}`, { method: 'POST', credentials: 'include', body: formData });
       if (!retry.ok) {
         const errData = await retry.json().catch(() => null);
         throw new ApiError(retry.status, errData?.error?.message ?? 'Upload failed', errData?.error?.code);

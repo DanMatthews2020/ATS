@@ -203,6 +203,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {jobsLoading
               ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
+              : jobs.length === 0
+              ? <p className="text-sm text-[var(--color-text-muted)] col-span-3">No open jobs yet. <a href="/jobs/create" className="text-[var(--color-primary)] hover:underline">Create one →</a></p>
               : jobs.map((dto) => <JobListingCard key={dto.id} job={toJob(dto)} />)}
           </div>
         )}
@@ -228,6 +230,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {candidatesLoading
               ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
+              : candidates.length === 0
+              ? <p className="text-sm text-[var(--color-text-muted)] col-span-3">No candidates yet. <a href="/candidates" className="text-[var(--color-primary)] hover:underline">Add one →</a></p>
               : candidates.map((dto) => (
                   <CandidateCard key={dto.id} candidate={toCandidate(dto)} />
                 ))}
