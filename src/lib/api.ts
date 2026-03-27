@@ -308,6 +308,8 @@ export const jobsApi = {
     api.get<{ stats: JobPipelineStageCounts }>(`/jobs/${id}/pipeline-stats`),
   getJobCandidates: (jobId: string, stage: string) =>
     api.get<{ candidates: PipelineApplicationDto[] }>(`/jobs/${jobId}/candidates?stage=${encodeURIComponent(stage)}`),
+  deleteJob: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/jobs/${id}`),
 };
 
 // Candidates

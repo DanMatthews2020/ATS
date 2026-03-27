@@ -89,6 +89,19 @@ export const jobsController = {
     }
   },
 
+  async deleteJob(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const ok = await jobsService.deleteJob(req.params.id);
+      if (!ok) {
+        sendError(res, 404, 'NOT_FOUND', 'Job posting not found');
+        return;
+      }
+      sendSuccess(res, { deleted: true });
+    } catch {
+      sendError(res, 500, 'DELETE_ERROR', 'Failed to delete job posting');
+    }
+  },
+
   async updateJob(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { status } = req.body as { status?: string };

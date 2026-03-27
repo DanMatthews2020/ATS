@@ -15,5 +15,6 @@ router.get('/:id/applications',      authenticate, jobsController.getJobApplicat
 router.get('/:id/candidates',        authenticate, jobsController.getJobCandidates);
 router.get('/:id/pipeline-stats',    authenticate, jobsController.getJobPipelineStats);
 router.patch('/:id',                 authenticate, jobsController.updateJob);
+router.delete('/:id',                authenticate, jobsController.deleteJob);
 
 export default router;

@@ -33,6 +33,7 @@ import {
   type PipelineApplicationDto,
 } from '@/lib/api';
 import ScorecardModal from '@/components/ScorecardModal';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
 
@@ -137,6 +138,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [jobSwitcherOpen, setJobSwitcherOpen]         = useState(false);
   const [moreMenuOpen, setMoreMenuOpen]               = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen]         = useState(false);
+  const [isDeleting, setIsDeleting]                   = useState(false);
+  const [deleteError, setDeleteError]                 = useState('');
   const [allJobs, setAllJobs]                         = useState<JobListingDto[]>([]);
   const [allJobsLoaded, setAllJobsLoaded]             = useState(false);
   const [closing, setClosing]                         = useState(false);
@@ -223,6 +227,21 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       showToast('Failed to close role', 'error');
     } finally {
       setClosing(false);
+    }
+  }
+
+  // ── Delete job ──────────────────────────────────────────────────────────
+  async function handleConfirmDelete() {
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      await jobsApi.deleteJob(id);
+      showToast('Job deleted successfully', 'success');
+      router.push('/jobs');
+    } catch {
+      setDeleteError('Failed to delete job. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -383,7 +402,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   )}
                   <div className="my-1 border-t border-[var(--color-border)]" />
                   <button
-                    onClick={() => { setMoreMenuOpen(false); showToast('Delete — coming soon', 'info'); }}
+                    onClick={() => { setMoreMenuOpen(false); setDeleteError(''); setDeleteModalOpen(true); }}
                     className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
                   >
                     Delete job
@@ -529,6 +548,17 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           onClose={() => setFeedbackModal(null)}
         />
       )}
+
+      <ConfirmDeleteModal
+        isOpen={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setDeleteError(''); }}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        title="Delete Job"
+        description={`Are you sure you want to delete "${job?.title ?? 'this job'}"? This will also remove all associated applications and interview records. This action cannot be undone.`}
+        confirmLabel="Delete Job"
+        error={deleteError}
+      />
     </div>
   );
 }

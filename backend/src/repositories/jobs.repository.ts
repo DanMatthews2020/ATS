@@ -59,6 +59,10 @@ export const jobsRepository = {
     return prisma.jobPosting.update({ where: { id }, data });
   },
 
+  async deleteById(id: string) {
+    return prisma.jobPosting.delete({ where: { id } });
+  },
+
   async getPipelineStatsByJobId(jobId: string) {
     const rows = await prisma.application.groupBy({
       by: ['status'],

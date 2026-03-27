@@ -315,4 +315,11 @@ export const jobsService = {
   async getStats(): Promise<JobStatsDto> {
     return jobsRepository.getStats();
   },
+
+  async deleteJob(id: string): Promise<boolean> {
+    const existing = await jobsRepository.findById(id);
+    if (!existing) return false;
+    await jobsRepository.deleteById(id);
+    return true;
+  },
 };
