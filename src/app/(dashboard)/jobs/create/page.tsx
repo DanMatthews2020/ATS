@@ -73,7 +73,8 @@ export default function CreateJobPostingPage() {
 
   const [form, setForm]                       = useState<FormState>(EMPTY);
   const [errors, setErrors]                   = useState<Partial<Record<keyof FormState, string>>>({});
-  const [isSubmitting, setIsSubmitting]       = useState(false);
+  const [submittingAs, setSubmittingAs]       = useState<'DRAFT' | 'OPEN' | 'WORKFLOW' | null>(null);
+  const isSubmitting = submittingAs !== null;
   const [criteriaInput, setCriteriaInput]     = useState('');
   const [criteriaFocused, setCriteriaFocused] = useState(false);
 
@@ -141,7 +142,7 @@ export default function CreateJobPostingPage() {
       requirements = requirements ? `${requirements}\n\n${criteriaBlock}` : criteriaBlock;
     }
 
-    setIsSubmitting(true);
+    setSubmittingAs(goToWorkflow ? 'WORKFLOW' : status);
     try {
       const result = await jobsApi.createJob({
         title:        form.title.trim(),
@@ -160,7 +161,7 @@ export default function CreateJobPostingPage() {
       const msg = err instanceof Error ? err.message : 'Failed to create job posting';
       showToast(msg, 'error');
     } finally {
-      setIsSubmitting(false);
+      setSubmittingAs(null);
     }
   }
 
@@ -435,8 +436,8 @@ export default function CreateJobPostingPage() {
                 disabled={isSubmitting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
               >
+                {submittingAs === 'WORKFLOW' ? <Loader2 size={13} className="animate-spin" /> : <ChevronRight size={14} />}
                 Configure Interview Workflow
-                <ChevronRight size={14} />
               </button>
               <p className="mt-2 text-xs text-[var(--color-text-muted)]">
                 This will save the job as a draft and open the workflow builder.
@@ -465,7 +466,7 @@ export default function CreateJobPostingPage() {
             onClick={() => handleSubmit('DRAFT')}
             disabled={isSubmitting}
           >
-            {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : null}
+            {submittingAs === 'DRAFT' ? <Loader2 size={13} className="animate-spin" /> : null}
             Save as Draft
           </Button>
           <Button
@@ -476,7 +477,7 @@ export default function CreateJobPostingPage() {
             onClick={() => handleSubmit('OPEN')}
             disabled={isSubmitting}
           >
-            {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : null}
+            {submittingAs === 'OPEN' ? <Loader2 size={13} className="animate-spin" /> : null}
             Publish
           </Button>
         </div>
