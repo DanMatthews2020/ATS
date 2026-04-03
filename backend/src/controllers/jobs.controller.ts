@@ -1,6 +1,7 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../types';
 import { jobsService } from '../services/jobs.service';
+import { workflowsService } from '../services/workflows.service';
 import { sendSuccess, sendError } from '../utils/response';
 
 export const jobsController = {
@@ -99,6 +100,30 @@ export const jobsController = {
       sendSuccess(res, { deleted: true });
     } catch {
       sendError(res, 500, 'DELETE_ERROR', 'Failed to delete job posting');
+    }
+  },
+
+  async getJobStages(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const workflow = await workflowsService.getByJobId(req.params.id);
+      sendSuccess(res, { stages: workflow?.stages ?? [] });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch workflow stages');
+    }
+  },
+
+  async saveJobStages(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) { sendError(res, 401, 'UNAUTHORIZED', 'Authentication required'); return; }
+      const { stages } = req.body as { stages: Array<{ stageName: string; stageType: string; description?: string }> };
+      if (!Array.isArray(stages) || stages.length === 0) {
+        sendError(res, 400, 'INVALID_BODY', 'stages array is required'); return;
+      }
+      const workflow = await workflowsService.saveStagesForJob(req.params.id, userId, stages);
+      sendSuccess(res, { stages: workflow.stages });
+    } catch {
+      sendError(res, 500, 'SAVE_ERROR', 'Failed to save workflow stages');
     }
   },
 

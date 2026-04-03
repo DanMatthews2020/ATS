@@ -2,10 +2,11 @@
 
 import { useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, X, Loader2, GitBranch, ChevronRight } from 'lucide-react';
+import { ArrowLeft, X, Loader2, GitBranch, CheckCircle2, Pencil } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { WorkflowBuilderModal, type BuilderStage } from '@/components/ui/WorkflowBuilderModal';
 import { jobsApi } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -73,10 +74,12 @@ export default function CreateJobPostingPage() {
 
   const [form, setForm]                       = useState<FormState>(EMPTY);
   const [errors, setErrors]                   = useState<Partial<Record<keyof FormState, string>>>({});
-  const [submittingAs, setSubmittingAs]       = useState<'DRAFT' | 'OPEN' | 'WORKFLOW' | null>(null);
+  const [submittingAs, setSubmittingAs]       = useState<'DRAFT' | 'OPEN' | null>(null);
   const isSubmitting = submittingAs !== null;
   const [criteriaInput, setCriteriaInput]     = useState('');
   const [criteriaFocused, setCriteriaFocused] = useState(false);
+  const [workflowStages, setWorkflowStages]   = useState<BuilderStage[]>([]);
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
 
   function update<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -128,7 +131,7 @@ export default function CreateJobPostingPage() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
-  async function handleSubmit(status: 'DRAFT' | 'OPEN', goToWorkflow = false) {
+  async function handleSubmit(status: 'DRAFT' | 'OPEN') {
     if (!validate()) return;
 
     const department = form.department === 'Other' ? form.customDepartment.trim() : form.department;
@@ -142,7 +145,7 @@ export default function CreateJobPostingPage() {
       requirements = requirements ? `${requirements}\n\n${criteriaBlock}` : criteriaBlock;
     }
 
-    setSubmittingAs(goToWorkflow ? 'WORKFLOW' : status);
+    setSubmittingAs(status);
     try {
       const result = await jobsApi.createJob({
         title:        form.title.trim(),
@@ -155,8 +158,17 @@ export default function CreateJobPostingPage() {
         salaryMin:    form.salaryMin ? Number(form.salaryMin) : undefined,
         salaryMax:    form.salaryMax ? Number(form.salaryMax) : undefined,
       });
+
+      // Save workflow stages if configured
+      if (workflowStages.length > 0) {
+        await jobsApi.saveStages(
+          result.job.id,
+          workflowStages.map(({ stageName, stageType }) => ({ stageName, stageType })),
+        );
+      }
+
       showToast(status === 'DRAFT' ? 'Job saved as draft' : 'Job posting published', 'success');
-      router.push(goToWorkflow ? `/jobs/${result.job.id}/workflow` : `/jobs/${result.job.id}`);
+      router.push(`/jobs/${result.job.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create job posting';
       showToast(msg, 'error');
@@ -168,6 +180,13 @@ export default function CreateJobPostingPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    <WorkflowBuilderModal
+      isOpen={workflowModalOpen}
+      initialStages={workflowStages}
+      onSave={(stages) => { setWorkflowStages(stages); setWorkflowModalOpen(false); }}
+      onClose={() => setWorkflowModalOpen(false)}
+    />
     <div className="p-8 max-w-2xl">
       {/* Back */}
       <button
@@ -430,18 +449,38 @@ export default function CreateJobPostingPage() {
                 Define the stages candidates move through — phone screens, technical rounds, on-sites, and offers.
                 Start from a template or build your own.
               </p>
-              <button
-                type="button"
-                onClick={() => handleSubmit('DRAFT', true)}
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
-              >
-                {submittingAs === 'WORKFLOW' ? <Loader2 size={13} className="animate-spin" /> : <ChevronRight size={14} />}
-                Configure Interview Workflow
-              </button>
-              <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-                This will save the job as a draft and open the workflow builder.
-              </p>
+
+              {workflowStages.length > 0 ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                    <CheckCircle2 size={14} className="text-emerald-600 flex-shrink-0" />
+                    Workflow configured: {workflowStages.length} stages
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWorkflowModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors"
+                  >
+                    <Pencil size={13} />
+                    Edit
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setWorkflowModalOpen(true)}
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+                  >
+                    <GitBranch size={14} />
+                    Configure Interview Workflow
+                  </button>
+                  <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                    Optional — you can add a workflow after creating the job too.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </Card>
@@ -483,5 +522,6 @@ export default function CreateJobPostingPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

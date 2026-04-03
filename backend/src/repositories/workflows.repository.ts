@@ -98,6 +98,10 @@ export const workflowsRepository = {
     );
   },
 
+  async deleteAllStages(workflowId: string) {
+    await prisma.workflowStage.deleteMany({ where: { workflowId } });
+  },
+
   async getNextPosition(workflowId: string): Promise<number> {
     const last = await prisma.workflowStage.findFirst({
       where: { workflowId },

@@ -310,6 +310,8 @@ export const jobsApi = {
     api.get<{ candidates: PipelineApplicationDto[] }>(`/jobs/${jobId}/candidates?stage=${encodeURIComponent(stage)}`),
   deleteJob: (id: string) =>
     api.delete<{ deleted: boolean }>(`/jobs/${id}`),
+  saveStages: (jobId: string, stages: Array<{ stageName: string; stageType: string; description?: string }>) =>
+    api.post<{ stages: WorkflowStageDto[] }>(`/jobs/${jobId}/stages`, { stages }),
 };
 
 // Candidates

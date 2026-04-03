@@ -11,6 +11,8 @@ router.get('/pipeline-stats', authenticate, jobsController.getPipelineStats);
 router.get('/',       authenticate, jobsController.getJobs);
 router.post('/',      authenticate, validate(CreateJobSchema), jobsController.createJob);
 router.get('/:id',                   authenticate, jobsController.getJob);
+router.get('/:id/stages',            authenticate, jobsController.getJobStages);
+router.post('/:id/stages',           authenticate, jobsController.saveJobStages);
 router.get('/:id/applications',      authenticate, jobsController.getJobApplications);
 router.get('/:id/candidates',        authenticate, jobsController.getJobCandidates);
 router.get('/:id/pipeline-stats',    authenticate, jobsController.getJobPipelineStats);

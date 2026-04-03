@@ -13,7 +13,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { candidatesApi, type CandidateListDto, type ParsedCvData } from '@/lib/api';
+import { candidatesApi, jobsApi, applicationsApi, type CandidateListDto, type ParsedCvData, type JobListingDto } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { CandidateStatus, BadgeVariant } from '@/types';
 
@@ -40,6 +40,13 @@ const FILTER_TABS: { key: FilterKey; label: string }[] = [
   { key: 'rejected',  label: 'Rejected' },
 ];
 
+const PIPELINE_STAGES: { label: string; value: string }[] = [
+  { label: 'Applied',     value: 'APPLIED' },
+  { label: 'Screening',   value: 'SCREENING' },
+  { label: 'Interview',   value: 'INTERVIEW' },
+  { label: 'Offer',       value: 'OFFER' },
+];
+
 const SELECT_CLASS =
   'w-full h-10 px-3.5 text-sm rounded-xl border border-[var(--color-border)] bg-white ' +
   'text-[var(--color-text-primary)] focus:outline-none focus:ring-2 ' +
@@ -48,8 +55,7 @@ const SELECT_CLASS =
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CandidatesPage() {
-  const router        = useRouter();
-  const { showToast } = useToast();
+  const router = useRouter();
 
   const [candidates, setCandidates]     = useState<CandidateListDto[]>([]);
   const [isLoading, setIsLoading]       = useState(true);
@@ -100,7 +106,6 @@ export default function CandidatesPage() {
 
   function handleCandidateAdded() {
     setShowDrawer(false);
-    showToast('Candidate added successfully');
     fetchCandidates(searchInput.trim() || undefined);
   }
 
@@ -277,12 +282,28 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
   const [errors, setErrors]           = useState<Partial<ManualForm>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Job assignment state
+  const [openJobs, setOpenJobs]         = useState<JobListingDto[]>([]);
+  const [jobsLoading, setJobsLoading]   = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [selectedStage, setSelectedStage] = useState('APPLIED');
+
   // CV upload state
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [parseErrorMsg, setParseErrorMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formBodyRef = useRef<HTMLDivElement>(null);
+
+  // Fetch open jobs when drawer opens
+  useEffect(() => {
+    if (!open) return;
+    setJobsLoading(true);
+    jobsApi.getJobs(1, 100, 'OPEN')
+      .then((result) => setOpenJobs(result.items))
+      .catch(() => setOpenJobs([]))
+      .finally(() => setJobsLoading(false));
+  }, [open]);
 
   // Reset when drawer closes
   useEffect(() => {
@@ -294,6 +315,8 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
         setUploadState('idle');
         setUploadedFile(null);
         setParseErrorMsg('');
+        setSelectedJobId('');
+        setSelectedStage('APPLIED');
       }, 300);
     }
   }, [open]);
@@ -379,7 +402,7 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
 
     setIsSubmitting(true);
     try {
-      await candidatesApi.createCandidate({
+      const candidate = await candidatesApi.createCandidate({
         firstName:   form.firstName.trim(),
         lastName:    form.lastName.trim(),
         email:       form.email.trim(),
@@ -389,6 +412,24 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
         source:      form.source             || undefined,
         skills:      form.skills ? form.skills.split(',').map((s) => s.trim()).filter(Boolean) : [],
       });
+
+      if (selectedJobId) {
+        const job = openJobs.find((j) => j.id === selectedJobId);
+        try {
+          await applicationsApi.createApplication({
+            candidateId:   candidate.candidate.id,
+            jobPostingId:  selectedJobId,
+            status:        selectedStage,
+          });
+          const stageName = PIPELINE_STAGES.find((s) => s.value === selectedStage)?.label ?? selectedStage;
+          showToast(`Candidate added and placed in ${job?.title ?? 'job'} — ${stageName}`, 'success');
+        } catch {
+          showToast('Candidate added, but could not assign to job. Please link them manually.', 'info');
+        }
+      } else {
+        showToast('Candidate added successfully', 'success');
+      }
+
       onSuccess();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to add candidate';
@@ -507,6 +548,63 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
                 </select>
               </div>
               <Input label="Notes" multiline rows={3} placeholder="Any relevant notes about this candidate…" value={form.notes} onChange={(e) => updateField('notes', e.target.value)} hint="Attached to their first application when one is created." />
+
+              {/* Pipeline Assignment */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex-1 h-px bg-[var(--color-border)]" />
+                  <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">Pipeline Assignment (optional)</span>
+                  <div className="flex-1 h-px bg-[var(--color-border)]" />
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
+                      Add to a Job
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedJobId}
+                        onChange={(e) => setSelectedJobId(e.target.value)}
+                        disabled={jobsLoading}
+                        className={SELECT_CLASS}
+                      >
+                        <option value="">— No job —</option>
+                        {openJobs.map((job) => (
+                          <option key={job.id} value={job.id}>
+                            {job.title}{job.department ? ` · ${job.department}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                    </div>
+                    {jobsLoading && (
+                      <p className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-1">
+                        <Loader2 size={11} className="animate-spin" /> Loading open jobs…
+                      </p>
+                    )}
+                  </div>
+
+                  {selectedJobId && (
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
+                        Pipeline Stage
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={selectedStage}
+                          onChange={(e) => setSelectedStage(e.target.value)}
+                          className={SELECT_CLASS}
+                        >
+                          {PIPELINE_STAGES.map((s) => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Footer is inside the form — button is a natural type="submit" */}

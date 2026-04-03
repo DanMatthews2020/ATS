@@ -142,6 +142,28 @@ export const workflowsService = {
     await workflowsRepository.deleteStage(stageId);
   },
 
+  async saveStagesForJob(
+    jobId: string,
+    createdById: string,
+    stages: Array<{ stageName: string; stageType: string; description?: string }>,
+  ): Promise<WorkflowTemplateDto> {
+    const existing = await workflowsRepository.findByJobId(jobId);
+    const workflowId = existing
+      ? existing.id
+      : (await workflowsRepository.create({ jobId, name: 'Interview Workflow', createdById })).id;
+    await workflowsRepository.deleteAllStages(workflowId);
+    for (let i = 0; i < stages.length; i++) {
+      await workflowsRepository.addStage(workflowId, {
+        stageName: stages[i].stageName,
+        stageType: stages[i].stageType,
+        description: stages[i].description,
+        position: i,
+      });
+    }
+    const fresh = await workflowsRepository.findById(workflowId);
+    return toDto(fresh!);
+  },
+
   async reorderStages(workflowId: string, stageIds: string[]): Promise<WorkflowTemplateDto | null> {
     await workflowsRepository.reorderStages(workflowId, stageIds);
     const workflow = await workflowsRepository.findById(workflowId);
