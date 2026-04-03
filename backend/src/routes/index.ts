@@ -23,6 +23,7 @@ import projectsRoutes from './projects.routes';
 import sequencesRoutes from './sequences.routes';
 import feedbackFormsRoutes from './feedback-forms.routes';
 import referralsRoutes from './referrals.routes';
+import usersRoutes from './users.routes';
 
 const router = Router();
 
@@ -50,5 +51,6 @@ router.use('/projects',         projectsRoutes);
 router.use('/sequences',        sequencesRoutes);
 router.use('/feedback-forms',   feedbackFormsRoutes);
 router.use('/referrals',        referralsRoutes);
+router.use('/users',            usersRoutes);
 
 export default router;

@@ -109,6 +109,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   createdJobs           JobPosting[]          @relation("CreatedBy")
+  jobMemberships        JobMember[]
   interviewSlots        InterviewsOnUsers[]
   assignedTasks         OnboardingTask[]      @relation("AssignedTo")
   employee              Employee?             @relation("UserEmployee")
@@ -156,6 +157,19 @@ model JobPosting {
   applications     Application[]
   workflowTemplate WorkflowTemplate?
   evaluations      CandidateEvaluation[]
+  members          JobMember[]
+}
+
+model JobMember {
+  id      String   @id @default(uuid())
+  jobId   String
+  userId  String
+  role    String   @default("HIRING_MANAGER")
+  addedAt DateTime @default(now())
+  job     JobPosting @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user    User       @relation(fields: [userId], references: [id])
+
+  @@unique([jobId, userId])
 }
 
 model Candidate {

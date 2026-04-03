@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../types';
 import { jobsService } from '../services/jobs.service';
 import { workflowsService } from '../services/workflows.service';
+import { jobMembersService } from '../services/jobMembers.service';
 import { sendSuccess, sendError } from '../utils/response';
 
 export const jobsController = {
@@ -100,6 +101,42 @@ export const jobsController = {
       sendSuccess(res, { deleted: true });
     } catch {
       sendError(res, 500, 'DELETE_ERROR', 'Failed to delete job posting');
+    }
+  },
+
+  async getJobMembers(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const members = await jobMembersService.getByJobId(req.params.id);
+      sendSuccess(res, { members });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch job members');
+    }
+  },
+
+  async addJobMember(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { userId, role } = req.body as { userId?: string; role?: string };
+      if (!userId) { sendError(res, 400, 'INVALID_BODY', 'userId is required'); return; }
+      const member = await jobMembersService.add(req.params.id, userId, role ?? 'HIRING_MANAGER');
+      sendSuccess(res, { member }, 201);
+    } catch (err: unknown) {
+      const msg = (err as { code?: string })?.code === 'P2002'
+        ? 'This user is already a member of this job'
+        : (err as { code?: string })?.code === 'P2025'
+        ? 'User not found'
+        : 'Failed to add job member';
+      const status = (err as { code?: string })?.code === 'P2002' ? 409 : 500;
+      sendError(res, status, 'ADD_MEMBER_ERROR', msg);
+    }
+  },
+
+  async removeJobMember(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const ok = await jobMembersService.remove(req.params.memberId);
+      if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Member not found'); return; }
+      sendSuccess(res, { deleted: true });
+    } catch {
+      sendError(res, 500, 'DELETE_ERROR', 'Failed to remove job member');
     }
   },
 

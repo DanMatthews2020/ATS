@@ -312,6 +312,14 @@ export const jobsApi = {
     api.delete<{ deleted: boolean }>(`/jobs/${id}`),
   saveStages: (jobId: string, stages: Array<{ stageName: string; stageType: string; description?: string }>) =>
     api.post<{ stages: WorkflowStageDto[] }>(`/jobs/${jobId}/stages`, { stages }),
+  getStages: (jobId: string) =>
+    api.get<{ stages: WorkflowStageDto[] }>(`/jobs/${jobId}/stages`),
+  getMembers: (jobId: string) =>
+    api.get<{ members: JobMemberDto[] }>(`/jobs/${jobId}/members`),
+  addMember: (jobId: string, data: { userId: string; role: string }) =>
+    api.post<{ member: JobMemberDto }>(`/jobs/${jobId}/members`, data),
+  removeMember: (jobId: string, memberId: string) =>
+    api.delete<{ deleted: boolean }>(`/jobs/${jobId}/members/${memberId}`),
 };
 
 // Candidates
@@ -1114,6 +1122,33 @@ export interface CandidateFeedbackDto {
   feedback: string | null;
   jobTitle?: string;
 }
+
+// ── Job Members ───────────────────────────────────────────────────────────────
+
+export interface JobMemberDto {
+  id: string;
+  role: string;
+  addedAt: string;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    avatarUrl: string | null;
+  };
+}
+
+export interface UserDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+}
+
+export const usersApi = {
+  getUsers: () => api.get<{ users: UserDto[] }>('/users'),
+};
 
 // ── Workflows ─────────────────────────────────────────────────────────────────
 
