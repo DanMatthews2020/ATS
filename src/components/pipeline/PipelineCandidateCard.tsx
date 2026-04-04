@@ -87,7 +87,7 @@ export function PipelineCandidateCard({
             </span>
           )}
           {stageScorecardRequired && (
-            <ClipboardList size={11} className="text-amber-500" title="Scorecard required" />
+            <ClipboardList size={11} className="text-amber-500" aria-label="Scorecard required" />
           )}
         </div>
       </div>
