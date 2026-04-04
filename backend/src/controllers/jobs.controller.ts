@@ -166,16 +166,26 @@ export const jobsController = {
 
   async updateJob(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { status } = req.body as { status?: string };
-      if (!status) {
-        sendError(res, 400, 'INVALID_BODY', 'status is required');
+      const body = req.body as {
+        status?: string;
+        title?: string;
+        department?: string;
+        location?: string;
+        type?: string;
+        description?: string;
+        requirements?: string;
+        salaryMin?: number | null;
+        salaryMax?: number | null;
+      };
+      // If only status is provided, use the status-specific path (handles openedAt/closedAt)
+      if (Object.keys(body).length === 1 && body.status) {
+        const job = await jobsService.updateJobStatus(req.params.id, body.status);
+        if (!job) { sendError(res, 404, 'NOT_FOUND', 'Job posting not found'); return; }
+        sendSuccess(res, { job });
         return;
       }
-      const job = await jobsService.updateJobStatus(req.params.id, status);
-      if (!job) {
-        sendError(res, 404, 'NOT_FOUND', 'Job posting not found');
-        return;
-      }
+      const job = await jobsService.updateJob(req.params.id, body);
+      if (!job) { sendError(res, 404, 'NOT_FOUND', 'Job posting not found'); return; }
       sendSuccess(res, { job });
     } catch {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update job posting');

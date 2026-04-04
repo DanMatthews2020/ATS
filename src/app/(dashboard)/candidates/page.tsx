@@ -13,7 +13,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { candidatesApi, jobsApi, applicationsApi, type CandidateListDto, type ParsedCvData, type JobListingDto } from '@/lib/api';
+import { candidatesApi, jobsApi, applicationsApi, type CandidateListDto, type ParsedCvData, type JobListingDto, type WorkflowStageDto } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { CandidateStatus, BadgeVariant } from '@/types';
 
@@ -40,12 +40,6 @@ const FILTER_TABS: { key: FilterKey; label: string }[] = [
   { key: 'rejected',  label: 'Rejected' },
 ];
 
-const PIPELINE_STAGES: { label: string; value: string }[] = [
-  { label: 'Applied',     value: 'APPLIED' },
-  { label: 'Screening',   value: 'SCREENING' },
-  { label: 'Interview',   value: 'INTERVIEW' },
-  { label: 'Offer',       value: 'OFFER' },
-];
 
 const SELECT_CLASS =
   'w-full h-10 px-3.5 text-sm rounded-xl border border-[var(--color-border)] bg-white ' +
@@ -283,10 +277,12 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Job assignment state
-  const [openJobs, setOpenJobs]         = useState<JobListingDto[]>([]);
-  const [jobsLoading, setJobsLoading]   = useState(false);
+  const [openJobs, setOpenJobs]           = useState<JobListingDto[]>([]);
+  const [jobsLoading, setJobsLoading]     = useState(false);
   const [selectedJobId, setSelectedJobId] = useState('');
-  const [selectedStage, setSelectedStage] = useState('APPLIED');
+  const [jobStages, setJobStages]         = useState<WorkflowStageDto[]>([]);
+  const [stagesLoading, setStagesLoading] = useState(false);
+  const [selectedStageName, setSelectedStageName] = useState('');
 
   // CV upload state
   const [uploadState, setUploadState] = useState<UploadState>('idle');
@@ -305,6 +301,19 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
       .finally(() => setJobsLoading(false));
   }, [open]);
 
+  // Fetch workflow stages when a job is selected
+  useEffect(() => {
+    if (!selectedJobId) { setJobStages([]); setSelectedStageName(''); return; }
+    setStagesLoading(true);
+    jobsApi.getStages(selectedJobId)
+      .then((result) => {
+        setJobStages(result.stages);
+        setSelectedStageName(result.stages[0]?.stageName ?? '');
+      })
+      .catch(() => { setJobStages([]); setSelectedStageName(''); })
+      .finally(() => setStagesLoading(false));
+  }, [selectedJobId]);
+
   // Reset when drawer closes
   useEffect(() => {
     if (!open) {
@@ -316,7 +325,8 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
         setUploadedFile(null);
         setParseErrorMsg('');
         setSelectedJobId('');
-        setSelectedStage('APPLIED');
+        setJobStages([]);
+        setSelectedStageName('');
       }, 300);
     }
   }, [open]);
@@ -416,13 +426,15 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
       if (selectedJobId) {
         const job = openJobs.find((j) => j.id === selectedJobId);
         try {
-          await applicationsApi.createApplication({
+          const appResult = await applicationsApi.createApplication({
             candidateId:   candidate.candidate.id,
             jobPostingId:  selectedJobId,
-            status:        selectedStage,
+            status:        'APPLIED',
           });
-          const stageName = PIPELINE_STAGES.find((s) => s.value === selectedStage)?.label ?? selectedStage;
-          showToast(`Candidate added and placed in ${job?.title ?? 'job'} — ${stageName}`, 'success');
+          if (selectedStageName) {
+            await applicationsApi.updateSubStage(appResult.application.id, selectedStageName);
+          }
+          showToast(`${form.firstName} ${form.lastName} added to ${job?.title ?? 'job'}${selectedStageName ? ` — ${selectedStageName}` : ''}`, 'success');
         } catch {
           showToast('Candidate added, but could not assign to job. Please link them manually.', 'info');
         }
@@ -561,21 +573,33 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
                     <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
                       Add to a Job
                     </label>
-                    <div className="relative">
-                      <select
-                        value={selectedJobId}
-                        onChange={(e) => setSelectedJobId(e.target.value)}
-                        disabled={jobsLoading}
-                        className={SELECT_CLASS}
-                      >
-                        <option value="">— No job —</option>
-                        {openJobs.map((job) => (
-                          <option key={job.id} value={job.id}>
-                            {job.title}{job.department ? ` · ${job.department}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                    <div className="relative flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <select
+                          value={selectedJobId}
+                          onChange={(e) => setSelectedJobId(e.target.value)}
+                          disabled={jobsLoading}
+                          className={SELECT_CLASS}
+                        >
+                          <option value="">Select an open job…</option>
+                          {openJobs.map((job) => (
+                            <option key={job.id} value={job.id}>
+                              {job.title}{job.department ? ` · ${job.department}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                      </div>
+                      {selectedJobId && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedJobId('')}
+                          className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors flex-shrink-0"
+                          title="Clear job selection"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
                     </div>
                     {jobsLoading && (
                       <p className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-1">
@@ -589,18 +613,26 @@ function AddCandidateDrawer({ open, onClose, onSuccess }: DrawerProps) {
                       <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">
                         Pipeline Stage
                       </label>
-                      <div className="relative">
-                        <select
-                          value={selectedStage}
-                          onChange={(e) => setSelectedStage(e.target.value)}
-                          className={SELECT_CLASS}
-                        >
-                          {PIPELINE_STAGES.map((s) => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-                      </div>
+                      {stagesLoading ? (
+                        <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
+                          <Loader2 size={11} className="animate-spin" /> Loading stages…
+                        </p>
+                      ) : jobStages.length === 0 ? (
+                        <p className="text-xs text-[var(--color-text-muted)]">No workflow configured for this job.</p>
+                      ) : (
+                        <div className="relative">
+                          <select
+                            value={selectedStageName}
+                            onChange={(e) => setSelectedStageName(e.target.value)}
+                            className={SELECT_CLASS}
+                          >
+                            {jobStages.map((s) => (
+                              <option key={s.id} value={s.stageName}>{s.stageName}</option>
+                            ))}
+                          </select>
+                          <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

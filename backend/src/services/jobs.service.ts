@@ -265,6 +265,37 @@ export const jobsService = {
     return jobsService.getJobById(id);
   },
 
+  async updateJob(id: string, data: {
+    title?: string;
+    department?: string;
+    location?: string;
+    type?: string;
+    description?: string;
+    requirements?: string;
+    salaryMin?: number | null;
+    salaryMax?: number | null;
+    status?: string;
+  }): Promise<JobDetailDto | null> {
+    const existing = await jobsRepository.findById(id);
+    if (!existing) return null;
+    const updateData: import('@prisma/client').Prisma.JobPostingUpdateInput = { updatedAt: new Date() };
+    if (data.title       !== undefined) updateData.title       = data.title;
+    if (data.department  !== undefined) updateData.department  = data.department;
+    if (data.location    !== undefined) updateData.location    = data.location;
+    if (data.type        !== undefined) updateData.type        = data.type as import('@prisma/client').JobType;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.requirements !== undefined) updateData.requirements = data.requirements ?? null;
+    if (data.salaryMin   !== undefined) updateData.salaryMin   = data.salaryMin ?? null;
+    if (data.salaryMax   !== undefined) updateData.salaryMax   = data.salaryMax ?? null;
+    if (data.status      !== undefined) {
+      updateData.status = data.status as JobStatus;
+      if (data.status === 'OPEN' && !existing.openedAt) updateData.openedAt = new Date();
+      if (data.status === 'CLOSED') updateData.closedAt = new Date();
+    }
+    await jobsRepository.update(id, updateData);
+    return jobsService.getJobById(id);
+  },
+
   async getJobApplications(jobId: string): Promise<PipelineApplicationDto[]> {
     const apps = await jobsRepository.findApplicationsByJobId(jobId);
     return apps.map(toApplicationDto);

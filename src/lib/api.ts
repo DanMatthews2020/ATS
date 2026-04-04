@@ -300,6 +300,16 @@ export const jobsApi = {
   }) => api.post<{ job: JobDetailDto }>('/jobs', data),
   updateJobStatus: (id: string, status: string) =>
     api.patch<{ job: JobDetailDto }>(`/jobs/${id}`, { status }),
+  updateJob: (id: string, data: {
+    title?: string;
+    department?: string;
+    location?: string;
+    type?: string;
+    description?: string;
+    requirements?: string;
+    salaryMin?: number | null;
+    salaryMax?: number | null;
+  }) => api.patch<{ job: JobDetailDto }>(`/jobs/${id}`, data),
   getJobApplications: (jobId: string) =>
     api.get<{ applications: PipelineApplicationDto[] }>(`/jobs/${jobId}/applications`),
   getPipelineStats: () =>

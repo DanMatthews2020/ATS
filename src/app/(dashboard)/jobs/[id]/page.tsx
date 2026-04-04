@@ -296,12 +296,21 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
             {/* Actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {statusLoading && <Loader2 size={15} className="animate-spin text-[var(--color-text-muted)]" />}
+              <Button variant="secondary" size="sm" onClick={() => router.push(`/jobs/${id}/edit`)}>
+                Edit Job
+              </Button>
               <div className="relative" ref={moreRef}>
                 <Button variant="secondary" size="sm" onClick={() => setMoreOpen((o) => !o)}>
                   <MoreHorizontal size={15} />
                 </Button>
                 {moreOpen && (
                   <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-[var(--color-border)] rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+                    <button
+                      onClick={() => { setMoreOpen(false); router.push(`/jobs/${id}/edit`); }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={14} /> Edit Job
+                    </button>
                     <button
                       onClick={() => { setMoreOpen(false); setAddMemberOpen(true); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors flex items-center gap-2"
