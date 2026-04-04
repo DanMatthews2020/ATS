@@ -17,7 +17,9 @@
       "Bash(grep -n \"sequencesApi\\\\.\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/settings/sequences/\\\\[id\\\\]/page.tsx | head -20)",
       "Bash(grep -n \"StepType\\\\|type StepType\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/settings/sequences/\\\\[id\\\\]/page.tsx | head -10)",
       "Bash(grep -n \"SequenceDto\\\\|useState.*sequence\\\\b\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/settings/sequences/\\\\[id\\\\]/page.tsx | head -15)",
-      "Bash(cat /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/projects/\\\\[id\\\\]/page.tsx | head -100)"
+      "Bash(cat /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/projects/\\\\[id\\\\]/page.tsx | head -100)",
+      "Bash(npm install:*)",
+      "Bash(grep -n \"Edit\\\\|edit\" /Users/danielbridges-matthews/Documents/Coding/ATS/src/app/\\\\\\(dashboard\\\\\\)/jobs/\\\\[id\\\\]/page.tsx | head -20)"
     ]
   }
 }

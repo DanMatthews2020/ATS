@@ -29,9 +29,10 @@ const DOT_CLASSES = [
 // ─── DraggableCard ────────────────────────────────────────────────────────────
 
 function DraggableCard({
-  app, onClick,
+  app, stageScorecardRequired, onClick,
 }: {
   app: PipelineApplicationDto;
+  stageScorecardRequired: boolean;
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: app.id });
@@ -42,7 +43,12 @@ function DraggableCard({
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes}
       className={isDragging ? 'opacity-0' : ''}>
-      <PipelineCandidateCard app={app} onClick={onClick} onSkillClick={() => {}} />
+      <PipelineCandidateCard
+        app={app}
+        stageScorecardRequired={stageScorecardRequired}
+        onClick={onClick}
+        onSkillClick={() => {}}
+      />
     </div>
   );
 }
@@ -50,10 +56,11 @@ function DraggableCard({
 // ─── DroppableColumn ──────────────────────────────────────────────────────────
 
 function DroppableColumn({
-  stageName, dotClass, apps, onCardClick, onAddClick,
+  stageName, dotClass, requiresScorecard, apps, onCardClick, onAddClick,
 }: {
   stageName: string;
   dotClass: string;
+  requiresScorecard: boolean;
   apps: PipelineApplicationDto[];
   onCardClick: (app: PipelineApplicationDto) => void;
   onAddClick: () => void;
@@ -91,7 +98,12 @@ function DroppableColumn({
         ].join(' ')}
       >
         {apps.map((app) => (
-          <DraggableCard key={app.id} app={app} onClick={() => onCardClick(app)} />
+          <DraggableCard
+            key={app.id}
+            app={app}
+            stageScorecardRequired={requiresScorecard}
+            onClick={() => onCardClick(app)}
+          />
         ))}
         {apps.length === 0 && (
           <p className="text-[10px] text-[var(--color-text-muted)] text-center pt-4">Drop here</p>
@@ -616,6 +628,7 @@ export function JobKanbanBoard({
                 key={stage.id}
                 stageName={stage.stageName}
                 dotClass={DOT_CLASSES[i % DOT_CLASSES.length]}
+                requiresScorecard={stage.requiresScorecard}
                 apps={columns[stage.stageName] ?? []}
                 onCardClick={(app) => setOpenPanelApp(app)}
                 onAddClick={() => setAddModal({ stageName: stage.stageName })}
@@ -627,7 +640,7 @@ export function JobKanbanBoard({
         <DragOverlay dropAnimation={null}>
           {dragActiveApp ? (
             <div className="w-[240px] rotate-2 shadow-2xl">
-              <PipelineCandidateCard app={dragActiveApp} isDragging onClick={() => {}} onSkillClick={() => {}} />
+              <PipelineCandidateCard app={dragActiveApp} isDragging onClick={() => {}} onSkillClick={() => {}} stageScorecardRequired={false} />
             </div>
           ) : null}
         </DragOverlay>

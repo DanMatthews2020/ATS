@@ -7,7 +7,7 @@ import {
   ArrowLeft, MoreHorizontal, MapPin, Briefcase, DollarSign,
   Users, BarChart2, GitBranch, FileText, Loader2,
   Plus, Trash2, CheckCircle2, XCircle, ChevronDown, X,
-  Calendar, Building2, ClipboardList,
+  Calendar, Building2, ClipboardList, Pencil, Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -18,9 +18,10 @@ import { WorkflowBuilderModal, type BuilderStage } from '@/components/ui/Workflo
 import { JobKanbanBoard } from '@/components/jobs/JobKanbanBoard';
 import { JobCandidateList } from '@/components/jobs/JobCandidateList';
 import {
-  jobsApi, usersApi, scorecardsApi,
+  jobsApi, usersApi, scorecardsApi, candidatesApi, applicationsApi,
   type JobDetailDto, type JobPipelineStageCounts,
   type WorkflowStageDto, type JobMemberDto, type UserDto, type ScorecardDto,
+  type CandidateListDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
@@ -108,7 +109,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [savingWorkflow, setSavingWorkflow] = useState(false);
 
   // Add member modal
-  const [addMemberOpen,  setAddMemberOpen]  = useState(false);
+  const [addMemberOpen,      setAddMemberOpen]      = useState(false);
+  // Add candidate modal
+  const [addCandidateOpen,   setAddCandidateOpen]   = useState(false);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
@@ -242,6 +245,14 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           onClose={() => setAddMemberOpen(false)}
         />
       )}
+      {addCandidateOpen && (
+        <AddCandidateToJobModal
+          jobId={id}
+          stages={stages}
+          onClose={() => setAddCandidateOpen(false)}
+          onAdded={() => { setAddCandidateOpen(false); setActiveTab('pipeline'); }}
+        />
+      )}
 
       <div className="min-h-screen bg-[var(--color-surface)]">
 
@@ -309,10 +320,10 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                       onClick={() => { setMoreOpen(false); router.push(`/jobs/${id}/edit`); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors flex items-center gap-2"
                     >
-                      <Plus size={14} /> Edit Job
+                      <Pencil size={14} /> Edit Job
                     </button>
                     <button
-                      onClick={() => { setMoreOpen(false); setAddMemberOpen(true); }}
+                      onClick={() => { setMoreOpen(false); setAddCandidateOpen(true); }}
                       className="w-full text-left px-4 py-2.5 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors flex items-center gap-2"
                     >
                       <Plus size={14} /> Add Candidate
@@ -534,6 +545,147 @@ function TeamTab({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Add Candidate To Job Modal ───────────────────────────────────────────────
+
+function AddCandidateToJobModal({
+  jobId, stages, onClose, onAdded,
+}: {
+  jobId: string;
+  stages: WorkflowStageDto[];
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [query,      setQuery]      = useState('');
+  const [results,    setResults]    = useState<CandidateListDto[]>([]);
+  const [searching,  setSearching]  = useState(false);
+  const [selectedStage, setSelectedStage] = useState(stages[0]?.stageName ?? '');
+  const [addingId,   setAddingId]   = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setResults([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await candidatesApi.getCandidates(1, 20, query.trim());
+        setResults(res.items);
+      } catch { /* ignore */ } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  async function handleAdd(candidate: CandidateListDto) {
+    setAddingId(candidate.id);
+    try {
+      const result = await applicationsApi.createApplication({
+        candidateId:  candidate.id,
+        jobPostingId: jobId,
+        status:       'APPLIED',
+      });
+      if (selectedStage) {
+        try { await applicationsApi.updateSubStage(result.application.id, selectedStage); } catch { /* non-fatal */ }
+      }
+      showToast(`${candidate.name} added to ${selectedStage || 'pipeline'}`, 'success');
+      onAdded();
+    } catch (err: unknown) {
+      const msg = (err instanceof Error && err.message.includes('ALREADY_EXISTS'))
+        ? 'Candidate already applied to this job'
+        : 'Failed to add candidate';
+      showToast(msg, 'error');
+    } finally {
+      setAddingId(null);
+    }
+  }
+
+  const SELECT_CLASS =
+    'w-full h-9 px-3 text-sm rounded-xl border border-[var(--color-border)] bg-white ' +
+    'text-[var(--color-text-primary)] focus:outline-none focus:ring-2 ' +
+    'focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] transition-shadow appearance-none';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)] flex-shrink-0">
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Add Candidate</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Stage selector */}
+          {stages.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">Stage</label>
+              <div className="relative">
+                <select value={selectedStage} onChange={(e) => setSelectedStage(e.target.value)} className={SELECT_CLASS}>
+                  {stages.map((s) => <option key={s.id} value={s.stageName}>{s.stageName}</option>)}
+                </select>
+                <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              </div>
+            </div>
+          )}
+
+          {/* Search */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-1.5">Search Candidate</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search by name or email…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full h-10 pl-9 pr-4 text-sm rounded-xl border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] transition-shadow"
+              />
+              {searching && <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[var(--color-text-muted)]" />}
+            </div>
+          </div>
+
+          {/* Results */}
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {!query && (
+              <p className="text-sm text-[var(--color-text-muted)] text-center py-6">Start typing to search candidates</p>
+            )}
+            {query && !searching && results.length === 0 && (
+              <p className="text-sm text-[var(--color-text-muted)] text-center py-6">No candidates found</p>
+            )}
+            {results.map((candidate) => (
+              <div key={candidate.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--color-surface)] border border-transparent hover:border-[var(--color-border)] transition-colors">
+                <Avatar name={candidate.name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{candidate.name}</p>
+                  <p className="text-xs text-[var(--color-text-muted)] truncate">{candidate.email}</p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => handleAdd(candidate)} disabled={addingId === candidate.id}>
+                  {addingId === candidate.id ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                  Add
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--color-border)] flex-shrink-0">
+          <Button type="button" variant="secondary" size="md" onClick={onClose}>Close</Button>
+        </div>
+      </div>
     </div>
   );
 }

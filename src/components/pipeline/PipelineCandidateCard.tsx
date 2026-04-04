@@ -1,4 +1,4 @@
-import { Star, Calendar } from 'lucide-react';
+import { Star, Calendar, ClipboardList } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import type { PipelineApplicationDto } from '@/lib/api';
 
@@ -6,6 +6,7 @@ interface PipelineCandidateCardProps {
   app: PipelineApplicationDto;
   isDragging?: boolean;
   isFiltered?: boolean;
+  stageScorecardRequired?: boolean;
   onClick: () => void;
   onSkillClick: (skill: string) => void;
 }
@@ -14,6 +15,7 @@ export function PipelineCandidateCard({
   app,
   isDragging,
   isFiltered,
+  stageScorecardRequired,
   onClick,
   onSkillClick,
 }: PipelineCandidateCardProps) {
@@ -72,17 +74,22 @@ export function PipelineCandidateCard({
         </div>
       )}
 
-      {/* Footer: date + interview count */}
+      {/* Footer: date + interview count + scorecard status */}
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
           <Calendar size={9} />
           {new Date(app.appliedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
         </span>
-        {app.interviewCount > 0 && (
-          <span className="text-[10px] text-[var(--color-text-muted)]">
-            {app.interviewCount} interview{app.interviewCount !== 1 ? 's' : ''}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {app.interviewCount > 0 && (
+            <span className="text-[10px] text-[var(--color-text-muted)]">
+              {app.interviewCount} interview{app.interviewCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {stageScorecardRequired && (
+            <ClipboardList size={11} className="text-amber-500" title="Scorecard required" />
+          )}
+        </div>
       </div>
     </div>
   );
