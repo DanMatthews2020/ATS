@@ -15,6 +15,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { WorkflowBuilderModal, type BuilderStage } from '@/components/ui/WorkflowBuilderModal';
+import { JobKanbanBoard } from '@/components/jobs/JobKanbanBoard';
+import { JobCandidateList } from '@/components/jobs/JobCandidateList';
 import {
   jobsApi, usersApi,
   type JobDetailDto, type JobPipelineStageCounts,
@@ -367,8 +369,8 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
 
         {/* ── Tab content ────────────────────────────────────────────────── */}
         <div className="px-8 pb-12">
-          {activeTab === 'pipeline' && <PipelineTab />}
-          {activeTab === 'list'     && <ListTab />}
+          {activeTab === 'pipeline' && <JobKanbanBoard jobId={id} stages={stages} />}
+          {activeTab === 'list'     && <JobCandidateList jobId={id} stages={stages} />}
           {activeTab === 'details'  && <DetailsTab job={job} salary={salary} />}
           {activeTab === 'team'     && (
             <TeamTab
@@ -407,38 +409,6 @@ function StatCard({ label, value }: { label: string; value: number }) {
       <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
       <p className="text-2xl font-bold text-[var(--color-text-primary)] tabular-nums">{value}</p>
     </Card>
-  );
-}
-
-// ─── Pipeline Tab (placeholder) ───────────────────────────────────────────────
-
-function PipelineTab() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[var(--color-primary)]/10 flex items-center justify-center mb-5">
-        <BarChart2 size={26} className="text-[var(--color-primary)]" />
-      </div>
-      <p className="text-base font-semibold text-[var(--color-text-primary)]">Pipeline view coming soon</p>
-      <p className="text-sm text-[var(--color-text-muted)] mt-1 max-w-sm">
-        The Kanban pipeline board will be built in the next step. Switch to <strong>List</strong> or <strong>Job Details</strong> for now.
-      </p>
-    </div>
-  );
-}
-
-// ─── List Tab (placeholder) ───────────────────────────────────────────────────
-
-function ListTab() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[var(--color-primary)]/10 flex items-center justify-center mb-5">
-        <FileText size={26} className="text-[var(--color-primary)]" />
-      </div>
-      <p className="text-base font-semibold text-[var(--color-text-primary)]">List view coming soon</p>
-      <p className="text-sm text-[var(--color-text-muted)] mt-1 max-w-sm">
-        The applicant table view will be built in the next step.
-      </p>
-    </div>
   );
 }
 
