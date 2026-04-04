@@ -164,6 +164,20 @@ export const jobsController = {
     }
   },
 
+  async updateStageScorecard(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { stageId } = req.params;
+      const { scorecardId } = req.body as { scorecardId: string | null };
+      const stage = await workflowsService.updateStage(stageId, {
+        scorecardId: scorecardId ?? null,
+        requiresScorecard: !!scorecardId,
+      });
+      sendSuccess(res, { stage });
+    } catch {
+      sendError(res, 500, 'UPDATE_ERROR', 'Failed to update stage scorecard');
+    }
+  },
+
   async updateJob(req: AuthRequest, res: Response): Promise<void> {
     try {
       const body = req.body as {

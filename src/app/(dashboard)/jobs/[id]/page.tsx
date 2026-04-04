@@ -7,7 +7,7 @@ import {
   ArrowLeft, MoreHorizontal, MapPin, Briefcase, DollarSign,
   Users, BarChart2, GitBranch, FileText, Loader2,
   Plus, Trash2, CheckCircle2, XCircle, ChevronDown, X,
-  Calendar, Building2,
+  Calendar, Building2, ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -18,9 +18,9 @@ import { WorkflowBuilderModal, type BuilderStage } from '@/components/ui/Workflo
 import { JobKanbanBoard } from '@/components/jobs/JobKanbanBoard';
 import { JobCandidateList } from '@/components/jobs/JobCandidateList';
 import {
-  jobsApi, usersApi,
+  jobsApi, usersApi, scorecardsApi,
   type JobDetailDto, type JobPipelineStageCounts,
-  type WorkflowStageDto, type JobMemberDto, type UserDto,
+  type WorkflowStageDto, type JobMemberDto, type UserDto, type ScorecardDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
@@ -399,9 +399,13 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           )}
           {activeTab === 'workflow' && (
             <WorkflowTab
+              jobId={id}
               stages={stages}
               savingWorkflow={savingWorkflow}
               onEdit={openWorkflowBuilder}
+              onStageUpdated={(updated) =>
+                setStages((prev) => prev.map((s) => s.id === updated.id ? updated : s))
+              }
             />
           )}
         </div>
@@ -691,14 +695,38 @@ function AddMemberModal({
 // ─── Workflow Tab ─────────────────────────────────────────────────────────────
 
 function WorkflowTab({
-  stages, savingWorkflow, onEdit,
+  jobId, stages, savingWorkflow, onEdit, onStageUpdated,
 }: {
+  jobId: string;
   stages: WorkflowStageDto[];
   savingWorkflow: boolean;
   onEdit: () => void;
+  onStageUpdated: (stage: WorkflowStageDto) => void;
 }) {
+  const [attachStage, setAttachStage] = useState<WorkflowStageDto | null>(null);
+  const { showToast } = useToast();
+
+  async function handleRemoveScorecard(stage: WorkflowStageDto) {
+    try {
+      const result = await jobsApi.updateStageScorecard(jobId, stage.id, null);
+      onStageUpdated(result.stage);
+      showToast('Scorecard removed', 'success');
+    } catch {
+      showToast('Failed to remove scorecard', 'error');
+    }
+  }
+
   return (
     <div className="max-w-2xl">
+      {attachStage && (
+        <AttachScorecardModal
+          jobId={jobId}
+          stage={attachStage}
+          onAttached={(updated) => { onStageUpdated(updated); setAttachStage(null); }}
+          onClose={() => setAttachStage(null)}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">
           Interview Stages <span className="text-[var(--color-text-muted)] font-normal">({stages.length})</span>
@@ -732,15 +760,156 @@ function WorkflowTab({
                 )}
               </div>
               <Badge variant="default">{STAGE_TYPE_LABELS[stage.stageType] ?? stage.stageType}</Badge>
-              {stage.scorecardId && (
-                <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg flex-shrink-0">
-                  Scorecard
-                </span>
+
+              {/* Scorecard column */}
+              {stage.scorecardId ? (
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setAttachStage(stage)}
+                    className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <ClipboardList size={12} />
+                    {stage.scorecardName ?? 'Scorecard'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveScorecard(stage)}
+                    className="p-1 rounded-lg text-[var(--color-text-muted)] hover:text-red-500 hover:bg-red-50 transition-colors"
+                    aria-label="Remove scorecard"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAttachStage(stage)}
+                  className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] border border-dashed border-[var(--color-border)] px-2.5 py-1 rounded-lg hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors flex-shrink-0"
+                >
+                  <ClipboardList size={12} />
+                  Attach Scorecard
+                </button>
               )}
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Attach Scorecard Modal ────────────────────────────────────────────────────
+
+function AttachScorecardModal({
+  jobId, stage, onAttached, onClose,
+}: {
+  jobId: string;
+  stage: WorkflowStageDto;
+  onAttached: (updated: WorkflowStageDto) => void;
+  onClose: () => void;
+}) {
+  const [scorecards,  setScorecards]  = useState<ScorecardDto[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [selectedId,  setSelectedId]  = useState(stage.scorecardId ?? '');
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState('');
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    scorecardsApi.getAll()
+      .then((r) => setScorecards(r.scorecards))
+      .catch(() => setScorecards([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    function handler(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  async function handleSave() {
+    if (!selectedId) { setError('Please select a scorecard.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const result = await jobsApi.updateStageScorecard(jobId, stage.id, selectedId);
+      showToast('Scorecard attached', 'success');
+      onAttached(result.stage);
+    } catch {
+      setError('Failed to attach scorecard. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)] flex-shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Attach Scorecard</h2>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Stage: {stage.stageName}</p>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] py-4">
+              <Loader2 size={14} className="animate-spin" /> Loading scorecards…
+            </div>
+          ) : scorecards.length === 0 ? (
+            <p className="text-sm text-[var(--color-text-muted)] text-center py-8">
+              No scorecards found. Create one in{' '}
+              <a href="/settings/scorecards" className="text-blue-600 hover:underline">Settings → Scorecards</a>.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {scorecards.map((sc) => {
+                const isSelected = selectedId === sc.id;
+                return (
+                  <button
+                    key={sc.id}
+                    type="button"
+                    onClick={() => setSelectedId(sc.id)}
+                    className={[
+                      'w-full flex items-start gap-3 px-4 py-3 rounded-xl border text-left transition-colors',
+                      isSelected
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5'
+                        : 'border-[var(--color-border)] hover:border-neutral-300 hover:bg-[var(--color-surface)]',
+                    ].join(' ')}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <ClipboardList size={14} className="text-[var(--color-text-muted)]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{sc.name}</p>
+                      {sc.description && (
+                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">{sc.description}</p>
+                      )}
+                      <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{sc.criteriaCount} criteria</p>
+                    </div>
+                    {isSelected && <CheckCircle2 size={16} className="text-[var(--color-primary)] flex-shrink-0 mt-1" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--color-border)] flex-shrink-0">
+          <Button type="button" variant="secondary" size="md" onClick={onClose}>Cancel</Button>
+          <Button type="button" variant="primary" size="md" onClick={handleSave} isLoading={saving} disabled={!selectedId || loading}>
+            Attach Scorecard
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

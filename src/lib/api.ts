@@ -324,6 +324,8 @@ export const jobsApi = {
     api.post<{ stages: WorkflowStageDto[] }>(`/jobs/${jobId}/stages`, { stages }),
   getStages: (jobId: string) =>
     api.get<{ stages: WorkflowStageDto[] }>(`/jobs/${jobId}/stages`),
+  updateStageScorecard: (jobId: string, stageId: string, scorecardId: string | null) =>
+    api.patch<{ stage: WorkflowStageDto }>(`/jobs/${jobId}/stages/${stageId}/scorecard`, { scorecardId }),
   getMembers: (jobId: string) =>
     api.get<{ members: JobMemberDto[] }>(`/jobs/${jobId}/members`),
   addMember: (jobId: string, data: { userId: string; role: string }) =>
