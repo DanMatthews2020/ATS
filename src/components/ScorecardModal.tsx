@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Star, ChevronRight, Loader2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { X, Star, ChevronRight, Loader2, CheckCircle2, Clock, AlertCircle, ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
   workflowsApi,
@@ -44,9 +44,9 @@ const REC_OPTIONS = [
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
-  pending:     { label: 'Pending',     icon: <Clock size={11} />,        cls: 'bg-amber-100 text-amber-700' },
+  pending:       { label: 'Pending',     icon: <Clock size={11} />,        cls: 'bg-amber-100 text-amber-700' },
   'in-progress': { label: 'In Progress', icon: <AlertCircle size={11} />,  cls: 'bg-blue-100 text-blue-700' },
-  submitted:   { label: 'Submitted',   icon: <CheckCircle2 size={11} />, cls: 'bg-emerald-100 text-emerald-700' },
+  submitted:     { label: 'Submitted',   icon: <CheckCircle2 size={11} />, cls: 'bg-emerald-100 text-emerald-700' },
 };
 
 // ─── Star Rating Input ────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ function EvalForm({
   candidateId: string;
   jobId: string;
   candidateName: string;
-  stage: WorkflowStageDto;
+  stage: WorkflowStageDto | null;
   scorecard: ScorecardDto;
   existing: EvaluationDto | null;
   onBack: () => void;
@@ -136,7 +136,7 @@ function EvalForm({
         result = (await evaluationsApi.create({
           candidateId,
           jobId,
-          stageId: stage.id,
+          stageId: stage?.id || undefined,
           scorecardId: scorecard.id,
           overallRecommendation: recommendation || undefined,
           notes: notes || undefined,
@@ -163,11 +163,15 @@ function EvalForm({
         </button>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-[var(--color-text-muted)]">{candidateName}</p>
-          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{stage.stageName}</h3>
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
+            {stage ? stage.stageName : scorecard.name}
+          </h3>
         </div>
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STAGE_TYPE_COLORS[stage.stageType] ?? 'bg-neutral-100 text-neutral-600'}`}>
-          {stage.stageType.replace(/-/g, ' ')}
-        </span>
+        {stage && (
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STAGE_TYPE_COLORS[stage.stageType] ?? 'bg-neutral-100 text-neutral-600'}`}>
+            {stage.stageType.replace(/-/g, ' ')}
+          </span>
+        )}
       </div>
 
       {/* Body */}
@@ -312,56 +316,52 @@ export default function ScorecardModal({
 }: ScorecardModalProps) {
   const { showToast } = useToast();
 
-  const [stages, setStages]               = useState<WorkflowStageDto[]>([]);
-  const [evaluations, setEvaluations]     = useState<EvaluationDto[]>([]);
-  const [scorecardMap, setScorecardMap]   = useState<Record<string, ScorecardDto>>({});
-  const [loading, setLoading]             = useState(true);
-  const [selectedStage, setSelectedStage] = useState<WorkflowStageDto | null>(null);
-  const [activeScorecard, setActiveScorecard] = useState<ScorecardDto | null>(null);
+  const [scorecards,        setScorecards]        = useState<ScorecardDto[]>([]);
+  const [stages,            setStages]            = useState<WorkflowStageDto[]>([]);
+  const [evaluations,       setEvaluations]       = useState<EvaluationDto[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [selectedScorecard, setSelectedScorecard] = useState<ScorecardDto | null>(null);
+  const [selectedStage,     setSelectedStage]     = useState<WorkflowStageDto | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [workflowRes, evalsRes] = await Promise.allSettled([
-          workflowsApi.getByJobId(jobId),
+        const [scorecardsRes, evalsRes, workflowRes] = await Promise.allSettled([
+          scorecardsApi.getAll(),
           evaluationsApi.getByCandidate(candidateId),
+          workflowsApi.getByJobId(jobId),
         ]);
 
         if (cancelled) return;
 
-        const stageList = workflowRes.status === 'fulfilled'
-          ? workflowRes.value.stages.filter((s) => s.requiresScorecard && s.scorecardId)
+        const scList = scorecardsRes.status === 'fulfilled'
+          ? scorecardsRes.value.scorecards
           : [];
-        setStages(stageList);
+        setScorecards(scList);
 
         if (evalsRes.status === 'fulfilled') {
           setEvaluations(evalsRes.value.evaluations);
         }
 
-        // Pre-load scorecards for stages that need them
-        const scorecardIds = Array.from(new Set(stageList.map((s) => s.scorecardId).filter(Boolean) as string[]));
-        const map: Record<string, ScorecardDto> = {};
-        await Promise.all(
-          scorecardIds.map(async (scId) => {
-            try {
-              const sc = await scorecardsApi.getById(scId);
-              map[scId] = sc;
-            } catch { /* skip */ }
-          })
-        );
-        if (!cancelled) setScorecardMap(map);
+        const stageList = workflowRes.status === 'fulfilled'
+          ? workflowRes.value.stages
+          : [];
+        setStages(stageList);
 
-        // Auto-select if initialStageId provided
+        // Auto-select if initialStageId provided — find the scorecard for that stage
         if (initialStageId && !cancelled) {
           const stage = stageList.find((s) => s.id === initialStageId);
-          if (stage && stage.scorecardId && map[stage.scorecardId]) {
-            setSelectedStage(stage);
-            setActiveScorecard(map[stage.scorecardId]);
+          if (stage?.scorecardId) {
+            const sc = scList.find((s) => s.id === stage.scorecardId);
+            if (sc) {
+              setSelectedScorecard(sc);
+              setSelectedStage(stage);
+            }
           }
         }
       } catch {
-        if (!cancelled) showToast('Failed to load workflow', 'error');
+        if (!cancelled) showToast('Failed to load scorecards', 'error');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -370,14 +370,17 @@ export default function ScorecardModal({
     return () => { cancelled = true; };
   }, [candidateId, jobId, initialStageId, showToast]);
 
-  function getEvalForStage(stageId: string): EvaluationDto | null {
-    return evaluations.find((e) => e.stageId === stageId) ?? null;
+  function getEvalForScorecard(scorecardId: string): EvaluationDto | null {
+    return evaluations.find((e) => e.scorecardId === scorecardId) ?? null;
   }
 
-  function handleSelectStage(stage: WorkflowStageDto) {
-    if (!stage.scorecardId || !scorecardMap[stage.scorecardId]) return;
-    setSelectedStage(stage);
-    setActiveScorecard(scorecardMap[stage.scorecardId]);
+  function getStageForScorecard(scorecardId: string): WorkflowStageDto | null {
+    return stages.find((s) => s.scorecardId === scorecardId) ?? null;
+  }
+
+  function handleSelectScorecard(sc: ScorecardDto) {
+    setSelectedScorecard(sc);
+    setSelectedStage(getStageForScorecard(sc.id));
   }
 
   function handleEvalDone(eval_: EvaluationDto) {
@@ -390,8 +393,8 @@ export default function ScorecardModal({
       }
       return [...prev, eval_];
     });
+    setSelectedScorecard(null);
     setSelectedStage(null);
-    setActiveScorecard(null);
     onSubmitted?.();
   }
 
@@ -417,15 +420,15 @@ export default function ScorecardModal({
         </div>
 
         {/* Content */}
-        {selectedStage && activeScorecard ? (
+        {selectedScorecard ? (
           <EvalForm
             candidateId={candidateId}
             jobId={jobId}
             candidateName={candidateName}
+            scorecard={selectedScorecard}
             stage={selectedStage}
-            scorecard={activeScorecard}
-            existing={getEvalForStage(selectedStage.id)}
-            onBack={() => { setSelectedStage(null); setActiveScorecard(null); }}
+            existing={getEvalForScorecard(selectedScorecard.id)}
+            onBack={() => { setSelectedScorecard(null); setSelectedStage(null); }}
             onDone={handleEvalDone}
           />
         ) : (
@@ -434,30 +437,45 @@ export default function ScorecardModal({
               <div className="flex items-center justify-center py-16">
                 <Loader2 size={18} className="animate-spin text-[var(--color-text-muted)]" />
               </div>
-            ) : stages.length === 0 ? (
+            ) : scorecards.length === 0 ? (
               <div className="py-12 px-6 text-center">
-                <p className="text-sm text-[var(--color-text-muted)]">No scorecards attached to this job's workflow stages.</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1">Enable "Requires Scorecard" on a workflow stage and assign a scorecard.</p>
+                <ClipboardList size={28} className="mx-auto text-[var(--color-text-muted)] mb-3" />
+                <p className="text-sm font-medium text-[var(--color-text-primary)] mb-1">No scorecard templates yet</p>
+                <p className="text-xs text-[var(--color-text-muted)] mb-4">
+                  Create evaluation templates in Settings first.
+                </p>
+                <a
+                  href="/settings/scorecards"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-primary)] hover:underline"
+                >
+                  Go to Settings → Scorecards
+                </a>
               </div>
             ) : (
               <div className="p-4 space-y-2">
-                {stages.map((stage) => {
-                  const eval_ = getEvalForStage(stage.id);
-                  const statusCfg = STATUS_CONFIG[eval_?.status ?? 'pending'];
-                  const hasScorecard = stage.scorecardId && scorecardMap[stage.scorecardId];
+                {scorecards.map((sc) => {
+                  const attachedStage = getStageForScorecard(sc.id);
+                  const eval_         = getEvalForScorecard(sc.id);
+                  const statusCfg     = STATUS_CONFIG[eval_?.status ?? 'pending'];
                   return (
                     <button
-                      key={stage.id}
+                      key={sc.id}
                       type="button"
-                      onClick={() => handleSelectStage(stage)}
-                      disabled={!hasScorecard}
-                      className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]/50 hover:shadow-sm transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => handleSelectScorecard(sc)}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-xl border border-[var(--color-border)] bg-white hover:border-[var(--color-primary)]/50 hover:shadow-sm transition-all text-left"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{stage.stageName}</p>
-                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">
-                          {stage.scorecardName ?? (hasScorecard ? 'Scorecard attached' : 'No scorecard')}
+                        <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{sc.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                          {sc.criteria.length} criteria{sc.description ? ` · ${sc.description}` : ''}
                         </p>
+                        {attachedStage && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full mt-1">
+                            📋 {attachedStage.stageName}
+                          </span>
+                        )}
                       </div>
                       <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full flex-shrink-0 ${statusCfg.cls}`}>
                         {statusCfg.icon}
