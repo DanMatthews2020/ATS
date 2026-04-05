@@ -155,7 +155,7 @@ function EvalForm({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
       <div className="flex items-center gap-3 p-5 border-b border-[var(--color-border)] flex-shrink-0">
         <button onClick={onBack} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors">
@@ -194,7 +194,7 @@ function EvalForm({
                     )}
                   </div>
                   <span className="text-[10px] text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] px-1.5 py-0.5 rounded-md whitespace-nowrap flex-shrink-0">
-                    {c.type === 'rating' ? '1–5' : c.type === 'yes-no' ? 'Yes/No' : c.type === 'free-text' ? 'Text' : 'Choice'}
+                    {c.type === 'rating' ? '1–5' : c.type === 'yes-no' ? 'Yes/No' : c.type === 'short-text' ? 'Short' : c.type === 'long-text' ? 'Long' : c.type === 'free-text' ? 'Text' : 'Choice'}
                   </span>
                 </div>
 
@@ -221,11 +221,21 @@ function EvalForm({
                   </div>
                 )}
 
-                {c.type === 'free-text' && (
+                {c.type === 'short-text' && (
+                  <input
+                    type="text"
+                    value={responses[c.id] ?? ''}
+                    onChange={(e) => setResponse(c.id, e.target.value)}
+                    placeholder="Enter your response…"
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
+                  />
+                )}
+
+                {(c.type === 'long-text' || c.type === 'free-text') && (
                   <textarea
                     value={responses[c.id] ?? ''}
                     onChange={(e) => setResponse(c.id, e.target.value)}
-                    rows={3}
+                    rows={c.type === 'long-text' ? 4 : 3}
                     placeholder="Enter your notes…"
                     className="w-full text-sm px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] resize-none"
                   />

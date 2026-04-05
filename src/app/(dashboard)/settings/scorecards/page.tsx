@@ -13,7 +13,7 @@ import {
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import {
   Plus, Pencil, Trash2, Copy, GripVertical, X,
-  Star, ToggleLeft, AlignLeft, List, Loader2, ClipboardList,
+  Star, ToggleLeft, AlignLeft, AlignJustify, Type, List, Loader2, ClipboardList,
 } from 'lucide-react';
 import { scorecardsApi, type ScorecardDto, type ScorecardCriterionDto } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/Input';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type CriterionType = 'rating' | 'yes-no' | 'free-text' | 'multiple-choice';
+type CriterionType = 'rating' | 'yes-no' | 'short-text' | 'long-text' | 'free-text' | 'multiple-choice';
 
 interface LocalCriterion {
   id: string; // temp or real
@@ -34,10 +34,12 @@ interface LocalCriterion {
 }
 
 const CRITERION_TYPES: { value: CriterionType; label: string; icon: React.ReactNode; desc: string }[] = [
-  { value: 'rating',          label: 'Rating 1–5',       icon: <Star size={13} />,        desc: 'Star rating from 1 to 5' },
-  { value: 'yes-no',          label: 'Yes / No',         icon: <ToggleLeft size={13} />,  desc: 'Binary toggle' },
-  { value: 'free-text',       label: 'Free Text',        icon: <AlignLeft size={13} />,   desc: 'Open text response' },
-  { value: 'multiple-choice', label: 'Multiple Choice',  icon: <List size={13} />,         desc: 'Select from options' },
+  { value: 'rating',          label: 'Rating 1–5',       icon: <Star size={13} />,           desc: 'Star rating from 1 to 5' },
+  { value: 'yes-no',          label: 'Yes / No',         icon: <ToggleLeft size={13} />,     desc: 'Binary toggle' },
+  { value: 'short-text',      label: 'Short Text',       icon: <Type size={13} />,           desc: 'Single line written response' },
+  { value: 'long-text',       label: 'Long Text',        icon: <AlignJustify size={13} />,   desc: 'Multi-line written feedback' },
+  { value: 'free-text',       label: 'Free Text',        icon: <AlignLeft size={13} />,      desc: 'Open text response' },
+  { value: 'multiple-choice', label: 'Multiple Choice',  icon: <List size={13} />,           desc: 'Select from options' },
 ];
 
 const LABEL_CLASS = 'block text-sm font-medium text-[var(--color-text-primary)] mb-1.5';
@@ -140,6 +142,12 @@ function CriterionPreview({ crit }: { crit: LocalCriterion }) {
         <div className="flex gap-2">
           {['Yes','No'].map((o) => <span key={o} className="px-3 py-1 text-xs border border-[var(--color-border)] rounded-lg text-[var(--color-text-muted)]">{o}</span>)}
         </div>
+      )}
+      {crit.type === 'short-text' && (
+        <div className="h-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]" />
+      )}
+      {crit.type === 'long-text' && (
+        <div className="h-20 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]" />
       )}
       {crit.type === 'free-text' && (
         <div className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]" />
