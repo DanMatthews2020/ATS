@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft, Mail, Phone, MapPin, Linkedin, Calendar,
   Briefcase, Clock, MessageSquare, Activity, Check, X,
@@ -1195,6 +1195,9 @@ function DeleteProfileModal({ candidateId, candidateName, onClose, onDeleted }: 
 export default function CandidateProfilePage({ params }: { params: { id: string } }) {
   const { id } = params;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromJobId    = searchParams.get('fromJob');
+  const fromJobTitle = searchParams.get('fromJobTitle') ?? '';
   const { showToast } = useToast();
 
   const [candidate, setCandidate]   = useState<CandidateDetailDto | null>(null);
@@ -1264,10 +1267,11 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
 
       {/* ── Back ── */}
       <button
-        onClick={() => router.push('/candidates')}
+        onClick={() => fromJobId ? router.push(`/jobs/${fromJobId}`) : router.push('/candidates')}
         className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors mb-6"
       >
-        <ArrowLeft size={14} /> Back to Candidates
+        <ArrowLeft size={14} />
+        {fromJobId ? `Back to ${fromJobTitle || 'Job'}` : 'Back to Candidates'}
       </button>
 
       {/* ── Do Not Contact Banner ── */}

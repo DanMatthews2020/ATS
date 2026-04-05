@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragOverlay,
@@ -589,6 +590,7 @@ function AddCandidateModal({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PipelinePage() {
+  const router = useRouter();
   const { showToast } = useToast();
 
   // Jobs
@@ -866,7 +868,9 @@ export default function PipelinePage() {
                   col={col}
                   apps={columns[col.id] ?? []}
                   activeSkillFilters={activeSkillFilters}
-                  onCardClick={(app) => setOpenPanelApp(app)}
+                  onCardClick={(app) => router.push(
+                    `/candidates/${app.candidateId}?fromJob=${selectedJobId}&fromJobTitle=${encodeURIComponent(jobs.find(j => j.id === selectedJobId)?.title ?? '')}`
+                  )}
                   onSkillClick={toggleSkillFilter}
                   onAddClick={() => setAddModal({ stage: col.id })}
                 />

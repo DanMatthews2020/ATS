@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext, DragOverlay, useDraggable, useDroppable,
   MouseSensor, TouchSensor, useSensor, useSensors, closestCenter,
@@ -438,11 +439,13 @@ function AddCandidateModal({
 // ─── JobKanbanBoard ───────────────────────────────────────────────────────────
 
 export function JobKanbanBoard({
-  jobId, stages,
+  jobId, jobTitle, stages,
 }: {
   jobId: string;
+  jobTitle: string;
   stages: WorkflowStageDto[];
 }) {
+  const router = useRouter();
   const { showToast } = useToast();
 
   const [columns, setColumns] = useState<Record<string, PipelineApplicationDto[]>>({});
@@ -630,7 +633,9 @@ export function JobKanbanBoard({
                 dotClass={DOT_CLASSES[i % DOT_CLASSES.length]}
                 requiresScorecard={stage.requiresScorecard}
                 apps={columns[stage.stageName] ?? []}
-                onCardClick={(app) => setOpenPanelApp(app)}
+                onCardClick={(app) => router.push(
+                  `/candidates/${app.candidateId}?fromJob=${jobId}&fromJobTitle=${encodeURIComponent(jobTitle)}`
+                )}
                 onAddClick={() => setAddModal({ stageName: stage.stageName })}
               />
             ))}

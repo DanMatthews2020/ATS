@@ -389,7 +389,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
 
         {/* ── Tab content ────────────────────────────────────────────────── */}
         <div className="px-8 pb-12">
-          {activeTab === 'pipeline' && <JobKanbanBoard jobId={id} stages={stages} />}
+          {activeTab === 'pipeline' && <JobKanbanBoard jobId={id} jobTitle={job.title} stages={stages} />}
           {activeTab === 'list'     && <JobCandidateList jobId={id} stages={stages} />}
           {activeTab === 'details'  && <DetailsTab job={job} salary={salary} />}
           {activeTab === 'team'     && (
