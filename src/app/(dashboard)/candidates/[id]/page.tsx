@@ -7,17 +7,20 @@ import {
   Briefcase, Clock, MessageSquare, Activity, Check, X,
   ChevronDown, MoreHorizontal, Pencil, Trash2, Send,
   UserPlus, RefreshCw, FolderOpen, GitMerge, UserX,
-  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search,
+  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import {
-  candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi,
+  candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi, interviewsApi,
   type CandidateDetailDto, type CandidateNoteDto,
   type FeedEventDto, type CandidateFeedbackDto, type FollowUpDto, type EvaluationDto,
+  type InterviewDto,
 } from '@/lib/api';
+import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
+import ScorecardModal from '@/components/ScorecardModal';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
 
@@ -402,10 +405,28 @@ const IV_TYPE_LABEL: Record<string, string> = {
   phone: 'Phone', video: 'Video', 'on-site': 'On-Site', technical: 'Technical',
 };
 
-function InterviewsTab({ candidate }: { candidate: CandidateDetailDto }) {
-  const allInterviews = candidate.applications.flatMap((app) =>
-    app.interviews.map((iv) => ({ ...iv, jobTitle: app.jobTitle, jobId: app.jobId }))
-  ).sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+function InterviewsTab({ candidate, extraInterviews = [] }: { candidate: CandidateDetailDto; extraInterviews?: InterviewDto[] }) {
+  const fromApplications = candidate.applications.flatMap((app) =>
+    app.interviews.map((iv) => ({
+      id: iv.id, type: iv.type, status: iv.status,
+      scheduledAt: iv.scheduledAt, duration: iv.duration,
+      rating: iv.rating ?? null, jobTitle: app.jobTitle, jobId: app.jobId,
+      meetingLink: null as string | null,
+    }))
+  );
+
+  // Newly-scheduled interviews (not yet in candidate.applications)
+  const fromExtra = extraInterviews
+    .filter((iv) => !fromApplications.some((a) => a.id === iv.id))
+    .map((iv) => ({
+      id: iv.id, type: iv.type, status: iv.status,
+      scheduledAt: iv.scheduledAt, duration: iv.duration,
+      rating: iv.feedback?.rating ?? null, jobTitle: iv.jobTitle, jobId: iv.jobId,
+      meetingLink: iv.meetingLink,
+    }));
+
+  const allInterviews = [...fromExtra, ...fromApplications]
+    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
   if (allInterviews.length === 0) {
     return (
@@ -437,6 +458,14 @@ function InterviewsTab({ candidate }: { candidate: CandidateDetailDto }) {
                 </p>
                 {iv.jobTitle && (
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{iv.jobTitle}</p>
+                )}
+                {iv.meetingLink && (
+                  <a href={iv.meetingLink} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-[var(--color-primary)] hover:underline mt-0.5 inline-block"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    🎥 Join Meeting
+                  </a>
                 )}
                 {iv.rating != null && (
                   <div className="flex items-center gap-0.5 mt-1">
@@ -476,7 +505,7 @@ const RECOMMENDATION_CONFIG: Record<string, { label: string; variant: BadgeVaria
   'maybe':      { label: 'Maybe',      variant: 'warning' },
 };
 
-function FeedbackTab({ candidateId }: { candidateId: string }) {
+function FeedbackTab({ candidateId, onAddEvaluation }: { candidateId: string; onAddEvaluation?: () => void }) {
   const [feedback,    setFeedback]    = useState<CandidateFeedbackDto[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationDto[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -506,7 +535,12 @@ function FeedbackTab({ candidateId }: { candidateId: string }) {
       <Card padding="lg">
         <div className="flex flex-col items-center py-12 gap-3 text-[var(--color-text-muted)]">
           <Star size={28} />
-          <p className="text-sm">No feedback yet.</p>
+          <p className="text-sm">No evaluations yet.</p>
+          {onAddEvaluation && (
+            <Button variant="primary" size="sm" onClick={onAddEvaluation}>
+              <Plus size={13} /> Add Evaluation
+            </Button>
+          )}
         </div>
       </Card>
     );
@@ -514,6 +548,13 @@ function FeedbackTab({ candidateId }: { candidateId: string }) {
 
   return (
     <div className="space-y-3">
+      {onAddEvaluation && (
+        <div className="flex justify-end">
+          <Button variant="primary" size="sm" onClick={onAddEvaluation}>
+            <Plus size={13} /> Add Evaluation
+          </Button>
+        </div>
+      )}
       {/* Interview feedback */}
       {feedback.map((fb) => {
         const recCfg = fb.recommendation ? (RECOMMENDATION_CONFIG[fb.recommendation] ?? { label: fb.recommendation, variant: 'default' as BadgeVariant }) : null;
@@ -1251,12 +1292,18 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const [activeTab, setActiveTab]   = useState<Tab>('feed');
 
   // Modals
-  const [emailOpen, setEmailOpen]   = useState(false);
-  const [dncOpen, setDncOpen]       = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [emailOpen,              setEmailOpen]              = useState(false);
+  const [dncOpen,                setDncOpen]                = useState(false);
+  const [deleteOpen,             setDeleteOpen]             = useState(false);
+  const [scheduleInterviewOpen,  setScheduleInterviewOpen]  = useState(false);
+  const [scorecardOpen,          setScorecardOpen]          = useState(false);
 
-  // Feed refresh counter
-  const [feedKey, setFeedKey] = useState(0);
+  // Extra interviews added this session (before page refresh)
+  const [extraInterviews, setExtraInterviews] = useState<InterviewDto[]>([]);
+
+  // Feed / feedback refresh counters
+  const [feedKey,          setFeedKey]         = useState(0);
+  const [feedbackRefreshKey, setFeedbackRefreshKey] = useState(0);
 
   useEffect(() => {
     candidatesApi.getCandidate(id)
@@ -1293,8 +1340,11 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const fullName    = `${candidate.firstName} ${candidate.lastName}`;
   const latestApp   = candidate.applications[0];
   const latestStatusCfg = latestApp ? (APP_STATUS[latestApp.status] ?? null) : null;
-  const totalInterviews = candidate.applications.reduce((s, a) => s + a.interviews.length, 0);
+  const totalInterviews = candidate.applications.reduce((s, a) => s + a.interviews.length, 0) + extraInterviews.length;
   const noteCount = 0; // fetched in NotesTab
+
+  // Best jobId to use for scorecard evaluation modal
+  const scorecardJobId = fromJobId ?? latestApp?.jobId ?? '';
 
   function handleDeleted() {
     router.push('/candidates');
@@ -1362,8 +1412,8 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
                 </Button>
 
                 <MoreDropdown
-                  onScheduleInterview={() => showToast('Schedule Interview — coming soon', 'info')}
-                  onSubmitFeedback={() => showToast('Submit Feedback — coming soon', 'info')}
+                  onScheduleInterview={() => setScheduleInterviewOpen(true)}
+                  onSubmitFeedback={() => { if (scorecardJobId) setScorecardOpen(true); else showToast('No job linked to this candidate', 'error'); }}
                   onDeleteProfile={() => setDeleteOpen(true)}
                   onDoNotContact={() => setDncOpen(true)}
                 />
@@ -1435,8 +1485,8 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           {activeTab === 'feed'         && <FeedTab key={feedKey} candidateId={id} />}
           {activeTab === 'notes'        && <NotesTab candidateId={id} />}
           {activeTab === 'emails'       && <EmailsTab candidateId={id} />}
-          {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} />}
-          {activeTab === 'feedback'     && <FeedbackTab candidateId={id} />}
+          {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} extraInterviews={extraInterviews} />}
+          {activeTab === 'feedback'     && <FeedbackTab key={feedbackRefreshKey} candidateId={id} onAddEvaluation={scorecardJobId ? () => setScorecardOpen(true) : undefined} />}
           {activeTab === 'applications' && <ApplicationsTab candidate={candidate} />}
           {activeTab === 'overview'     && <OverviewTab candidate={candidate} />}
         </div>
@@ -1469,6 +1519,36 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           candidateName={fullName}
           onClose={() => setDeleteOpen(false)}
           onDeleted={handleDeleted}
+        />
+      )}
+
+      {scheduleInterviewOpen && (
+        <ScheduleInterviewModal
+          isOpen={scheduleInterviewOpen}
+          onClose={() => setScheduleInterviewOpen(false)}
+          onSuccess={(iv) => {
+            setExtraInterviews((prev) => [iv, ...prev]);
+            setScheduleInterviewOpen(false);
+            setActiveTab('interviews');
+          }}
+          candidateId={id}
+          candidateName={fullName}
+          preselectedJobId={fromJobId ?? undefined}
+          preselectedJobTitle={fromJobTitle || undefined}
+        />
+      )}
+
+      {scorecardOpen && scorecardJobId && (
+        <ScorecardModal
+          candidateId={id}
+          candidateName={fullName}
+          jobId={scorecardJobId}
+          onClose={() => setScorecardOpen(false)}
+          onSubmitted={() => {
+            setScorecardOpen(false);
+            setFeedbackRefreshKey((k) => k + 1);
+            setActiveTab('feedback');
+          }}
         />
       )}
     </div>
