@@ -126,14 +126,14 @@ function EvalForm({
     try {
       let result: EvaluationDto;
       if (existing) {
-        result = await evaluationsApi.update(existing.id, {
+        result = (await evaluationsApi.update(existing.id, {
           overallRecommendation: recommendation || undefined,
           notes: notes || undefined,
           status,
           responses: responsesPayload,
-        });
+        })).evaluation;
       } else {
-        result = await evaluationsApi.create({
+        result = (await evaluationsApi.create({
           candidateId,
           jobId,
           stageId: stage.id,
@@ -142,7 +142,7 @@ function EvalForm({
           notes: notes || undefined,
           status,
           responses: responsesPayload,
-        });
+        })).evaluation;
       }
       showToast(status === 'submitted' ? 'Evaluation submitted' : 'Draft saved', 'success');
       onDone(result);

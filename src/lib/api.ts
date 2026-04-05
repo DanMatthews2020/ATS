@@ -1616,11 +1616,11 @@ export const evaluationsApi = {
     notes?: string;
     status?: string;
     responses: Array<{ criterionId: string; responseValue: string }>;
-  }) => api.post<EvaluationDto>('/evaluations', data),
+  }) => api.post<{ evaluation: EvaluationDto }>('/evaluations', data),
   update: (id: string, data: {
     overallRecommendation?: string;
     notes?: string;
     status?: string;
     responses?: Array<{ criterionId: string; responseValue: string }>;
-  }) => api.patch<EvaluationDto>(`/evaluations/${id}`, data),
+  }) => api.patch<{ evaluation: EvaluationDto }>(`/evaluations/${id}`, data),
 };

@@ -14,9 +14,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import {
-  candidatesApi, candidatePanelApi, followUpsApi,
+  candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi,
   type CandidateDetailDto, type CandidateNoteDto,
-  type FeedEventDto, type CandidateFeedbackDto, type FollowUpDto,
+  type FeedEventDto, type CandidateFeedbackDto, type FollowUpDto, type EvaluationDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { BadgeVariant } from '@/types';
@@ -477,14 +477,18 @@ const RECOMMENDATION_CONFIG: Record<string, { label: string; variant: BadgeVaria
 };
 
 function FeedbackTab({ candidateId }: { candidateId: string }) {
-  const [feedback, setFeedback] = useState<CandidateFeedbackDto[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [feedback,    setFeedback]    = useState<CandidateFeedbackDto[]>([]);
+  const [evaluations, setEvaluations] = useState<EvaluationDto[]>([]);
+  const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
-    candidatePanelApi.getFeedback(candidateId)
-      .then((d) => setFeedback(d.feedback))
-      .catch(() => setFeedback([]))
-      .finally(() => setLoading(false));
+    Promise.all([
+      candidatePanelApi.getFeedback(candidateId).then((d) => d.feedback).catch(() => [] as CandidateFeedbackDto[]),
+      evaluationsApi.getByCandidate(candidateId).then((d) => d.evaluations).catch(() => [] as EvaluationDto[]),
+    ]).then(([fb, ev]) => {
+      setFeedback(fb);
+      setEvaluations(ev);
+    }).finally(() => setLoading(false));
   }, [candidateId]);
 
   if (loading) {
@@ -497,7 +501,7 @@ function FeedbackTab({ candidateId }: { candidateId: string }) {
     );
   }
 
-  if (feedback.length === 0) {
+  if (feedback.length === 0 && evaluations.length === 0) {
     return (
       <Card padding="lg">
         <div className="flex flex-col items-center py-12 gap-3 text-[var(--color-text-muted)]">
@@ -510,6 +514,7 @@ function FeedbackTab({ candidateId }: { candidateId: string }) {
 
   return (
     <div className="space-y-3">
+      {/* Interview feedback */}
       {feedback.map((fb) => {
         const recCfg = fb.recommendation ? (RECOMMENDATION_CONFIG[fb.recommendation] ?? { label: fb.recommendation, variant: 'default' as BadgeVariant }) : null;
         return (
@@ -542,6 +547,46 @@ function FeedbackTab({ candidateId }: { candidateId: string }) {
             {fb.feedback && (
               <p className="text-sm text-[var(--color-text-muted)] bg-[var(--color-surface)] rounded-lg px-3 py-2">
                 {fb.feedback}
+              </p>
+            )}
+          </Card>
+        );
+      })}
+
+      {/* Scorecard evaluations */}
+      {evaluations.map((ev) => {
+        const recCfg = ev.overallRecommendation ? (RECOMMENDATION_CONFIG[ev.overallRecommendation] ?? { label: ev.overallRecommendation, variant: 'default' as BadgeVariant }) : null;
+        return (
+          <Card key={ev.id} padding="lg">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                  Scorecard{ev.scorecardName ? `: ${ev.scorecardName}` : ''}
+                </p>
+                {ev.stageName && (
+                  <p className="text-xs text-[var(--color-text-muted)]">Stage: {ev.stageName}</p>
+                )}
+                <p className="text-xs text-[var(--color-text-muted)]">{ev.jobTitle} · {ev.submittedByName}</p>
+                <p className="text-xs text-[var(--color-text-muted)]">{fmtDateTime(ev.createdAt)}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1.5">
+                {recCfg && <Badge variant={recCfg.variant}>{recCfg.label}</Badge>}
+                <Badge variant="default">{ev.status}</Badge>
+              </div>
+            </div>
+            {ev.responses.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {ev.responses.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-xs bg-[var(--color-surface)] rounded-lg px-3 py-1.5">
+                    <span className="text-[var(--color-text-muted)]">{r.criterionName}</span>
+                    <span className="font-medium text-[var(--color-text-primary)]">{r.responseValue}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ev.notes && (
+              <p className="mt-2 text-sm text-[var(--color-text-muted)] bg-[var(--color-surface)] rounded-lg px-3 py-2">
+                {ev.notes}
               </p>
             )}
           </Card>
