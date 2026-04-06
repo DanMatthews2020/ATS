@@ -104,22 +104,36 @@ function EvalForm({
   onDone: (eval_: EvaluationDto) => void;
 }) {
   const { showToast } = useToast();
-  const [responses, setResponses] = useState<Record<string, string>>(() => {
+  const [responses, setResponses] = useState<Record<string, { value: string; notes: string }>>(() => {
     if (!existing) return {};
-    return Object.fromEntries(existing.responses.map((r) => [r.criterionId, r.responseValue]));
+    return Object.fromEntries(existing.responses.map((r) => [
+      r.criterionId,
+      { value: r.responseValue, notes: r.responseNotes ?? '' },
+    ]));
   });
   const [recommendation, setRecommendation] = useState(existing?.overallRecommendation ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [saving, setSaving] = useState(false);
 
-  function setResponse(criterionId: string, value: string) {
-    setResponses((prev) => ({ ...prev, [criterionId]: value }));
+  function setResponseValue(criterionId: string, value: string) {
+    setResponses((prev) => ({
+      ...prev,
+      [criterionId]: { value, notes: prev[criterionId]?.notes ?? '' },
+    }));
+  }
+
+  function setResponseNotes(criterionId: string, notes: string) {
+    setResponses((prev) => ({
+      ...prev,
+      [criterionId]: { value: prev[criterionId]?.value ?? '', notes },
+    }));
   }
 
   async function handleSubmit(status: 'submitted' | 'in-progress') {
     const responsesPayload = scorecard.criteria.map((c) => ({
       criterionId: c.id,
-      responseValue: responses[c.id] ?? '',
+      responseValue: responses[c.id]?.value ?? '',
+      responseNotes: responses[c.id]?.notes ?? '',
     }));
 
     setSaving(true);
@@ -199,7 +213,7 @@ function EvalForm({
                 </div>
 
                 {c.type === 'rating' && (
-                  <StarInput value={responses[c.id] ?? ''} onChange={(v) => setResponse(c.id, v)} />
+                  <StarInput value={responses[c.id]?.value ?? ''} onChange={(v) => setResponseValue(c.id, v)} />
                 )}
 
                 {c.type === 'yes-no' && (
@@ -208,9 +222,9 @@ function EvalForm({
                       <button
                         key={opt}
                         type="button"
-                        onClick={() => setResponse(c.id, opt)}
+                        onClick={() => setResponseValue(c.id, opt)}
                         className={`px-4 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
-                          responses[c.id] === opt
+                          responses[c.id]?.value === opt
                             ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
                             : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]/50'
                         }`}
@@ -224,8 +238,8 @@ function EvalForm({
                 {c.type === 'short-text' && (
                   <input
                     type="text"
-                    value={responses[c.id] ?? ''}
-                    onChange={(e) => setResponse(c.id, e.target.value)}
+                    value={responses[c.id]?.value ?? ''}
+                    onChange={(e) => setResponseValue(c.id, e.target.value)}
                     placeholder="Enter your response…"
                     className="w-full text-sm px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
                   />
@@ -233,8 +247,8 @@ function EvalForm({
 
                 {(c.type === 'long-text' || c.type === 'free-text') && (
                   <textarea
-                    value={responses[c.id] ?? ''}
-                    onChange={(e) => setResponse(c.id, e.target.value)}
+                    value={responses[c.id]?.value ?? ''}
+                    onChange={(e) => setResponseValue(c.id, e.target.value)}
                     rows={c.type === 'long-text' ? 4 : 3}
                     placeholder="Enter your notes…"
                     className="w-full text-sm px-3 py-2 rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] resize-none"
@@ -247,9 +261,9 @@ function EvalForm({
                       <button
                         key={opt}
                         type="button"
-                        onClick={() => setResponse(c.id, opt)}
+                        onClick={() => setResponseValue(c.id, opt)}
                         className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors ${
-                          responses[c.id] === opt
+                          responses[c.id]?.value === opt
                             ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
                             : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-primary)]/50'
                         }`}
@@ -257,6 +271,22 @@ function EvalForm({
                         {opt}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {c.allowNotes && (
+                  <div className="mt-3">
+                    <label className="block text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
+                      {c.notesLabel || 'Notes'}
+                      {c.notesRequired && <span className="text-red-500 ml-0.5">*</span>}
+                    </label>
+                    <textarea
+                      value={responses[c.id]?.notes ?? ''}
+                      onChange={(e) => setResponseNotes(c.id, e.target.value)}
+                      placeholder={c.notesPlaceholder || 'Add observations, concerns, strengths and areas for improvement…'}
+                      rows={3}
+                      className="w-full text-sm px-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] resize-none"
+                    />
                   </div>
                 )}
               </div>

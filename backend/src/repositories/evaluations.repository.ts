@@ -37,7 +37,7 @@ export const evaluationsRepository = {
     overallRecommendation?: string;
     notes?: string;
     status: string;
-    responses: Array<{ criterionId: string; responseValue: string }>;
+    responses: Array<{ criterionId: string; responseValue: string; responseNotes?: string }>;
   }) {
     return prisma.candidateEvaluation.create({
       data: {
@@ -64,7 +64,7 @@ export const evaluationsRepository = {
     overallRecommendation?: string;
     notes?: string;
     status?: string;
-    responses?: Array<{ criterionId: string; responseValue: string }>;
+    responses?: Array<{ criterionId: string; responseValue: string; responseNotes?: string }>;
   }) {
     if (data.responses !== undefined) {
       await prisma.evaluationResponse.deleteMany({ where: { evaluationId: id } });

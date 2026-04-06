@@ -6,6 +6,9 @@ export interface EvaluationResponseDto {
   criterionName: string;
   criterionType: string;
   responseValue: string;
+  responseNotes: string;
+  allowNotes: boolean;
+  notesLabel: string;
 }
 
 export interface EvaluationDto {
@@ -50,6 +53,9 @@ function toDto(e: EvalRow): EvaluationDto {
       criterionName: r.criterion.name,
       criterionType: r.criterion.type,
       responseValue: r.responseValue,
+      responseNotes: r.responseNotes,
+      allowNotes: r.criterion.allowNotes,
+      notesLabel: r.criterion.notesLabel,
     })),
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
@@ -71,7 +77,7 @@ export const evaluationsService = {
     overallRecommendation?: string;
     notes?: string;
     status?: string;
-    responses: Array<{ criterionId: string; responseValue: string }>;
+    responses: Array<{ criterionId: string; responseValue: string; responseNotes?: string }>;
   }): Promise<EvaluationDto> {
     const e = await evaluationsRepository.create({
       ...data,
@@ -88,7 +94,7 @@ export const evaluationsService = {
     overallRecommendation?: string;
     notes?: string;
     status?: string;
-    responses?: Array<{ criterionId: string; responseValue: string }>;
+    responses?: Array<{ criterionId: string; responseValue: string; responseNotes?: string }>;
   }): Promise<EvaluationDto | null> {
     const existing = await evaluationsRepository.findById(id);
     if (!existing) return null;

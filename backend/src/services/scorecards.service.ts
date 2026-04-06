@@ -7,6 +7,10 @@ export interface ScorecardCriterionDto {
   description: string | null;
   isRequired: boolean;
   position: number;
+  allowNotes: boolean;
+  notesLabel: string;
+  notesPlaceholder: string | null;
+  notesRequired: boolean;
 }
 
 export interface ScorecardDto {
@@ -32,6 +36,10 @@ function toDto(sc: Awaited<ReturnType<typeof scorecardsRepository.findById>>): S
       description: c.description,
       isRequired: c.isRequired,
       position: c.position,
+      allowNotes: c.allowNotes,
+      notesLabel: c.notesLabel,
+      notesPlaceholder: c.notesPlaceholder ?? null,
+      notesRequired: c.notesRequired,
     })),
     createdAt: sc.createdAt.toISOString(),
   };
@@ -52,6 +60,10 @@ export const scorecardsService = {
         description: c.description,
         isRequired: c.isRequired,
         position: c.position,
+        allowNotes: c.allowNotes,
+        notesLabel: c.notesLabel,
+        notesPlaceholder: c.notesPlaceholder ?? null,
+        notesRequired: c.notesRequired,
       })),
       createdAt: sc.createdAt.toISOString(),
     }));
@@ -67,7 +79,7 @@ export const scorecardsService = {
     name: string;
     description?: string;
     createdById: string;
-    criteria: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number }>;
+    criteria: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number; allowNotes?: boolean; notesLabel?: string; notesPlaceholder?: string; notesRequired?: boolean }>;
   }): Promise<ScorecardDto> {
     const sc = await scorecardsRepository.create(data);
     return toDto(sc);
@@ -76,7 +88,7 @@ export const scorecardsService = {
   async update(id: string, data: {
     name?: string;
     description?: string;
-    criteria?: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number }>;
+    criteria?: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number; allowNotes?: boolean; notesLabel?: string; notesPlaceholder?: string; notesRequired?: boolean }>;
   }): Promise<ScorecardDto | null> {
     const existing = await scorecardsRepository.findById(id);
     if (!existing) return null;

@@ -616,11 +616,19 @@ function FeedbackTab({ candidateId, onAddEvaluation }: { candidateId: string; on
               </div>
             </div>
             {ev.responses.length > 0 && (
-              <div className="mt-2 space-y-1">
+              <div className="mt-2 space-y-2">
                 {ev.responses.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between text-xs bg-[var(--color-surface)] rounded-lg px-3 py-1.5">
-                    <span className="text-[var(--color-text-muted)]">{r.criterionName}</span>
-                    <span className="font-medium text-[var(--color-text-primary)]">{r.responseValue}</span>
+                  <div key={r.id} className="text-xs bg-[var(--color-surface)] rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[var(--color-text-muted)]">{r.criterionName}</span>
+                      <span className="font-medium text-[var(--color-text-primary)]">{r.responseValue}</span>
+                    </div>
+                    {r.responseNotes && (
+                      <div className="mt-1.5 pl-2 border-l-2 border-[var(--color-border)]">
+                        <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5">{r.notesLabel || 'Notes'}</p>
+                        <p className="text-[var(--color-text-primary)] leading-relaxed">{r.responseNotes}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

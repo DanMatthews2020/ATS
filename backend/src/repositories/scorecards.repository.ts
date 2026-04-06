@@ -22,7 +22,7 @@ export const scorecardsRepository = {
     name: string;
     description?: string;
     createdById: string;
-    criteria: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number }>;
+    criteria: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number; allowNotes?: boolean; notesLabel?: string; notesPlaceholder?: string; notesRequired?: boolean }>;
   }) {
     return prisma.scorecard.create({
       data: {
@@ -40,7 +40,7 @@ export const scorecardsRepository = {
   async update(id: string, data: {
     name?: string;
     description?: string;
-    criteria?: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number }>;
+    criteria?: Array<{ name: string; type: string; description?: string; isRequired: boolean; position: number; allowNotes?: boolean; notesLabel?: string; notesPlaceholder?: string; notesRequired?: boolean }>;
   }) {
     // Replace all criteria when updating
     if (data.criteria !== undefined) {

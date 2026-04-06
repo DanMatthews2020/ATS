@@ -31,6 +31,10 @@ interface LocalCriterion {
   description: string;
   isRequired: boolean;
   position: number;
+  allowNotes: boolean;
+  notesLabel: string;
+  notesPlaceholder: string;
+  notesRequired: boolean;
 }
 
 const CRITERION_TYPES: { value: CriterionType; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -111,6 +115,45 @@ function DraggableCriterion({
           className="w-full text-xs text-[var(--color-text-muted)] bg-transparent focus:outline-none placeholder:text-[var(--color-text-muted)]/60"
         />
       </div>
+      {/* Notes config */}
+      <div className="px-3 pb-3 pl-9 border-t border-[var(--color-border)] mt-1 pt-2">
+        <label className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={crit.allowNotes}
+            onChange={(e) => onUpdate(crit.id, { allowNotes: e.target.checked })}
+            className="w-3.5 h-3.5 accent-[var(--color-primary)]"
+          />
+          Include notes field
+        </label>
+        {crit.allowNotes && (
+          <div className="mt-2 space-y-1.5 pl-5">
+            <input
+              type="text"
+              value={crit.notesLabel}
+              onChange={(e) => onUpdate(crit.id, { notesLabel: e.target.value })}
+              placeholder="Notes label (e.g. Notes)"
+              className="w-full text-xs text-[var(--color-text-muted)] bg-transparent focus:outline-none placeholder:text-[var(--color-text-muted)]/60 border-b border-[var(--color-border)] pb-0.5"
+            />
+            <input
+              type="text"
+              value={crit.notesPlaceholder}
+              onChange={(e) => onUpdate(crit.id, { notesPlaceholder: e.target.value })}
+              placeholder="Placeholder text…"
+              className="w-full text-xs text-[var(--color-text-muted)] bg-transparent focus:outline-none placeholder:text-[var(--color-text-muted)]/60 border-b border-[var(--color-border)] pb-0.5"
+            />
+            <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={crit.notesRequired}
+                onChange={(e) => onUpdate(crit.id, { notesRequired: e.target.checked })}
+                className="w-3.5 h-3.5 accent-[var(--color-primary)]"
+              />
+              Required
+            </label>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -159,6 +202,12 @@ function CriterionPreview({ crit }: { crit: LocalCriterion }) {
           ))}
         </div>
       )}
+      {crit.allowNotes && (
+        <div className="mt-2">
+          <p className="text-[10px] text-[var(--color-text-muted)] mb-1">{crit.notesLabel || 'Notes'}</p>
+          <div className="h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]" />
+        </div>
+      )}
     </div>
   );
 }
@@ -178,7 +227,15 @@ function BuilderModal({
   const [name, setName]               = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [criteria, setCriteria]       = useState<LocalCriterion[]>(() =>
-    initial?.criteria.map((c) => ({ ...c, type: c.type as CriterionType, description: c.description ?? '' })) ?? []
+    initial?.criteria.map((c) => ({
+      ...c,
+      type: c.type as CriterionType,
+      description: c.description ?? '',
+      allowNotes: c.allowNotes ?? false,
+      notesLabel: c.notesLabel ?? 'Notes',
+      notesPlaceholder: c.notesPlaceholder ?? '',
+      notesRequired: c.notesRequired ?? false,
+    })) ?? []
   );
   const [saving, setSaving]           = useState(false);
   const [activeId, setActiveId]       = useState<string | null>(null);
@@ -187,7 +244,16 @@ function BuilderModal({
 
   function addCriterion() {
     setCriteria((prev) => [...prev, {
-      id: nextTempId(), name: '', type: 'rating', description: '', isRequired: true, position: prev.length,
+      id: nextTempId(),
+      name: '',
+      type: 'rating',
+      description: '',
+      isRequired: true,
+      position: prev.length,
+      allowNotes: true,
+      notesLabel: 'Notes',
+      notesPlaceholder: 'Add observations, concerns, strengths and areas for improvement…',
+      notesRequired: false,
     }]);
   }
 
@@ -227,6 +293,10 @@ function BuilderModal({
           description: c.description || undefined,
           isRequired: c.isRequired,
           position: i,
+          allowNotes: c.allowNotes,
+          notesLabel: c.notesLabel || 'Notes',
+          notesPlaceholder: c.notesPlaceholder || undefined,
+          notesRequired: c.notesRequired,
         })),
       };
       const result = initial
@@ -405,8 +475,15 @@ export default function ScorecardsPage() {
         name: `${sc.name} (copy)`,
         description: sc.description ?? undefined,
         criteria: sc.criteria.map((c) => ({
-          name: c.name, type: c.type, description: c.description ?? undefined,
-          isRequired: c.isRequired, position: c.position,
+          name: c.name,
+          type: c.type,
+          description: c.description ?? undefined,
+          isRequired: c.isRequired,
+          position: c.position,
+          allowNotes: c.allowNotes,
+          notesLabel: c.notesLabel,
+          notesPlaceholder: c.notesPlaceholder ?? undefined,
+          notesRequired: c.notesRequired,
         })),
       });
       setScorecards((prev) => [result, ...prev]);
