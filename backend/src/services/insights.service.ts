@@ -1,8 +1,10 @@
 /**
  * @file insights.service.ts
- * @description In-memory talent insights store.
- * Returns period-sliced analytics data derived from deterministic seed values.
+ * @description Talent insights derived from real Prisma data.
+ * Saved-reports CRUD remains in-memory (will move to DB in a later task).
  */
+
+import { prisma } from '../lib/prisma';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,9 +26,9 @@ export interface InsightsStats {
 }
 
 export interface TrendPoint {
-  month:        string;
-  timeToHire:   number;
-  timeToFill:   number;
+  month:      string;
+  timeToHire: number;
+  timeToFill: number;
 }
 
 export interface PipelinePoint {
@@ -38,10 +40,10 @@ export interface PipelinePoint {
 }
 
 export interface SourceItem {
-  name:    string;
-  value:   number; // percentage
-  hires:   number;
-  color:   string;
+  name:  string;
+  value: number;
+  hires: number;
+  color: string;
 }
 
 export interface InsightsData {
@@ -61,190 +63,274 @@ export interface SavedReport {
   data:        Record<string, unknown>;
 }
 
-// ─── Full 12-month seed ───────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const TREND_12M: TrendPoint[] = [
-  { month: 'Apr', timeToHire: 34, timeToFill: 48 },
-  { month: 'May', timeToHire: 31, timeToFill: 45 },
-  { month: 'Jun', timeToHire: 29, timeToFill: 44 },
-  { month: 'Jul', timeToHire: 33, timeToFill: 47 },
-  { month: 'Aug', timeToHire: 28, timeToFill: 41 },
-  { month: 'Sep', timeToHire: 26, timeToFill: 39 },
-  { month: 'Oct', timeToHire: 30, timeToFill: 43 },
-  { month: 'Nov', timeToHire: 27, timeToFill: 38 },
-  { month: 'Dec', timeToHire: 25, timeToFill: 36 },
-  { month: 'Jan', timeToHire: 28, timeToFill: 40 },
-  { month: 'Feb', timeToHire: 26, timeToFill: 37 },
-  { month: 'Mar', timeToHire: 27, timeToFill: 38 },
-];
+const SOURCE_COLORS: Record<string, string> = {
+  REFERRAL:   '#22C55E',
+  JOB_BOARD:  '#6B7280',
+  DIRECT:     '#3B82F6',
+  AGENCY:     '#F97316',
+  AI_SOURCED: '#F97316',
+};
 
-const PIPELINE_12M: PipelinePoint[] = [
-  { month: 'Apr', Sourced: 110, Screened: 68,  Interview: 30, Offer:  9 },
-  { month: 'May', Sourced: 122, Screened: 74,  Interview: 34, Offer: 11 },
-  { month: 'Jun', Sourced: 131, Screened: 80,  Interview: 38, Offer: 11 },
-  { month: 'Jul', Sourced: 118, Screened: 72,  Interview: 33, Offer: 10 },
-  { month: 'Aug', Sourced: 105, Screened: 64,  Interview: 29, Offer:  8 },
-  { month: 'Sep', Sourced: 138, Screened: 85,  Interview: 41, Offer: 12 },
-  { month: 'Oct', Sourced: 142, Screened: 89,  Interview: 42, Offer: 12 },
-  { month: 'Nov', Sourced: 128, Screened: 76,  Interview: 38, Offer: 10 },
-  { month: 'Dec', Sourced:  95, Screened: 58,  Interview: 27, Offer:  8 },
-  { month: 'Jan', Sourced: 167, Screened: 104, Interview: 51, Offer: 15 },
-  { month: 'Feb', Sourced: 154, Screened:  93, Interview: 46, Offer: 13 },
-  { month: 'Mar', Sourced: 178, Screened: 110, Interview: 54, Offer: 17 },
-];
+const SOURCE_LABELS: Record<string, string> = {
+  REFERRAL:   'Referral',
+  JOB_BOARD:  'Job Board',
+  DIRECT:     'Direct',
+  AGENCY:     'Agency',
+  AI_SOURCED: 'AI Agent',
+};
 
-// ─── Per-period helpers ───────────────────────────────────────────────────────
-
-function slice<T>(arr: T[], period: Period): T[] {
-  const n = period === '30d' ? 2 : period === '90d' ? 3 : period === '6m' ? 6 : 12;
-  return arr.slice(-n);
+function periodToDate(period: Period): Date {
+  const d = new Date();
+  switch (period) {
+    case '30d':  d.setDate(d.getDate() - 30); break;
+    case '90d':  d.setDate(d.getDate() - 90); break;
+    case '6m':   d.setMonth(d.getMonth() - 6); break;
+    case '12m':  d.setMonth(d.getMonth() - 12); break;
+  }
+  return d;
 }
 
-const STATS_BY_PERIOD: Record<Period, InsightsStats> = {
-  '30d': {
-    totalCandidatesSourced: 332,
-    activePipelines: 14,
-    avgTimeToHire: 27,
-    offersAcceptedRate: 72,
-    candidatesDelta: '+6.4%',
-    pipelinesDelta:  '+2.1%',
-    timeToHireDelta: '−3.6%',
-    offersDelta:     '+3.7%',
-    candidatesPositive: true,
-    pipelinesPositive:  true,
-    timeToHirePositive: false,
-    offersPositive:     true,
-  },
-  '90d': {
-    totalCandidatesSourced: 1238,
-    activePipelines: 12,
-    avgTimeToHire: 27,
-    offersAcceptedRate: 70,
-    candidatesDelta: '+4.2%',
-    pipelinesDelta:  '+1.4%',
-    timeToHireDelta: '−2.1%',
-    offersDelta:     '+2.3%',
-    candidatesPositive: true,
-    pipelinesPositive:  true,
-    timeToHirePositive: false,
-    offersPositive:     true,
-  },
-  '6m': {
-    totalCandidatesSourced: 3864,
-    activePipelines: 11,
-    avgTimeToHire: 28,
-    offersAcceptedRate: 69,
-    candidatesDelta: '+5.1%',
-    pipelinesDelta:  '+0.8%',
-    timeToHireDelta: '−1.4%',
-    offersDelta:     '+1.9%',
-    candidatesPositive: true,
-    pipelinesPositive:  true,
-    timeToHirePositive: false,
-    offersPositive:     true,
-  },
-  '12m': {
-    totalCandidatesSourced: 8742,
-    activePipelines: 14,
-    avgTimeToHire: 29,
-    offersAcceptedRate: 68,
-    candidatesDelta: '+6.4%',
-    pipelinesDelta:  '+2.1%',
-    timeToHireDelta: '−0.8%',
-    offersDelta:     '+3.7%',
-    candidatesPositive: true,
-    pipelinesPositive:  true,
-    timeToHirePositive: false,
-    offersPositive:     true,
-  },
-};
+/** Short month name from a Date */
+function monthLabel(d: Date): string {
+  return d.toLocaleString('en-US', { month: 'short' });
+}
 
-const SOURCES_BY_PERIOD: Record<Period, SourceItem[]> = {
-  '30d': [
-    { name: 'LinkedIn',  value: 48, hires: 14, color: '#0A0A0A' },
-    { name: 'Referral',  value: 20, hires:  8, color: '#22C55E' },
-    { name: 'AI Agent',  value: 18, hires:  7, color: '#F97316' },
-    { name: 'Job Board', value: 14, hires:  4, color: '#6B7280' },
-  ],
-  '90d': [
-    { name: 'LinkedIn',  value: 44, hires: 31, color: '#0A0A0A' },
-    { name: 'AI Agent',  value: 24, hires: 18, color: '#F97316' },
-    { name: 'Referral',  value: 20, hires: 14, color: '#22C55E' },
-    { name: 'GitHub',    value: 12, hires:  9, color: '#3B82F6' },
-  ],
-  '6m': [
-    { name: 'LinkedIn',  value: 45, hires: 29, color: '#0A0A0A' },
-    { name: 'AI Agent',  value: 23, hires: 17, color: '#F97316' },
-    { name: 'Referral',  value: 19, hires: 14, color: '#22C55E' },
-    { name: 'GitHub',    value: 13, hires:  9, color: '#3B82F6' },
-  ],
-  '12m': [
-    { name: 'LinkedIn',  value: 45, hires: 38, color: '#0A0A0A' },
-    { name: 'AI Agent',  value: 22, hires: 19, color: '#F97316' },
-    { name: 'GitHub',    value: 20, hires: 12, color: '#3B82F6' },
-    { name: 'Referral',  value: 13, hires: 24, color: '#22C55E' },
-  ],
-};
+/** Generate the list of month labels for the last N months including current */
+function monthsInPeriod(period: Period): string[] {
+  const count = period === '30d' ? 2 : period === '90d' ? 3 : period === '6m' ? 6 : 12;
+  const months: string[] = [];
+  const now = new Date();
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(monthLabel(d));
+  }
+  return months;
+}
 
-// ─── Saved reports store ──────────────────────────────────────────────────────
+// ─── Saved reports store (in-memory — moves to DB in task 2D) ────────────────
 
-const reports = new Map<string, SavedReport>([
-  ['r1', {
-    id: 'r1', name: 'Q1 Sourcing Overview',
-    description: 'Sourcing trends and channel insights',
-    type: 'Scheduled', createdDate: '2026-01-15', lastRun: '2026-03-01',
-    data: { period: '90d', stats: STATS_BY_PERIOD['90d'], sources: SOURCES_BY_PERIOD['90d'] },
-  }],
-  ['r2', {
-    id: 'r2', name: 'Engineering Pipeline Health',
-    description: 'Stage velocity and bottleneck analysis',
-    type: 'Manual', createdDate: '2026-02-02', lastRun: '2026-03-08',
-    data: { period: '6m', pipeline: PIPELINE_12M.slice(-6) },
-  }],
-  ['r3', {
-    id: 'r3', name: 'Diversity Sourcing Snapshot',
-    description: 'Demographic sourcing breakdown for leadership roles',
-    type: 'Scheduled', createdDate: '2025-12-10', lastRun: '2026-03-02',
-    data: { period: '12m', sources: SOURCES_BY_PERIOD['12m'] },
-  }],
-  ['r4', {
-    id: 'r4', name: 'Referral Performance — March',
-    description: 'Referrals converted and time-to-hire',
-    type: 'Manual', createdDate: '2026-03-05', lastRun: '2026-03-09',
-    data: { period: '30d', sources: SOURCES_BY_PERIOD['30d'] },
-  }],
-]);
-
+const reports = new Map<string, SavedReport>();
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const insightsService = {
 
-  getStats(period: Period): InsightsStats {
-    return STATS_BY_PERIOD[period] ?? STATS_BY_PERIOD['12m'];
-  },
+  async getStats(period: Period): Promise<InsightsStats> {
+    const since = periodToDate(period);
 
-  getTrends(period: Period): TrendPoint[] {
-    return slice(TREND_12M, period);
-  },
+    // Total candidates sourced in period
+    const totalCandidatesSourced = await prisma.candidate.count({
+      where: { createdAt: { gte: since } },
+    });
 
-  getPipeline(period: Period): PipelinePoint[] {
-    return slice(PIPELINE_12M, period);
-  },
+    // Active pipelines = open jobs
+    const activePipelines = await prisma.jobPosting.count({
+      where: { status: 'OPEN' },
+    });
 
-  getSources(period: Period): SourceItem[] {
-    return SOURCES_BY_PERIOD[period] ?? SOURCES_BY_PERIOD['12m'];
-  },
+    // Avg time to hire: applications that reached HIRED status within period
+    const hiredApps = await prisma.application.findMany({
+      where: { status: 'HIRED', updatedAt: { gte: since } },
+      select: { appliedAt: true, updatedAt: true },
+    });
+    let avgTimeToHire = 0;
+    if (hiredApps.length > 0) {
+      const totalDays = hiredApps.reduce((sum, a) => {
+        const days = Math.round((a.updatedAt.getTime() - a.appliedAt.getTime()) / (1000 * 60 * 60 * 24));
+        return sum + Math.max(days, 0);
+      }, 0);
+      avgTimeToHire = Math.round(totalDays / hiredApps.length);
+    }
 
-  getAll(period: Period): InsightsData {
+    // Offers accepted rate
+    const sentOffers = await prisma.offer.count({
+      where: { status: { in: ['SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'] } },
+    });
+    const acceptedOffers = await prisma.offer.count({
+      where: { status: 'ACCEPTED' },
+    });
+    const offersAcceptedRate = sentOffers > 0 ? Math.round((acceptedOffers / sentOffers) * 100) : 0;
+
+    // Delta calculations: compare current period to the preceding period of same length
+    const prevStart = new Date(since);
+    const periodMs = Date.now() - since.getTime();
+    prevStart.setTime(prevStart.getTime() - periodMs);
+
+    const prevCandidates = await prisma.candidate.count({
+      where: { createdAt: { gte: prevStart, lt: since } },
+    });
+    const candDelta = prevCandidates > 0
+      ? ((totalCandidatesSourced - prevCandidates) / prevCandidates * 100)
+      : (totalCandidatesSourced > 0 ? 100 : 0);
+
+    const prevHired = await prisma.application.findMany({
+      where: { status: 'HIRED', updatedAt: { gte: prevStart, lt: since } },
+      select: { appliedAt: true, updatedAt: true },
+    });
+    let prevAvgTTH = 0;
+    if (prevHired.length > 0) {
+      const total = prevHired.reduce((sum, a) => {
+        return sum + Math.max(Math.round((a.updatedAt.getTime() - a.appliedAt.getTime()) / (1000 * 60 * 60 * 24)), 0);
+      }, 0);
+      prevAvgTTH = Math.round(total / prevHired.length);
+    }
+    const tthDelta = prevAvgTTH > 0
+      ? ((avgTimeToHire - prevAvgTTH) / prevAvgTTH * 100)
+      : 0;
+
+    const prevSent = await prisma.offer.count({
+      where: { status: { in: ['SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'] }, createdAt: { gte: prevStart, lt: since } },
+    });
+    const prevAccepted = await prisma.offer.count({
+      where: { status: 'ACCEPTED', createdAt: { gte: prevStart, lt: since } },
+    });
+    const prevRate = prevSent > 0 ? Math.round((prevAccepted / prevSent) * 100) : 0;
+    const offerDelta = prevRate > 0 ? offersAcceptedRate - prevRate : 0;
+
+    function fmt(n: number): string {
+      const sign = n >= 0 ? '+' : '−';
+      return `${sign}${Math.abs(n).toFixed(1)}%`;
+    }
+
     return {
-      stats:    insightsService.getStats(period),
-      trends:   insightsService.getTrends(period),
-      pipeline: insightsService.getPipeline(period),
-      sources:  insightsService.getSources(period),
+      totalCandidatesSourced,
+      activePipelines,
+      avgTimeToHire,
+      offersAcceptedRate,
+      candidatesDelta:    fmt(candDelta),
+      pipelinesDelta:     '+0.0%', // pipelines is a point-in-time count, delta not meaningful
+      timeToHireDelta:    fmt(tthDelta),
+      offersDelta:        fmt(offerDelta),
+      candidatesPositive: candDelta >= 0,
+      pipelinesPositive:  true,
+      timeToHirePositive: tthDelta < 0, // lower is better
+      offersPositive:     offerDelta >= 0,
     };
   },
+
+  async getTrends(period: Period): Promise<TrendPoint[]> {
+    const months = monthsInPeriod(period);
+    const since = periodToDate(period);
+
+    // Get all hired applications in the period for time-to-hire/fill
+    const apps = await prisma.application.findMany({
+      where: { updatedAt: { gte: since } },
+      select: { status: true, appliedAt: true, updatedAt: true },
+    });
+
+    // Group hired apps by month of updatedAt
+    const hiredByMonth = new Map<string, { tthDays: number[]; ttfDays: number[] }>();
+    for (const m of months) hiredByMonth.set(m, { tthDays: [], ttfDays: [] });
+
+    for (const a of apps) {
+      if (a.status !== 'HIRED') continue;
+      const m = monthLabel(a.updatedAt);
+      const bucket = hiredByMonth.get(m);
+      if (!bucket) continue;
+      const days = Math.max(Math.round((a.updatedAt.getTime() - a.appliedAt.getTime()) / (1000 * 60 * 60 * 24)), 0);
+      bucket.tthDays.push(days);
+      // timeToFill approximated as timeToHire + 7 (offer/onboarding buffer)
+      bucket.ttfDays.push(days + 7);
+    }
+
+    return months.map((m) => {
+      const bucket = hiredByMonth.get(m)!;
+      const avgTTH = bucket.tthDays.length > 0
+        ? Math.round(bucket.tthDays.reduce((a, b) => a + b, 0) / bucket.tthDays.length)
+        : 0;
+      const avgTTF = bucket.ttfDays.length > 0
+        ? Math.round(bucket.ttfDays.reduce((a, b) => a + b, 0) / bucket.ttfDays.length)
+        : 0;
+      return { month: m, timeToHire: avgTTH, timeToFill: avgTTF };
+    });
+  },
+
+  async getPipeline(period: Period): Promise<PipelinePoint[]> {
+    const months = monthsInPeriod(period);
+    const since = periodToDate(period);
+
+    const apps = await prisma.application.findMany({
+      where: { appliedAt: { gte: since } },
+      select: { status: true, appliedAt: true },
+    });
+
+    // Map ApplicationStatus to pipeline stage
+    const stageMap: Record<string, keyof Omit<PipelinePoint, 'month'>> = {
+      APPLIED:    'Sourced',
+      SCREENING:  'Screened',
+      INTERVIEW:  'Interview',
+      OFFER:      'Offer',
+      HIRED:      'Offer',    // hired came through offer stage
+      REJECTED:   'Screened', // rejected at screening by default
+    };
+
+    const buckets = new Map<string, PipelinePoint>();
+    for (const m of months) buckets.set(m, { month: m, Sourced: 0, Screened: 0, Interview: 0, Offer: 0 });
+
+    for (const a of apps) {
+      const m = monthLabel(a.appliedAt);
+      const bucket = buckets.get(m);
+      if (!bucket) continue;
+
+      // Count the application in its current stage AND all preceding stages
+      const stages: (keyof Omit<PipelinePoint, 'month'>)[] = ['Sourced', 'Screened', 'Interview', 'Offer'];
+      const currentStage = stageMap[a.status] ?? 'Sourced';
+      const currentIdx = stages.indexOf(currentStage);
+      for (let i = 0; i <= currentIdx; i++) {
+        bucket[stages[i]]++;
+      }
+    }
+
+    return months.map((m) => buckets.get(m)!);
+  },
+
+  async getSources(period: Period): Promise<SourceItem[]> {
+    const since = periodToDate(period);
+
+    // Source distribution: all candidates in period
+    const groups = await prisma.candidate.groupBy({
+      by: ['source'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+    });
+
+    const total = groups.reduce((s, g) => s + g._count._all, 0);
+
+    // Hires per source: candidates who have a HIRED application
+    const hiredCandidates = await prisma.application.findMany({
+      where: { status: 'HIRED', appliedAt: { gte: since } },
+      select: { candidate: { select: { source: true } } },
+    });
+    const hiresBySource = new Map<string, number>();
+    for (const h of hiredCandidates) {
+      const src = h.candidate.source;
+      hiresBySource.set(src, (hiresBySource.get(src) ?? 0) + 1);
+    }
+
+    return groups
+      .map((g) => ({
+        name:  SOURCE_LABELS[g.source] ?? g.source,
+        value: total > 0 ? Math.round((g._count._all / total) * 100) : 0,
+        hires: hiresBySource.get(g.source) ?? 0,
+        color: SOURCE_COLORS[g.source] ?? '#6B7280',
+      }))
+      .sort((a, b) => b.value - a.value);
+  },
+
+  async getAll(period: Period): Promise<InsightsData> {
+    const [stats, trends, pipeline, sources] = await Promise.all([
+      insightsService.getStats(period),
+      insightsService.getTrends(period),
+      insightsService.getPipeline(period),
+      insightsService.getSources(period),
+    ]);
+    return { stats, trends, pipeline, sources };
+  },
+
+  // ── Saved reports (in-memory, moves to DB in task 2D) ─────────────────────
 
   getReports(): SavedReport[] {
     return [...reports.values()].sort(

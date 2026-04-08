@@ -5,34 +5,39 @@ import { sendSuccess, sendError } from '../utils/response';
 
 export const settingsController = {
 
-  // ── Profile (GET + PATCH /users/me) ──────────────────────────────────────
+  // ── Profile (GET + PATCH /settings/profile) ─────────────────────────────
 
-  getProfile(req: AuthRequest, res: Response): void {
+  async getProfile(req: AuthRequest, res: Response): Promise<void> {
     if (!req.user) { sendError(res, 401, 'UNAUTHORIZED', 'Not authenticated'); return; }
-    const profile = settingsService.getProfile(req.user.userId, {
-      firstName: 'Alex',
-      lastName:  'Johnson',
-      email:     req.user.email,
-      avatarUrl: null,
-    });
-    sendSuccess(res, { profile });
+    try {
+      const profile = await settingsService.getProfile(req.user.userId);
+      sendSuccess(res, { profile });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  updateProfile(req: AuthRequest, res: Response): void {
+  async updateProfile(req: AuthRequest, res: Response): Promise<void> {
     if (!req.user) { sendError(res, 401, 'UNAUTHORIZED', 'Not authenticated'); return; }
-    const { firstName, lastName, email, timezone, language, avatarUrl } = req.body as {
-      firstName?: string; lastName?: string; email?: string;
-      timezone?: string; language?: string; avatarUrl?: string | null;
-    };
-    const updated = settingsService.updateProfile(req.user.userId, {
-      ...(firstName  !== undefined && { firstName }),
-      ...(lastName   !== undefined && { lastName }),
-      ...(email      !== undefined && { email }),
-      ...(timezone   !== undefined && { timezone }),
-      ...(language   !== undefined && { language }),
-      ...(avatarUrl  !== undefined && { avatarUrl }),
-    });
-    sendSuccess(res, { profile: { ...updated, ...settingsService.getProfile(req.user.userId, { firstName: 'Alex', lastName: 'Johnson', email: req.user.email, avatarUrl: null }) } });
+    try {
+      const { firstName, lastName, email, timezone, language, avatarUrl } = req.body as {
+        firstName?: string; lastName?: string; email?: string;
+        timezone?: string; language?: string; avatarUrl?: string | null;
+      };
+      const profile = await settingsService.updateProfile(req.user.userId, {
+        ...(firstName  !== undefined && { firstName }),
+        ...(lastName   !== undefined && { lastName }),
+        ...(email      !== undefined && { email }),
+        ...(timezone   !== undefined && { timezone }),
+        ...(language   !== undefined && { language }),
+        ...(avatarUrl  !== undefined && { avatarUrl }),
+      });
+      sendSuccess(res, { profile });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'UPDATE_ERROR', 'Internal server error');
+    }
   },
 
   // ── Integrations ─────────────────────────────────────────────────────────

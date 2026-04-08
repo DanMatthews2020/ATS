@@ -1,7 +1,9 @@
 /**
  * @file settings.service.ts
- * @description In-memory store for Settings: integrations, notifications, billing, security.
+ * @description Settings: profile via Prisma, everything else in-memory.
  */
+
+import { prisma } from '../lib/prisma';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -166,31 +168,47 @@ const loginHistory: LoginHistoryEntry[] = [
   { id: 'lh-5', at: '2026-03-20T11:04:50Z', ip: '54.240.11.1',  device: 'Edge 121 / Windows PC',   status: 'success' },
 ];
 
-// Per-user profile overrides (keyed by userId)
-const profileOverrides = new Map<string, Partial<UserProfile>>();
+// timezone/language are not on the User model — keep in memory per user
+const extraProfileFields = new Map<string, { timezone: string; language: string }>();
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
 export const settingsService = {
 
-  // ── Profile
+  // ── Profile (reads from prisma.user)
 
-  getProfile(userId: string, base: { firstName: string; lastName: string; email: string; avatarUrl: string | null }): UserProfile {
-    const override = profileOverrides.get(userId) ?? {};
+  async getProfile(userId: string): Promise<UserProfile> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const extra = extraProfileFields.get(userId);
     return {
-      firstName: override.firstName  ?? base.firstName,
-      lastName:  override.lastName   ?? base.lastName,
-      email:     override.email      ?? base.email,
-      timezone:  override.timezone   ?? 'Europe/London',
-      language:  override.language   ?? 'en',
-      avatarUrl: override.avatarUrl  ?? base.avatarUrl,
+      firstName: user?.firstName ?? '',
+      lastName:  user?.lastName  ?? '',
+      email:     user?.email     ?? '',
+      timezone:  extra?.timezone ?? 'Europe/London',
+      language:  extra?.language ?? 'en',
+      avatarUrl: user?.avatarUrl ?? null,
     };
   },
 
-  updateProfile(userId: string, data: Partial<UserProfile>): UserProfile {
-    const existing = profileOverrides.get(userId) ?? {};
-    profileOverrides.set(userId, { ...existing, ...data });
-    return profileOverrides.get(userId) as UserProfile;
+  async updateProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile> {
+    // Update DB fields that exist on the User model
+    const dbPatch: Record<string, unknown> = {};
+    if (data.firstName !== undefined) dbPatch.firstName = data.firstName;
+    if (data.lastName !== undefined)  dbPatch.lastName  = data.lastName;
+    if (data.email !== undefined)     dbPatch.email     = data.email;
+    if (data.avatarUrl !== undefined) dbPatch.avatarUrl  = data.avatarUrl;
+
+    if (Object.keys(dbPatch).length > 0) {
+      await prisma.user.update({ where: { id: userId }, data: dbPatch });
+    }
+
+    // timezone/language stored in memory
+    const existing = extraProfileFields.get(userId) ?? { timezone: 'Europe/London', language: 'en' };
+    if (data.timezone !== undefined) existing.timezone = data.timezone;
+    if (data.language !== undefined) existing.language = data.language;
+    extraProfileFields.set(userId, existing);
+
+    return this.getProfile(userId);
   },
 
   // ── Integrations

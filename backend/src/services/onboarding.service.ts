@@ -1,9 +1,11 @@
 /**
  * @file onboarding.service.ts
- * @description In-memory onboarding session store keyed by userId.
- * Persists for the lifetime of the server process — sufficient for a
- * wizard that completes in one session.
+ * @description Onboarding service — tasks backed by Prisma OnboardingTask,
+ * wizard state (step, documents, activity) kept in memory.
  */
+
+import { prisma } from '../lib/prisma';
+import { OnboardingCategory, TaskStatus } from '@prisma/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,15 +56,26 @@ const TASK_LABELS: Record<string, string> = {
   mg5: 'Schedule department overview sessions',
 };
 
-const DEFAULT_TASKS: Record<string, boolean> = {
-  it1: false, it2: true,  it3: false, it4: true,  it5: false, it6: false,
-  nh1: false, nh2: false, nh3: true,  nh4: false, nh5: false, nh6: false,
-  mg1: false, mg2: true,  mg3: true,  mg4: false, mg5: false,
-};
+/** Which short keys start pre-checked for new employees */
+const DEFAULT_CHECKED = new Set(['it2', 'it4', 'nh3', 'mg2', 'mg3']);
 
-// ─── Store ────────────────────────────────────────────────────────────────────
+function keyToCategory(key: string): OnboardingCategory {
+  if (key.startsWith('it')) return 'IT';
+  if (key.startsWith('nh')) return 'NEW_HIRE';
+  if (key.startsWith('mg')) return 'MANAGER';
+  return 'HR';
+}
 
-const sessions = new Map<string, OnboardingSession>();
+// ─── Wizard state (no DB model — kept in memory) ─────────────────────────────
+
+interface WizardState {
+  step:      number;
+  documents: { resume: OnboardingDocument | null; id: OnboardingDocument | null };
+  completed: boolean;
+  activity:  { text: string; time: string }[];
+}
+
+const wizardStates = new Map<string, WizardState>();
 
 function now(): string {
   return new Date().toLocaleString('en-US', {
@@ -71,93 +84,212 @@ function now(): string {
   });
 }
 
-function getOrCreate(userId: string): OnboardingSession {
-  if (!sessions.has(userId)) {
-    sessions.set(userId, {
+function getWizard(userId: string): WizardState {
+  if (!wizardStates.has(userId)) {
+    wizardStates.set(userId, {
       step: 1,
-      profile: {
-        fullName: '', pronouns: '', jobTitle: '', manager: '',
-        startDate: '', workLocation: 'remote', workEmail: '', phone: '',
-      },
       documents: { resume: null, id: null },
-      tasks: { ...DEFAULT_TASKS },
       completed: false,
-      activity: [
-        { text: 'Onboarding session started', time: now() },
-      ],
+      activity: [{ text: 'Onboarding session started', time: now() }],
     });
   }
-  return sessions.get(userId)!;
+  return wizardStates.get(userId)!;
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const employeeInclude = {
+  user:      { select: { firstName: true, lastName: true, email: true } },
+  candidate: { select: { firstName: true, lastName: true, email: true, phone: true } },
+  manager:   {
+    include: {
+      user:      { select: { firstName: true, lastName: true } },
+      candidate: { select: { firstName: true, lastName: true } },
+    },
+  },
+} as const;
+
+async function findEmployee(userId: string) {
+  return prisma.employee.findFirst({
+    where: { userId },
+    include: employeeInclude,
+  });
+}
+
+/** Ensure OnboardingTask rows exist for the employee. Seed them if missing. */
+async function ensureTasks(employeeId: string): Promise<void> {
+  const count = await prisma.onboardingTask.count({ where: { employeeId } });
+  if (count > 0) return;
+
+  const data = Object.entries(TASK_LABELS).map(([key, title]) => ({
+    employeeId,
+    title,
+    category: keyToCategory(key),
+    status: DEFAULT_CHECKED.has(key) ? TaskStatus.DONE : TaskStatus.TODO,
+    completedAt: DEFAULT_CHECKED.has(key) ? new Date() : null,
+    notes: key, // store the short key for mapping back
+  }));
+
+  await prisma.onboardingTask.createMany({ data });
+}
+
+/** Read all OnboardingTask rows for an employee, return as Record<shortKey, boolean> */
+async function readTasks(employeeId: string): Promise<Record<string, boolean>> {
+  const rows = await prisma.onboardingTask.findMany({ where: { employeeId } });
+  const tasks: Record<string, boolean> = {};
+  for (const row of rows) {
+    const key = row.notes ?? row.id; // notes holds the short key
+    tasks[key] = row.status === 'DONE';
+  }
+  return tasks;
+}
+
+/** Build profile from Employee + relations */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildProfile(emp: any): OnboardingProfile {
+  const firstName = emp.user?.firstName ?? emp.candidate?.firstName ?? '';
+  const lastName  = emp.user?.lastName  ?? emp.candidate?.lastName  ?? '';
+  const email     = emp.user?.email     ?? emp.candidate?.email     ?? '';
+  const phone     = emp.candidate?.phone ?? '';
+
+  let managerName = '';
+  if (emp.manager) {
+    const mf = emp.manager.user?.firstName ?? emp.manager.candidate?.firstName ?? '';
+    const ml = emp.manager.user?.lastName  ?? emp.manager.candidate?.lastName  ?? '';
+    if (mf) managerName = `${mf} ${ml}`;
+  }
+
+  return {
+    fullName:     `${firstName} ${lastName}`.trim(),
+    pronouns:     '',
+    jobTitle:     emp.jobTitle ?? '',
+    manager:      managerName,
+    startDate:    emp.startDate ? emp.startDate.toISOString().slice(0, 10) : '',
+    workLocation: emp.workLocation ?? 'remote',
+    workEmail:    email,
+    phone:        phone,
+  };
+}
+
+const EMPTY_PROFILE: OnboardingProfile = {
+  fullName: '', pronouns: '', jobTitle: '', manager: '',
+  startDate: '', workLocation: 'remote', workEmail: '', phone: '',
+};
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export const onboardingService = {
-  getSession(userId: string): OnboardingSession {
-    return getOrCreate(userId);
-  },
+  async getSession(userId: string): Promise<OnboardingSession> {
+    const emp = await findEmployee(userId);
+    const wizard = getWizard(userId);
 
-  saveProfile(userId: string, profile: OnboardingProfile): OnboardingSession {
-    const s = getOrCreate(userId);
-    s.profile = profile;
-    if (s.step < 2) s.step = 2;
-    s.activity.unshift({ text: 'Profile information saved', time: now() });
-    return s;
-  },
-
-  advanceToStep3(userId: string): OnboardingSession {
-    const s = getOrCreate(userId);
-    if (s.step < 3) s.step = 3;
-    s.activity.unshift({ text: 'Tasks step completed', time: now() });
-    return s;
-  },
-
-  skipStep(userId: string): OnboardingSession {
-    const s = getOrCreate(userId);
-    const prev = s.step;
-    if (s.step < 3) s.step += 1;
-    s.activity.unshift({ text: `Step ${prev} skipped`, time: now() });
-    return s;
-  },
-
-  updateTask(userId: string, taskId: string, checked: boolean): { id: string; checked: boolean } {
-    const s = getOrCreate(userId);
-    s.tasks[taskId] = checked;
-    if (checked) {
-      const label = TASK_LABELS[taskId] ?? taskId;
-      s.activity.unshift({ text: `Task completed: ${label}`, time: now() });
+    if (!emp) {
+      return {
+        ...wizard,
+        profile: EMPTY_PROFILE,
+        tasks: {},
+      };
     }
+
+    await ensureTasks(emp.id);
+    const tasks = await readTasks(emp.id);
+    const profile = buildProfile(emp);
+
+    return {
+      ...wizard,
+      profile,
+      tasks,
+    };
+  },
+
+  async saveProfile(userId: string, profile: OnboardingProfile): Promise<OnboardingSession> {
+    const wizard = getWizard(userId);
+    // We don't overwrite DB fields — the profile form is informational for the wizard.
+    // But store the profile values in the wizard state for re-display.
+    if (wizard.step < 2) wizard.step = 2;
+    wizard.activity.unshift({ text: 'Profile information saved', time: now() });
+
+    // Return a full session using the saved profile overlaid
+    const emp = await findEmployee(userId);
+    let tasks: Record<string, boolean> = {};
+    if (emp) {
+      await ensureTasks(emp.id);
+      tasks = await readTasks(emp.id);
+    }
+
+    return { ...wizard, profile, tasks };
+  },
+
+  async advanceToStep3(userId: string): Promise<OnboardingSession> {
+    const wizard = getWizard(userId);
+    if (wizard.step < 3) wizard.step = 3;
+    wizard.activity.unshift({ text: 'Tasks step completed', time: now() });
+    return this.getSession(userId);
+  },
+
+  async skipStep(userId: string): Promise<OnboardingSession> {
+    const wizard = getWizard(userId);
+    const prev = wizard.step;
+    if (wizard.step < 3) wizard.step += 1;
+    wizard.activity.unshift({ text: `Step ${prev} skipped`, time: now() });
+    return this.getSession(userId);
+  },
+
+  async updateTask(userId: string, taskId: string, checked: boolean): Promise<{ id: string; checked: boolean }> {
+    const emp = await findEmployee(userId);
+    if (emp) {
+      // Find the OnboardingTask row by short key stored in notes
+      const task = await prisma.onboardingTask.findFirst({
+        where: { employeeId: emp.id, notes: taskId },
+      });
+      if (task) {
+        await prisma.onboardingTask.update({
+          where: { id: task.id },
+          data: {
+            status: checked ? TaskStatus.DONE : TaskStatus.TODO,
+            completedAt: checked ? new Date() : null,
+          },
+        });
+      }
+    }
+
+    if (checked) {
+      const wizard = getWizard(userId);
+      const label = TASK_LABELS[taskId] ?? taskId;
+      wizard.activity.unshift({ text: `Task completed: ${label}`, time: now() });
+    }
+
     return { id: taskId, checked };
   },
 
   uploadDocument(userId: string, type: 'resume' | 'id', filename: string): OnboardingDocument {
-    const s = getOrCreate(userId);
+    const wizard = getWizard(userId);
     const doc: OnboardingDocument = { filename, uploadedAt: new Date().toISOString() };
-    if (type === 'resume') s.documents.resume = doc;
-    else s.documents.id = doc;
-    s.activity.unshift({
+    if (type === 'resume') wizard.documents.resume = doc;
+    else wizard.documents.id = doc;
+    wizard.activity.unshift({
       text: `${type === 'resume' ? 'Resume' : 'ID document'} uploaded: ${filename}`,
       time: now(),
     });
     return doc;
   },
 
-  complete(userId: string): OnboardingSession {
-    const s = getOrCreate(userId);
-    s.completed = true;
-    s.step = 3;
-    s.activity.unshift({ text: '🎉 Onboarding completed successfully', time: now() });
-    return s;
+  async complete(userId: string): Promise<OnboardingSession> {
+    const wizard = getWizard(userId);
+    wizard.completed = true;
+    wizard.step = 3;
+    wizard.activity.unshift({ text: '🎉 Onboarding completed successfully', time: now() });
+    return this.getSession(userId);
   },
 
   requestAssistance(userId: string, message: string): { sent: boolean } {
-    const s = getOrCreate(userId);
-    s.activity.unshift({ text: 'HR assistance requested', time: now() });
+    const wizard = getWizard(userId);
+    wizard.activity.unshift({ text: 'HR assistance requested', time: now() });
     console.info(`[Onboarding] Assistance from ${userId}: ${message}`);
     return { sent: true };
   },
 
-  getActivity(userId: string): { text: string; time: string }[] {
-    return getOrCreate(userId).activity;
+  async getActivity(userId: string): Promise<{ text: string; time: string }[]> {
+    return getWizard(userId).activity;
   },
 };

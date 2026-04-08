@@ -4,25 +4,50 @@ import { notificationsService, type NotificationType } from '../services/notific
 import { sendSuccess, sendError } from '../utils/response';
 
 export const notificationsController = {
-  getAll(req: AuthRequest, res: Response): void {
-    const { type } = req.query as { type?: NotificationType };
-    const notifications = notificationsService.getAll(type);
-    const unreadCount   = notificationsService.getUnreadCount();
-    sendSuccess(res, { notifications, unreadCount });
+  async getAll(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const { type } = req.query as { type?: NotificationType };
+      const notifications = await notificationsService.getAll(userId, type);
+      const unreadCount   = await notificationsService.getUnreadCount(userId);
+      sendSuccess(res, { notifications, unreadCount });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  getUnreadCount(_req: AuthRequest, res: Response): void {
-    sendSuccess(res, { count: notificationsService.getUnreadCount() });
+  async getUnreadCount(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      sendSuccess(res, { count: await notificationsService.getUnreadCount(userId) });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  markRead(req: AuthRequest, res: Response): void {
-    const ok = notificationsService.markRead(req.params.id);
-    if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Notification not found'); return; }
-    sendSuccess(res, { read: true, unreadCount: notificationsService.getUnreadCount() });
+  async markRead(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const ok = await notificationsService.markRead(userId, req.params.id);
+      if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Notification not found'); return; }
+      const unreadCount = await notificationsService.getUnreadCount(userId);
+      sendSuccess(res, { read: true, unreadCount });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'UPDATE_ERROR', 'Internal server error');
+    }
   },
 
-  markAllRead(_req: AuthRequest, res: Response): void {
-    const count = notificationsService.markAllRead();
-    sendSuccess(res, { marked: count, unreadCount: 0 });
+  async markAllRead(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const count = await notificationsService.markAllRead(userId);
+      sendSuccess(res, { marked: count, unreadCount: 0 });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'UPDATE_ERROR', 'Internal server error');
+    }
   },
 };

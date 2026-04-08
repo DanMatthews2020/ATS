@@ -1,8 +1,10 @@
 /**
  * @file reports.service.ts
- * @description In-memory reports store. Runs transition from 'processing' →
- * 'completed' after a configurable delay so the frontend can poll realistically.
+ * @description Reports service — run log and schedules backed by Prisma,
+ * report content still generated dynamically from existing tables.
  */
+
+import { prisma } from '../lib/prisma';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +30,7 @@ export interface ReportRun {
   status:      RunStatus;
   errorDetail: string | null;
   params:      Record<string, unknown>;
-  completesAt: number; // epoch ms when processing → completed
+  completesAt: number;
 }
 
 export interface ScheduledReport {
@@ -53,58 +55,25 @@ export interface CustomReportDef {
   createdAt:   string;
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SEED_RUNS: ReportRun[] = [
-  {
-    id: 'rr1', reportId: 'wf1', reportName: 'Headcount Summary',
-    category: 'workforce', runBy: 'John Doe',
-    date: 'Mar 20, 2026 — 09:14', format: 'PDF',
-    status: 'completed', errorDetail: null,
-    params: {}, completesAt: 0,
-  },
-  {
-    id: 'rr2', reportId: 'ta1', reportName: 'Hiring Funnel',
-    category: 'talent-acquisition', runBy: 'Sarah Johnson',
-    date: 'Mar 18, 2026 — 14:32', format: 'CSV',
-    status: 'completed', errorDetail: null,
-    params: {}, completesAt: 0,
-  },
-  {
-    id: 'rr3', reportId: 'ld2', reportName: 'Skills Gap Analysis',
-    category: 'learning', runBy: 'Priya Patel',
-    date: 'Mar 17, 2026 — 11:05', format: 'Excel',
-    status: 'completed', errorDetail: null,
-    params: {}, completesAt: 0,
-  },
-  {
-    id: 'rr4', reportId: 'cb1', reportName: 'Salary Bands & Benchmarking',
-    category: 'compensation', runBy: 'John Doe',
-    date: 'Mar 16, 2026 — 16:48', format: 'PDF',
-    status: 'processing', errorDetail: null,
-    params: {}, completesAt: Date.now() + 9_000,
-  },
-  {
-    id: 'rr5', reportId: 'cb3', reportName: 'Compensation Equity Analysis',
-    category: 'compensation', runBy: 'Marcus Chen',
-    date: 'Mar 14, 2026 — 10:22', format: 'CSV',
-    status: 'failed',
-    errorDetail: 'Data source timeout: compensation database returned HTTP 504 after 30s. Try again or contact support.',
-    params: {}, completesAt: 0,
-  },
-];
+function uid() { return Math.random().toString(36).slice(2, 10); }
 
-const SEED_SCHEDULED: ScheduledReport[] = [
-  { id: 'sc1', reportId: 'wf1', reportName: 'Headcount Summary',   category: 'workforce',          frequency: 'Monthly',   nextRun: '2026-04-01', paused: false, createdAt: '2026-01-10' },
-  { id: 'sc2', reportId: 'ta1', reportName: 'Hiring Funnel',        category: 'talent-acquisition', frequency: 'Weekly',    nextRun: '2026-03-28', paused: false, createdAt: '2026-02-05' },
-  { id: 'sc3', reportId: 'pf1', reportName: 'Performance Ratings',  category: 'performance',        frequency: 'Quarterly', nextRun: '2026-06-30', paused: true,  createdAt: '2026-01-15' },
-  { id: 'sc4', reportId: 'ld2', reportName: 'Skills Gap Analysis',  category: 'learning',           frequency: 'Monthly',   nextRun: '2026-04-01', paused: false, createdAt: '2026-01-20' },
-];
+function fmtDate() {
+  return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' — ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
 
-// ─── Sample CSV content by report ────────────────────────────────────────────
+function fmtRunDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' — ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
 
-function generateContent(run: ReportRun): string {
-  const header = `Report: ${run.reportName}\nGenerated: ${new Date().toISOString()}\nFormat: ${run.format}\n\n`;
+/** Processing runs that have a completion timer */
+const processingTimers = new Map<string, number>(); // id → epoch ms when done
+
+function generateContent(reportId: string, reportName: string, format: string): string {
+  const header = `Report: ${reportName}\nGenerated: ${new Date().toISOString()}\nFormat: ${format}\n\n`;
   const samples: Record<string, string> = {
     wf1: 'Department,Headcount,Change MoM\nEngineering,42,+3\nProduct,18,+1\nDesign,12,0\nAnalytics,9,+2\nHR,7,0\n',
     ta1: 'Stage,Count,Conversion\nApplied,847,100%\nScreened,312,36.8%\nInterview,128,15.1%\nOffer,34,4.0%\nHired,27,3.2%\n',
@@ -114,21 +83,48 @@ function generateContent(run: ReportRun): string {
     cb3: 'Group,Avg Salary,Market Parity,Gap\nMen,$128k,100%,—\nWomen,$121k,94.5%,−5.5%\nUnderrepresented,$119k,93.0%,−7.0%\n',
     ld2: 'Department,Required Skills,Current Skills,Gap Score\nEngineering,42,38,9.5%\nProduct,28,25,10.7%\nDesign,22,22,0%\nAnalytics,35,29,17.1%\n',
   };
-  const body = samples[run.reportId] ?? 'id,name,value\n1,Sample,100\n2,Data,200\n3,Point,150\n';
+  const body = samples[reportId] ?? 'id,name,value\n1,Sample,100\n2,Data,200\n3,Point,150\n';
   return header + body;
 }
 
-// ─── Stores ───────────────────────────────────────────────────────────────────
-
-const runs      = new Map<string, ReportRun>(SEED_RUNS.map((r) => [r.id, r]));
-const scheduled = new Map<string, ScheduledReport>(SEED_SCHEDULED.map((s) => [s.id, s]));
-const customs   = new Map<string, CustomReportDef>();
-
-function uid() { return Math.random().toString(36).slice(2, 10); }
-function fmtDate() {
-  return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
-    ' — ' + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function runToDto(row: any): ReportRun {
+  const completesAt = processingTimers.get(row.id) ?? 0;
+  return {
+    id:          row.id,
+    reportId:    row.reportKey,
+    reportName:  row.reportName,
+    category:    row.category as CategoryId,
+    runBy:       row.runById,
+    date:        fmtRunDate(row.runAt),
+    format:      row.format as OutputFormat,
+    status:      row.status as RunStatus,
+    errorDetail: row.fileUrl, // reuse fileUrl to store error details
+    params:      {},
+    completesAt,
+  };
 }
+
+// Schedule metadata not in DB (paused, category)
+const scheduleMeta = new Map<string, { category: CategoryId; paused: boolean }>();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function schedToDto(row: any): ScheduledReport {
+  const meta = scheduleMeta.get(row.id) ?? { category: 'workforce' as CategoryId, paused: false };
+  return {
+    id:         row.id,
+    reportId:   row.reportKey,
+    reportName: row.reportName,
+    category:   meta.category,
+    frequency:  row.frequency as Frequency,
+    nextRun:    row.nextRunAt.toISOString().slice(0, 10),
+    paused:     meta.paused,
+    createdAt:  row.createdAt.toISOString().slice(0, 10),
+  };
+}
+
+// Custom reports store (no DB model)
+const customs = new Map<string, CustomReportDef>();
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -136,64 +132,78 @@ export const reportsService = {
 
   // ── Runs
 
-  getRuns(): ReportRun[] {
-    return [...runs.values()].sort((a, b) => b.completesAt - a.completesAt || 0);
+  async getRuns(): Promise<ReportRun[]> {
+    const rows = await prisma.reportRun.findMany({
+      orderBy: { runAt: 'desc' },
+    });
+    return rows.map(runToDto);
   },
 
-  getRunById(id: string): ReportRun | null {
-    return runs.get(id) ?? null;
+  async getRunById(id: string): Promise<ReportRun | null> {
+    const row = await prisma.reportRun.findUnique({ where: { id } });
+    if (!row) return null;
+    return runToDto(row);
   },
 
-  getRunStatus(id: string): { id: string; status: RunStatus; errorDetail: string | null } | null {
-    const run = runs.get(id);
-    if (!run) return null;
+  async getRunStatus(id: string): Promise<{ id: string; status: RunStatus; errorDetail: string | null } | null> {
+    const row = await prisma.reportRun.findUnique({ where: { id } });
+    if (!row) return null;
+
     // Advance processing → completed when timer fires
-    if (run.status === 'processing' && run.completesAt > 0 && Date.now() >= run.completesAt) {
-      run.status = 'completed';
+    let status = row.status as RunStatus;
+    const completesAt = processingTimers.get(id) ?? 0;
+    if (status === 'processing' && completesAt > 0 && Date.now() >= completesAt) {
+      status = 'completed';
+      await prisma.reportRun.update({ where: { id }, data: { status: 'completed' } });
+      processingTimers.delete(id);
     }
-    return { id: run.id, status: run.status, errorDetail: run.errorDetail };
+
+    return { id: row.id, status, errorDetail: row.fileUrl };
   },
 
-  startRun(data: {
+  async startRun(data: {
     reportId:   string;
     reportName: string;
     category:   CategoryId;
     runBy:      string;
     format:     OutputFormat;
     params?:    Record<string, unknown>;
-  }): ReportRun {
-    const run: ReportRun = {
-      id:          `rr${uid()}`,
-      reportId:    data.reportId,
-      reportName:  data.reportName,
-      category:    data.category,
-      runBy:       data.runBy,
-      date:        fmtDate(),
-      format:      data.format,
-      status:      'processing',
-      errorDetail: null,
-      params:      data.params ?? {},
-      completesAt: Date.now() + 6_000,
-    };
-    runs.set(run.id, run);
-    return run;
+  }): Promise<ReportRun> {
+    const row = await prisma.reportRun.create({
+      data: {
+        reportKey:  data.reportId,
+        reportName: data.reportName,
+        category:   data.category,
+        runById:    data.runBy,
+        format:     data.format,
+        status:     'processing',
+      },
+    });
+
+    const completesAt = Date.now() + 6_000;
+    processingTimers.set(row.id, completesAt);
+
+    return runToDto(row);
   },
 
-  getDownload(id: string): { filename: string; content: string; mimeType: string } | null {
-    const run = runs.get(id);
-    if (!run || run.status !== 'completed') return null;
-    const ext      = run.format === 'PDF' ? 'txt' : run.format === 'CSV' ? 'csv' : 'csv';
-    const mimeType = run.format === 'CSV' || run.format === 'Excel' ? 'text/csv' : 'text/plain';
+  async getDownload(id: string): Promise<{ filename: string; content: string; mimeType: string } | null> {
+    const row = await prisma.reportRun.findUnique({ where: { id } });
+    if (!row || row.status !== 'completed') return null;
+    const ext      = row.format === 'PDF' ? 'txt' : 'csv';
+    const mimeType = row.format === 'CSV' || row.format === 'Excel' ? 'text/csv' : 'text/plain';
     return {
-      filename: `${run.reportName.replace(/\s+/g, '-').toLowerCase()}.${ext}`,
-      content:  generateContent(run),
+      filename: `${row.reportName.replace(/\s+/g, '-').toLowerCase()}.${ext}`,
+      content:  generateContent(row.reportKey, row.reportName, row.format),
       mimeType,
     };
   },
 
-  exportAll(): { filename: string; content: string; mimeType: string } {
-    const completed = [...runs.values()].filter((r) => r.status === 'completed');
-    const parts = completed.map((r) => `${'='.repeat(60)}\n${generateContent(r)}`);
+  async exportAll(): Promise<{ filename: string; content: string; mimeType: string }> {
+    const rows = await prisma.reportRun.findMany({
+      where: { status: 'completed' },
+      orderBy: { runAt: 'desc' },
+    });
+    const parts = rows.map((r) => `${'='.repeat(60)}\n${generateContent(r.reportKey, r.reportName, r.format)}`);
     return {
       filename: `all-reports-${new Date().toISOString().slice(0, 10)}.txt`,
       content:  parts.join('\n\n'),
@@ -203,31 +213,63 @@ export const reportsService = {
 
   // ── Scheduled
 
-  getScheduled(): ScheduledReport[] {
-    return [...scheduled.values()];
+  async getScheduled(): Promise<ScheduledReport[]> {
+    const rows = await prisma.reportSchedule.findMany({
+      orderBy: { nextRunAt: 'asc' },
+    });
+    return rows.map(schedToDto);
   },
 
-  updateSchedule(
+  async updateSchedule(
     id: string,
     data: Partial<Pick<ScheduledReport, 'paused' | 'frequency' | 'nextRun'>>,
-  ): ScheduledReport | null {
-    const s = scheduled.get(id);
-    if (!s) return null;
-    Object.assign(s, data);
-    return s;
+  ): Promise<ScheduledReport | null> {
+    const existing = await prisma.reportSchedule.findUnique({ where: { id } });
+    if (!existing) return null;
+
+    const patch: Record<string, unknown> = {};
+    if (data.frequency !== undefined) patch.frequency = data.frequency;
+    if (data.nextRun !== undefined)   patch.nextRunAt = new Date(data.nextRun);
+
+    if (Object.keys(patch).length > 0) {
+      await prisma.reportSchedule.update({ where: { id }, data: patch });
+    }
+
+    // Update in-memory meta
+    if (data.paused !== undefined) {
+      const meta = scheduleMeta.get(id) ?? { category: 'workforce' as CategoryId, paused: false };
+      meta.paused = data.paused;
+      scheduleMeta.set(id, meta);
+    }
+
+    const row = await prisma.reportSchedule.findUnique({ where: { id } });
+    return row ? schedToDto(row) : null;
   },
 
-  deleteSchedule(id: string): boolean {
-    return scheduled.delete(id);
+  async deleteSchedule(id: string): Promise<boolean> {
+    const existing = await prisma.reportSchedule.findUnique({ where: { id } });
+    if (!existing) return false;
+    await prisma.reportSchedule.delete({ where: { id } });
+    scheduleMeta.delete(id);
+    return true;
   },
 
-  createSchedule(data: Omit<ScheduledReport, 'id' | 'createdAt'>): ScheduledReport {
-    const s: ScheduledReport = { id: `sc${uid()}`, createdAt: new Date().toISOString().slice(0, 10), ...data };
-    scheduled.set(s.id, s);
-    return s;
+  async createSchedule(data: Omit<ScheduledReport, 'id' | 'createdAt'>): Promise<ScheduledReport> {
+    const row = await prisma.reportSchedule.create({
+      data: {
+        reportKey:  data.reportId,
+        reportName: data.reportName,
+        frequency:  data.frequency,
+        nextRunAt:  new Date(data.nextRun),
+      },
+    });
+
+    scheduleMeta.set(row.id, { category: data.category, paused: data.paused });
+
+    return schedToDto(row);
   },
 
-  // ── Custom reports
+  // ── Custom reports (no DB model — in-memory)
 
   createCustomReport(data: Omit<CustomReportDef, 'id' | 'createdAt'>): CustomReportDef {
     const r: CustomReportDef = { id: `cr${uid()}`, createdAt: new Date().toISOString(), ...data };

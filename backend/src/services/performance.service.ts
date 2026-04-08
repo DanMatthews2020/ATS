@@ -1,10 +1,13 @@
 /**
  * @file performance.service.ts
- * @description In-memory performance management store.
- * Seeded with realistic data; new records accumulate for the server lifetime.
+ * @description Performance management backed by Prisma models:
+ * PerformanceCycle, PerformanceReview, Goal.
+ * Employee data pulled from existing Employee model.
  */
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { prisma } from '../lib/prisma';
+
+// ─── Types (unchanged — frontend depends on these) ───────────────────────────
 
 export type ReviewCycleType = 'Annual' | 'Mid-Year' | 'Calibration' | 'Check-in';
 export type CycleStatus     = 'active' | 'completed' | 'upcoming';
@@ -85,231 +88,73 @@ export interface CompetencyItem {
   value:   number;
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SEED_EMPLOYEES: TeamEmployee[] = [
-  {
-    id: 'e1', name: 'Sarah Johnson', role: 'Senior Engineer', department: 'Engineering',
-    email: 'sarah.johnson@teamtalent.com',
-    reviewStatus: 'completed', lastScore: 4.2, goalsCompletion: 85,
-    lastReviewDate: 'Mar 10, 2026',
-    competencies: [
-      { subject: 'Execution', score: 90 }, { subject: 'Collaboration', score: 82 },
-      { subject: 'Communication', score: 75 }, { subject: 'Leadership', score: 68 },
-      { subject: 'Innovation', score: 80 }, { subject: 'Technical', score: 95 },
-    ],
-    goals: [
-      { id: 'g1', title: 'Reduce time-to-hire by 20%', progress: 72, status: 'on-track' },
-      { id: 'g4', title: 'Grow engineering headcount to 25', progress: 60, status: 'on-track' },
-    ],
-    reviewHistory: [
-      { cycleId: 'rc2', cycleName: '2025 Annual Performance Review', score: 4.2, completedAt: 'Jan 20, 2026' },
-      { cycleId: 'rc3', cycleName: 'Engineering — Q4 Calibration', score: 4.0, completedAt: 'Jan 8, 2026' },
-    ],
-  },
-  {
-    id: 'e2', name: 'Marcus Chen', role: 'Backend Developer', department: 'Engineering',
-    email: 'marcus.chen@teamtalent.com',
-    reviewStatus: 'in-progress', lastScore: 3.8, goalsCompletion: 60,
-    lastReviewDate: 'Mar 12, 2026',
-    competencies: [
-      { subject: 'Execution', score: 78 }, { subject: 'Collaboration', score: 70 },
-      { subject: 'Communication', score: 62 }, { subject: 'Leadership', score: 50 },
-      { subject: 'Innovation', score: 75 }, { subject: 'Technical', score: 92 },
-    ],
-    goals: [
-      { id: 'g3', title: 'Complete SOC 2 Type II certification', progress: 45, status: 'at-risk' },
-    ],
-    reviewHistory: [
-      { cycleId: 'rc2', cycleName: '2025 Annual Performance Review', score: 3.8, completedAt: 'Jan 22, 2026' },
-      { cycleId: 'rc3', cycleName: 'Engineering — Q4 Calibration', score: 3.6, completedAt: 'Jan 9, 2026' },
-    ],
-  },
-  {
-    id: 'e3', name: 'Aisha Thompson', role: 'UX Designer', department: 'Design',
-    email: 'aisha.thompson@teamtalent.com',
-    reviewStatus: 'completed', lastScore: 4.7, goalsCompletion: 92,
-    lastReviewDate: 'Mar 8, 2026',
-    competencies: [
-      { subject: 'Execution', score: 94 }, { subject: 'Collaboration', score: 88 },
-      { subject: 'Communication', score: 85 }, { subject: 'Leadership', score: 72 },
-      { subject: 'Innovation', score: 95 }, { subject: 'Technical', score: 80 },
-    ],
-    goals: [
-      { id: 'g2', title: 'Launch new onboarding program', progress: 88, status: 'on-track' },
-    ],
-    reviewHistory: [
-      { cycleId: 'rc2', cycleName: '2025 Annual Performance Review', score: 4.7, completedAt: 'Jan 18, 2026' },
-    ],
-  },
-  {
-    id: 'e4', name: 'Priya Patel', role: 'Product Manager', department: 'Product',
-    email: 'priya.patel@teamtalent.com',
-    reviewStatus: 'not-started', lastScore: 4.1, goalsCompletion: 75,
-    lastReviewDate: 'Sep 15, 2025',
-    competencies: [
-      { subject: 'Execution', score: 82 }, { subject: 'Collaboration', score: 79 },
-      { subject: 'Communication', score: 88 }, { subject: 'Leadership', score: 74 },
-      { subject: 'Innovation', score: 70 }, { subject: 'Technical', score: 60 },
-    ],
-    goals: [
-      { id: 'g2', title: 'Launch new onboarding program', progress: 88, status: 'on-track' },
-    ],
-    reviewHistory: [
-      { cycleId: 'rc2', cycleName: '2025 Annual Performance Review', score: 4.1, completedAt: 'Jan 25, 2026' },
-    ],
-  },
-  {
-    id: 'e5', name: 'Carlos Rivera', role: 'Data Analyst', department: 'Analytics',
-    email: 'carlos.rivera@teamtalent.com',
-    reviewStatus: 'in-progress', lastScore: 3.5, goalsCompletion: 50,
-    lastReviewDate: 'Mar 11, 2026',
-    competencies: [
-      { subject: 'Execution', score: 70 }, { subject: 'Collaboration', score: 65 },
-      { subject: 'Communication', score: 60 }, { subject: 'Leadership', score: 45 },
-      { subject: 'Innovation', score: 68 }, { subject: 'Technical', score: 85 },
-    ],
-    goals: [
-      { id: 'g4', title: 'Grow engineering headcount to 25', progress: 60, status: 'on-track' },
-    ],
-    reviewHistory: [
-      { cycleId: 'rc2', cycleName: '2025 Annual Performance Review', score: 3.5, completedAt: 'Jan 28, 2026' },
-    ],
-  },
-  {
-    id: 'e6', name: 'James Wilson', role: 'Frontend Developer', department: 'Engineering',
-    email: 'james.wilson@teamtalent.com',
-    reviewStatus: 'completed', lastScore: 3.2, goalsCompletion: 68,
-    lastReviewDate: 'Mar 9, 2026',
-    competencies: [
-      { subject: 'Execution', score: 68 }, { subject: 'Collaboration', score: 72 },
-      { subject: 'Communication', score: 65 }, { subject: 'Leadership', score: 42 },
-      { subject: 'Innovation', score: 60 }, { subject: 'Technical', score: 82 },
-    ],
-    goals: [
-      { id: 'g1', title: 'Reduce time-to-hire by 20%', progress: 72, status: 'on-track' },
-    ],
-    reviewHistory: [
-      { cycleId: 'rc2', cycleName: '2025 Annual Performance Review', score: 3.2, completedAt: 'Jan 24, 2026' },
-      { cycleId: 'rc3', cycleName: 'Engineering — Q4 Calibration', score: 3.0, completedAt: 'Jan 7, 2026' },
-    ],
-  },
-];
+const SCOPE_TO_TYPE: Record<string, GoalType> = {
+  company:    'Company',
+  department: 'Department',
+  individual: 'Individual',
+};
+const TYPE_TO_SCOPE: Record<string, string> = {
+  Company:    'company',
+  Department: 'department',
+  Individual: 'individual',
+};
 
-const SEED_CYCLES: ReviewCycle[] = [
-  {
-    id: 'rc1',
-    name: 'Q1 2026 Mid-Year Review',
-    type: 'Mid-Year',
-    startDate: '2026-01-01',
-    endDate: '2026-06-30',
-    dueDate: '2026-04-15',
-    status: 'active',
-    createdAt: '2026-01-02T09:00:00Z',
-    participants: SEED_EMPLOYEES.map((e) => ({
-      id: e.id, name: e.name, role: e.role, department: e.department,
-      reviewStatus: e.reviewStatus,
-      score: e.reviewStatus === 'completed' ? e.lastScore : null,
-    })),
-  },
-  {
-    id: 'rc2',
-    name: '2025 Annual Performance Review',
-    type: 'Annual',
-    startDate: '2025-01-01',
-    endDate: '2025-12-31',
-    dueDate: '2026-01-31',
-    status: 'completed',
-    createdAt: '2025-01-03T09:00:00Z',
-    participants: SEED_EMPLOYEES.map((e) => ({
-      id: e.id, name: e.name, role: e.role, department: e.department,
-      reviewStatus: 'completed' as ReviewStatus,
-      score: e.lastScore,
-    })),
-  },
-  {
-    id: 'rc3',
-    name: 'Engineering — Q4 Calibration',
-    type: 'Calibration',
-    startDate: '2025-10-01',
-    endDate: '2025-12-31',
-    dueDate: '2026-01-10',
-    status: 'completed',
-    createdAt: '2025-10-02T09:00:00Z',
-    participants: SEED_EMPLOYEES.filter((e) => e.department === 'Engineering').map((e) => ({
-      id: e.id, name: e.name, role: e.role, department: e.department,
-      reviewStatus: 'completed' as ReviewStatus,
-      score: e.reviewHistory.find((r) => r.cycleId === 'rc3')?.score ?? e.lastScore,
-    })),
-  },
-  {
-    id: 'rc4',
-    name: 'Q2 2026 Goal Check-in',
-    type: 'Check-in',
-    startDate: '2026-04-01',
-    endDate: '2026-06-30',
-    dueDate: '2026-07-01',
-    status: 'upcoming',
-    createdAt: '2026-03-01T09:00:00Z',
-    participants: SEED_EMPLOYEES.map((e) => ({
-      id: e.id, name: e.name, role: e.role, department: e.department,
-      reviewStatus: 'not-started' as ReviewStatus,
-      score: null,
-    })),
-  },
-];
-
-const SEED_GOALS: PerformanceGoal[] = [
-  {
-    id: 'g1', title: 'Reduce time-to-hire by 20%', owner: 'Sarah Johnson', ownerId: 'e1',
-    type: 'Company', dueDate: '2026-06-30', progress: 72, targetPct: 100,
-    status: 'on-track', description: 'Streamline the hiring pipeline to reduce average time-to-hire from 45 days to 36 days through process automation and improved candidate communication.',
-    createdAt: '2026-01-05T09:00:00Z',
-  },
-  {
-    id: 'g2', title: 'Launch new onboarding program', owner: 'Priya Patel', ownerId: 'e4',
-    type: 'Department', dueDate: '2026-04-30', progress: 88, targetPct: 100,
-    status: 'on-track', description: 'Design and launch a fully digital onboarding experience with self-service tasks, document upload, and automated reminders.',
-    createdAt: '2026-01-06T09:00:00Z',
-  },
-  {
-    id: 'g3', title: 'Complete SOC 2 Type II certification', owner: 'Marcus Chen', ownerId: 'e2',
-    type: 'Department', dueDate: '2026-03-31', progress: 45, targetPct: 100,
-    status: 'at-risk', description: 'Achieve SOC 2 Type II certification to meet enterprise customer security requirements.',
-    createdAt: '2026-01-07T09:00:00Z',
-  },
-  {
-    id: 'g4', title: 'Grow engineering headcount to 25', owner: 'Carlos Rivera', ownerId: 'e5',
-    type: 'Company', dueDate: '2026-12-31', progress: 60, targetPct: 100,
-    status: 'on-track', description: 'Scale the engineering team from 18 to 25 FTEs with a focus on backend and infrastructure roles.',
-    createdAt: '2026-01-08T09:00:00Z',
-  },
-  {
-    id: 'g5', title: 'Implement diversity hiring targets', owner: 'Aisha Thompson', ownerId: 'e3',
-    type: 'Individual', dueDate: '2026-05-15', progress: 20, targetPct: 100,
-    status: 'at-risk', description: 'Define and implement measurable diversity hiring targets across all departments.',
-    createdAt: '2026-01-09T09:00:00Z',
-  },
-];
-
-const COMPETENCY_DATA: CompetencyItem[] = [
-  { subject: 'Execution',      value: 82 },
-  { subject: 'Collaboration',  value: 74 },
-  { subject: 'Communication',  value: 68 },
-  { subject: 'Leadership',     value: 55 },
-  { subject: 'Innovation',     value: 71 },
-  { subject: 'Technical',      value: 88 },
-];
-
-// ─── Store ────────────────────────────────────────────────────────────────────
-
-const cycles    = new Map<string, ReviewCycle>(SEED_CYCLES.map((c) => [c.id, c]));
-const goals     = new Map<string, PerformanceGoal>(SEED_GOALS.map((g) => [g.id, g]));
-const employees = new Map<string, TeamEmployee>(SEED_EMPLOYEES.map((e) => [e.id, e]));
-
-function uid(): string {
-  return Math.random().toString(36).slice(2, 10);
+function mapGoalStatus(s: string): GoalStatus {
+  if (s === 'on_track' || s === 'on-track') return 'on-track';
+  if (s === 'at_risk' || s === 'at-risk') return 'at-risk';
+  if (s === 'completed') return 'completed';
+  return 'on-track';
 }
+
+function mapReviewStatus(s: string): ReviewStatus {
+  if (s === 'completed') return 'completed';
+  if (s === 'in_progress' || s === 'in-progress') return 'in-progress';
+  return 'not-started';
+}
+
+function mapCycleStatus(s: string): CycleStatus {
+  if (s === 'active') return 'active';
+  if (s === 'completed') return 'completed';
+  return 'upcoming';
+}
+
+// Get name from employee's user or candidate relations
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function empName(emp: any): string {
+  const first = emp.user?.firstName ?? emp.candidate?.firstName ?? '';
+  const last  = emp.user?.lastName  ?? emp.candidate?.lastName  ?? '';
+  return `${first} ${last}`.trim();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function empEmail(emp: any): string {
+  return emp.user?.email ?? emp.candidate?.email ?? '';
+}
+
+const employeeInclude = {
+  user:      { select: { firstName: true, lastName: true, email: true } },
+  candidate: { select: { firstName: true, lastName: true, email: true } },
+} as const;
+
+const DEFAULT_COMPETENCIES_CHART: CompetencyItem[] = [
+  { subject: 'Execution',     value: 0 },
+  { subject: 'Collaboration', value: 0 },
+  { subject: 'Communication', value: 0 },
+  { subject: 'Leadership',    value: 0 },
+  { subject: 'Innovation',    value: 0 },
+  { subject: 'Technical',     value: 0 },
+];
+
+const DEFAULT_COMPETENCIES_EMP: { subject: string; score: number }[] = [
+  { subject: 'Execution',     score: 0 },
+  { subject: 'Collaboration', score: 0 },
+  { subject: 'Communication', score: 0 },
+  { subject: 'Leadership',    score: 0 },
+  { subject: 'Innovation',    score: 0 },
+  { subject: 'Technical',     score: 0 },
+];
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -317,16 +162,23 @@ export const performanceService = {
 
   // ── Stats
 
-  getStats(): PerformanceStats {
-    const allCycles    = [...cycles.values()];
-    const allGoals     = [...goals.values()];
-    const allEmployees = [...employees.values()];
+  async getStats(): Promise<PerformanceStats> {
+    const allCycles = await prisma.performanceCycle.findMany();
+    const allGoals  = await prisma.goal.findMany();
+    const reviews   = await prisma.performanceReview.findMany({
+      where: { status: 'completed' },
+    });
 
     const completed    = allCycles.filter((c) => c.status === 'completed').length;
     const activeCycles = allCycles.filter((c) => c.status === 'active').length;
-    const onTrack      = allGoals.filter((g) => g.status === 'on-track').length;
-    const atRisk       = allGoals.filter((g) => g.status === 'at-risk').length;
-    const avgScore     = allEmployees.reduce((s, e) => s + e.lastScore, 0) / (allEmployees.length || 1);
+    const onTrack      = allGoals.filter((g) => mapGoalStatus(g.status) === 'on-track').length;
+    const atRisk       = allGoals.filter((g) => mapGoalStatus(g.status) === 'at-risk').length;
+
+    const scores = reviews.filter((r) => r.overallScore !== null).map((r) => r.overallScore!);
+    const avgScore = scores.length > 0
+      ? Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10
+      : 0;
+
     const completionRate = allCycles.length
       ? Math.round((completed / allCycles.length) * 100)
       : 0;
@@ -336,78 +188,169 @@ export const performanceService = {
       activeCycles,
       goalsOnTrack:        onTrack,
       totalGoals:          allGoals.length,
-      avgScore:            Math.round(avgScore * 10) / 10,
-      completionRateDelta: '+8% vs last cycle',
+      avgScore,
+      completionRateDelta: completionRate > 0 ? `+${completionRate}% vs last cycle` : 'No data yet',
       activeCyclesNote:    activeCycles > 0 ? `${activeCycles} ending soon` : 'None active',
       goalsAtRisk:         atRisk,
-      avgScoreDelta:       '+0.3 vs last cycle',
+      avgScoreDelta:       avgScore > 0 ? `${avgScore.toFixed(1)} avg` : 'No scores yet',
     };
   },
 
   // ── Review Cycles
 
-  getCycles(): ReviewCycle[] {
-    return [...cycles.values()].sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+  async getCycles(): Promise<ReviewCycle[]> {
+    const rows = await prisma.performanceCycle.findMany({
+      include: {
+        reviews: {
+          select: { employeeId: true, status: true, overallScore: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Fetch all employees referenced in reviews for name resolution
+    const empIds = new Set<string>();
+    for (const c of rows) for (const r of c.reviews) empIds.add(r.employeeId);
+    const emps = empIds.size > 0
+      ? await prisma.employee.findMany({
+          where: { id: { in: [...empIds] } },
+          select: { id: true, jobTitle: true, department: true, user: employeeInclude.user, candidate: employeeInclude.candidate },
+        })
+      : [];
+    const empMap = new Map(emps.map((e) => [e.id, e]));
+
+    return rows.map((c) => ({
+      id:        c.id,
+      name:      c.name,
+      type:      c.cycleType as ReviewCycleType,
+      startDate: c.periodStart.toISOString().slice(0, 10),
+      endDate:   c.periodEnd.toISOString().slice(0, 10),
+      dueDate:   c.dueDate.toISOString().slice(0, 10),
+      status:    mapCycleStatus(c.status),
+      createdAt: c.createdAt.toISOString(),
+      participants: c.reviews.map((r) => {
+        const emp = empMap.get(r.employeeId);
+        return {
+          id:           r.employeeId,
+          name:         emp ? empName(emp) : 'Unknown',
+          role:         emp?.jobTitle ?? '',
+          department:   emp?.department ?? '',
+          reviewStatus: mapReviewStatus(r.status),
+          score:        r.overallScore,
+        };
+      }),
+    }));
   },
 
-  getCycleById(id: string): ReviewCycle | null {
-    return cycles.get(id) ?? null;
+  async getCycleById(id: string): Promise<ReviewCycle | null> {
+    const cycles = await this.getCycles();
+    return cycles.find((c) => c.id === id) ?? null;
   },
 
-  createCycle(data: {
+  async createCycle(data: {
     name:           string;
     type:           ReviewCycleType;
     startDate:      string;
     endDate:        string;
     dueDate:        string;
     participantIds: string[];
-  }): ReviewCycle {
-    const participantList: CycleParticipant[] = data.participantIds
-      .flatMap((eid) => {
-        const emp = employees.get(eid);
-        if (!emp) return [];
-        const p: CycleParticipant = {
-          id: emp.id, name: emp.name, role: emp.role,
-          department: emp.department, reviewStatus: 'not-started', score: null,
-        };
-        return [p];
-      });
-
-    const now = new Date().toISOString();
-    const today = new Date(data.startDate);
+  }): Promise<ReviewCycle> {
+    const start = new Date(data.startDate);
     const due   = new Date(data.dueDate);
-    const status: CycleStatus = today > new Date() ? 'upcoming' : due < new Date() ? 'completed' : 'active';
+    const now   = new Date();
+    const status = start > now ? 'upcoming' : due < now ? 'completed' : 'active';
 
-    const cycle: ReviewCycle = {
-      id: `rc${uid()}`,
-      name: data.name,
-      type: data.type,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      dueDate: data.dueDate,
-      status,
-      participants: participantList,
-      createdAt: now,
+    const cycle = await prisma.performanceCycle.create({
+      data: {
+        name:        data.name,
+        cycleType:   data.type,
+        periodStart: start,
+        periodEnd:   new Date(data.endDate),
+        dueDate:     due,
+        status,
+        reviews: {
+          create: data.participantIds.map((empId) => ({
+            employeeId: empId,
+            reviewerId: empId, // self-review default
+            status:     'not_started',
+          })),
+        },
+      },
+      include: { reviews: true },
+    });
+
+    // Resolve names
+    const empIds = cycle.reviews.map((r) => r.employeeId);
+    const emps = empIds.length > 0
+      ? await prisma.employee.findMany({
+          where: { id: { in: empIds } },
+          select: { id: true, jobTitle: true, department: true, user: employeeInclude.user, candidate: employeeInclude.candidate },
+        })
+      : [];
+    const empMap = new Map(emps.map((e) => [e.id, e]));
+
+    return {
+      id:        cycle.id,
+      name:      cycle.name,
+      type:      cycle.cycleType as ReviewCycleType,
+      startDate: cycle.periodStart.toISOString().slice(0, 10),
+      endDate:   cycle.periodEnd.toISOString().slice(0, 10),
+      dueDate:   cycle.dueDate.toISOString().slice(0, 10),
+      status:    mapCycleStatus(cycle.status),
+      createdAt: cycle.createdAt.toISOString(),
+      participants: cycle.reviews.map((r) => {
+        const emp = empMap.get(r.employeeId);
+        return {
+          id:           r.employeeId,
+          name:         emp ? empName(emp) : 'Unknown',
+          role:         emp?.jobTitle ?? '',
+          department:   emp?.department ?? '',
+          reviewStatus: mapReviewStatus(r.status),
+          score:        r.overallScore,
+        };
+      }),
     };
-    cycles.set(cycle.id, cycle);
-    return cycle;
   },
 
   // ── Goals
 
-  getGoals(): PerformanceGoal[] {
-    return [...goals.values()].sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+  async getGoals(): Promise<PerformanceGoal[]> {
+    const rows = await prisma.goal.findMany({ orderBy: { createdAt: 'desc' } });
+
+    // Resolve owner names from Employee table
+    const ownerIds = [...new Set(rows.map((g) => g.ownerId))];
+    const emps = ownerIds.length > 0
+      ? await prisma.employee.findMany({
+          where: { id: { in: ownerIds } },
+          include: employeeInclude,
+        })
+      : [];
+    const empMap = new Map(emps.map((e) => [e.id, e]));
+
+    return rows.map((g) => {
+      const emp = empMap.get(g.ownerId);
+      return {
+        id:          g.id,
+        title:       g.title,
+        owner:       emp ? empName(emp) : 'Unknown',
+        ownerId:     g.ownerId,
+        type:        SCOPE_TO_TYPE[g.scope] ?? 'Individual',
+        dueDate:     g.dueDate ? g.dueDate.toISOString().slice(0, 10) : '',
+        progress:    g.progress,
+        targetPct:   100,
+        status:      mapGoalStatus(g.status),
+        description: g.description ?? '',
+        createdAt:   g.createdAt.toISOString(),
+      };
+    });
   },
 
-  getGoalById(id: string): PerformanceGoal | null {
-    return goals.get(id) ?? null;
+  async getGoalById(id: string): Promise<PerformanceGoal | null> {
+    const goals = await this.getGoals();
+    return goals.find((g) => g.id === id) ?? null;
   },
 
-  createGoal(data: {
+  async createGoal(data: {
     title:       string;
     owner:       string;
     ownerId:     string | null;
@@ -415,82 +358,187 @@ export const performanceService = {
     dueDate:     string;
     targetPct:   number;
     description: string;
-  }): PerformanceGoal {
-    const goal: PerformanceGoal = {
-      id: `g${uid()}`,
-      title: data.title,
-      owner: data.owner,
-      ownerId: data.ownerId,
-      type: data.type,
-      dueDate: data.dueDate,
-      progress: 0,
-      targetPct: data.targetPct,
-      status: 'on-track',
-      description: data.description,
-      createdAt: new Date().toISOString(),
+  }): Promise<PerformanceGoal> {
+    const row = await prisma.goal.create({
+      data: {
+        title:       data.title,
+        description: data.description,
+        ownerId:     data.ownerId ?? '',
+        scope:       TYPE_TO_SCOPE[data.type] ?? 'individual',
+        dueDate:     data.dueDate ? new Date(data.dueDate) : null,
+        progress:    0,
+        status:      'on_track',
+      },
+    });
+
+    return {
+      id:          row.id,
+      title:       row.title,
+      owner:       data.owner,
+      ownerId:     row.ownerId,
+      type:        data.type,
+      dueDate:     row.dueDate ? row.dueDate.toISOString().slice(0, 10) : '',
+      progress:    row.progress,
+      targetPct:   data.targetPct,
+      status:      'on-track',
+      description: row.description ?? '',
+      createdAt:   row.createdAt.toISOString(),
     };
-    goals.set(goal.id, goal);
-    return goal;
   },
 
-  updateGoal(
+  async updateGoal(
     id: string,
     data: Partial<Pick<PerformanceGoal, 'title' | 'owner' | 'ownerId' | 'type' | 'dueDate' | 'progress' | 'targetPct' | 'status' | 'description'>>,
-  ): PerformanceGoal | null {
-    const goal = goals.get(id);
-    if (!goal) return null;
-    Object.assign(goal, data);
-    return goal;
+  ): Promise<PerformanceGoal | null> {
+    const existing = await prisma.goal.findUnique({ where: { id } });
+    if (!existing) return null;
+
+    const patch: Record<string, unknown> = {};
+    if (data.title !== undefined)       patch.title       = data.title;
+    if (data.description !== undefined) patch.description = data.description;
+    if (data.ownerId !== undefined)     patch.ownerId     = data.ownerId ?? '';
+    if (data.type !== undefined)        patch.scope       = TYPE_TO_SCOPE[data.type] ?? 'individual';
+    if (data.progress !== undefined)    patch.progress    = data.progress;
+    if (data.status !== undefined)      patch.status      = data.status === 'on-track' ? 'on_track' : data.status === 'at-risk' ? 'at_risk' : data.status;
+    if (data.dueDate !== undefined)     patch.dueDate     = new Date(data.dueDate);
+
+    await prisma.goal.update({ where: { id }, data: patch });
+
+    const goals = await this.getGoals();
+    return goals.find((g) => g.id === id) ?? null;
   },
 
-  // ── Employees
+  // ── Employees (derived from real Employee table + performance data)
 
-  getEmployees(): TeamEmployee[] {
-    return [...employees.values()];
+  async getEmployees(): Promise<TeamEmployee[]> {
+    const emps = await prisma.employee.findMany({
+      include: employeeInclude,
+    });
+
+    const reviews = await prisma.performanceReview.findMany({
+      include: { cycle: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const goals = await prisma.goal.findMany();
+
+    return emps.map((emp) => {
+      const name = empName(emp);
+      const email = empEmail(emp);
+      const empReviews = reviews.filter((r) => r.employeeId === emp.id);
+      const completedReviews = empReviews.filter((r) => r.status === 'completed');
+      const latestReview = completedReviews[0];
+      const lastScore = latestReview?.overallScore ?? 0;
+
+      const empGoals = goals.filter((g) => g.ownerId === emp.id);
+      const completedGoals = empGoals.filter((g) => g.status === 'completed').length;
+      const goalsCompletion = empGoals.length > 0 ? Math.round((completedGoals / empGoals.length) * 100) : 0;
+
+      // Determine current review status from the most recent review
+      const latestAny = empReviews[0];
+      const reviewStatus: ReviewStatus = latestAny ? mapReviewStatus(latestAny.status) : 'not-started';
+
+      return {
+        id:              emp.id,
+        name,
+        role:            emp.jobTitle,
+        department:      emp.department,
+        email,
+        reviewStatus,
+        lastScore,
+        goalsCompletion,
+        lastReviewDate:  latestReview?.submittedAt
+          ? latestReview.submittedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : '—',
+        competencies:    latestReview?.scores
+          ? (latestReview.scores as { subject: string; score: number }[])
+          : DEFAULT_COMPETENCIES_EMP.map((c) => ({ ...c })),
+        goals:           empGoals.map((g) => ({
+          id:       g.id,
+          title:    g.title,
+          progress: g.progress,
+          status:   mapGoalStatus(g.status),
+        })),
+        reviewHistory:   completedReviews.map((r) => ({
+          cycleId:     r.cycleId,
+          cycleName:   r.cycle.name,
+          score:       r.overallScore ?? 0,
+          completedAt: r.submittedAt
+            ? r.submittedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '—',
+        })),
+      };
+    });
   },
 
-  getEmployeeById(id: string): TeamEmployee | null {
-    return employees.get(id) ?? null;
+  async getEmployeeById(id: string): Promise<TeamEmployee | null> {
+    const emps = await this.getEmployees();
+    return emps.find((e) => e.id === id) ?? null;
   },
 
-  addEmployee(data: {
+  async addEmployee(data: {
     name:       string;
     role:       string;
     department: string;
     email:      string;
-  }): TeamEmployee {
-    const emp: TeamEmployee = {
-      id: `e${uid()}`,
-      name: data.name,
-      role: data.role,
-      department: data.department,
-      email: data.email,
-      reviewStatus: 'not-started',
-      lastScore: 0,
+  }): Promise<TeamEmployee> {
+    // Find or create a candidate for the employee
+    let candidate = await prisma.candidate.findUnique({ where: { email: data.email } });
+    if (!candidate && data.email) {
+      const [firstName = '', ...rest] = data.name.split(' ');
+      candidate = await prisma.candidate.create({
+        data: {
+          firstName,
+          lastName: rest.join(' '),
+          email: data.email,
+          source: 'DIRECT',
+        },
+      });
+    }
+
+    const count = await prisma.employee.count();
+    const emp = await prisma.employee.create({
+      data: {
+        employeeNumber: `EMP-${String(count + 1).padStart(4, '0')}`,
+        candidateId:    candidate?.id,
+        department:     data.department,
+        jobTitle:       data.role || 'Team Member',
+        employmentType: 'FULL_TIME',
+        status:         'ACTIVE',
+        startDate:      new Date(),
+      },
+      include: employeeInclude,
+    });
+
+    return {
+      id:              emp.id,
+      name:            empName(emp),
+      role:            emp.jobTitle,
+      department:      emp.department,
+      email:           empEmail(emp),
+      reviewStatus:    'not-started',
+      lastScore:       0,
       goalsCompletion: 0,
-      lastReviewDate: '—',
-      competencies: [
-        { subject: 'Execution', score: 0 }, { subject: 'Collaboration', score: 0 },
-        { subject: 'Communication', score: 0 }, { subject: 'Leadership', score: 0 },
-        { subject: 'Innovation', score: 0 }, { subject: 'Technical', score: 0 },
-      ],
-      goals: [],
-      reviewHistory: [],
+      lastReviewDate:  '—',
+      competencies:    DEFAULT_COMPETENCIES_EMP.map((c) => ({ ...c })),
+      goals:           [],
+      reviewHistory:   [],
     };
-    employees.set(emp.id, emp);
-    return emp;
   },
 
   // ── Chart data
 
-  getScoreDistribution(): ScoreDistributionItem[] {
-    const allEmployees = [...employees.values()];
+  async getScoreDistribution(): Promise<ScoreDistributionItem[]> {
+    const reviews = await prisma.performanceReview.findMany({
+      where: { status: 'completed', overallScore: { not: null } },
+      select: { overallScore: true },
+    });
+
     const buckets: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    for (const e of allEmployees) {
-      if (e.lastScore === 0) continue;
-      const bucket = Math.min(5, Math.max(1, Math.round(e.lastScore)));
-      buckets[bucket] = (buckets[bucket] ?? 0) + 1;
+    for (const r of reviews) {
+      const bucket = Math.min(5, Math.max(1, Math.round(r.overallScore!)));
+      buckets[bucket]++;
     }
+
     return [
       { label: 'Outstanding',   score: '5', count: buckets[5] },
       { label: 'Exceeds',       score: '4', count: buckets[4] },
@@ -500,17 +548,28 @@ export const performanceService = {
     ];
   },
 
-  getCompetencyData(): CompetencyItem[] {
-    const allEmployees = [...employees.values()].filter((e) => e.lastScore > 0);
-    if (allEmployees.length === 0) return COMPETENCY_DATA;
+  async getCompetencyData(): Promise<CompetencyItem[]> {
+    const allReviews = await prisma.performanceReview.findMany({
+      where: { status: 'completed' },
+      select: { scores: true },
+    });
+    const reviews = allReviews.filter((r) => r.scores !== null);
+
+    if (reviews.length === 0) return DEFAULT_COMPETENCIES_CHART;
+
     const totals: Record<string, number> = {};
     const counts: Record<string, number> = {};
-    for (const e of allEmployees) {
-      for (const c of e.competencies) {
-        totals[c.subject] = (totals[c.subject] ?? 0) + c.score;
-        counts[c.subject] = (counts[c.subject] ?? 0) + 1;
+    for (const r of reviews) {
+      const scores = r.scores as { subject: string; score: number }[];
+      if (!Array.isArray(scores)) continue;
+      for (const s of scores) {
+        totals[s.subject] = (totals[s.subject] ?? 0) + s.score;
+        counts[s.subject] = (counts[s.subject] ?? 0) + 1;
       }
     }
+
+    if (Object.keys(totals).length === 0) return DEFAULT_COMPETENCIES_CHART;
+
     return Object.entries(totals).map(([subject, total]) => ({
       subject,
       value: Math.round(total / (counts[subject] ?? 1)),
@@ -519,9 +578,15 @@ export const performanceService = {
 
   // ── Users list (for modals)
 
-  getUserList(): { id: string; name: string; role: string; department: string }[] {
-    return [...employees.values()].map((e) => ({
-      id: e.id, name: e.name, role: e.role, department: e.department,
+  async getUserList(): Promise<{ id: string; name: string; role: string; department: string }[]> {
+    const emps = await prisma.employee.findMany({
+      include: employeeInclude,
+    });
+    return emps.map((e) => ({
+      id:         e.id,
+      name:       empName(e),
+      role:       e.jobTitle,
+      department: e.department,
     }));
   },
 };

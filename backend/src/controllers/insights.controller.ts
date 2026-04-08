@@ -10,32 +10,57 @@ function parsePeriod(raw: unknown): Period {
 
 export const insightsController = {
 
-  getAll(req: AuthRequest, res: Response): void {
-    const period = parsePeriod(req.query.period);
-    sendSuccess(res, insightsService.getAll(period));
+  async getAll(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const period = parsePeriod(req.query.period);
+      sendSuccess(res, await insightsService.getAll(period));
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  getStats(req: AuthRequest, res: Response): void {
-    const period = parsePeriod(req.query.period);
-    sendSuccess(res, insightsService.getStats(period));
+  async getStats(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const period = parsePeriod(req.query.period);
+      sendSuccess(res, await insightsService.getStats(period));
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  getTrends(req: AuthRequest, res: Response): void {
-    const period = parsePeriod(req.query.period);
-    sendSuccess(res, { trends: insightsService.getTrends(period) });
+  async getTrends(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const period = parsePeriod(req.query.period);
+      sendSuccess(res, { trends: await insightsService.getTrends(period) });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  getPipeline(req: AuthRequest, res: Response): void {
-    const period = parsePeriod(req.query.period);
-    sendSuccess(res, { pipeline: insightsService.getPipeline(period) });
+  async getPipeline(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const period = parsePeriod(req.query.period);
+      sendSuccess(res, { pipeline: await insightsService.getPipeline(period) });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  getSources(req: AuthRequest, res: Response): void {
-    const period = parsePeriod(req.query.period);
-    sendSuccess(res, { sources: insightsService.getSources(period) });
+  async getSources(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const period = parsePeriod(req.query.period);
+      sendSuccess(res, { sources: await insightsService.getSources(period) });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
-  getReports(req: AuthRequest, res: Response): void {
+  getReports(_req: AuthRequest, res: Response): void {
     sendSuccess(res, { reports: insightsService.getReports() });
   },
 

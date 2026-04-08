@@ -125,6 +125,7 @@ model User {
   sequencesCreated      Sequence[]            @relation("SequenceCreatedBy")
   feedbackFormsCreated  FeedbackForm[]        @relation("FeedbackFormCreatedBy")
   feedbackSubmissions   FeedbackSubmission[]  @relation("FeedbackSubmittedBy")
+  notifications         Notification[]
 }
 
 model RefreshToken {
@@ -628,4 +629,76 @@ model Referral {
   note            String?
   referralDate    DateTime  @default(now())
   createdAt       DateTime  @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PerformanceCycle {
+  id          String              @id @default(cuid())
+  name        String
+  cycleType   String
+  periodStart DateTime
+  periodEnd   DateTime
+  dueDate     DateTime
+  status      String              @default("upcoming")
+  createdAt   DateTime            @default(now())
+  reviews     PerformanceReview[]
+}
+
+model PerformanceReview {
+  id           String           @id @default(cuid())
+  cycleId      String
+  cycle        PerformanceCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employeeId   String
+  reviewerId   String
+  status       String           @default("not_started")
+  scores       Json?
+  overallScore Float?
+  notes        String?
+  submittedAt  DateTime?
+  createdAt    DateTime         @default(now())
+}
+
+model Goal {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  ownerId     String
+  scope       String    @default("individual")
+  progress    Int       @default(0)
+  status      String    @default("on_track")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model ReportRun {
+  id         String   @id @default(cuid())
+  reportKey  String
+  reportName String
+  category   String
+  runById    String
+  runAt      DateTime @default(now())
+  format     String   @default("csv")
+  status     String   @default("processing")
+  fileUrl    String?
+}
+
+model ReportSchedule {
+  id         String   @id @default(cuid())
+  reportKey  String
+  reportName String
+  frequency  String
+  nextRunAt  DateTime
+  recipients String[]
+  createdAt  DateTime @default(now())
 }

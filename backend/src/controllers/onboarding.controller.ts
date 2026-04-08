@@ -5,14 +5,19 @@ import { sendSuccess, sendError } from '../utils/response';
 
 export const onboardingController = {
   /** GET /api/onboarding */
-  getSession(req: AuthRequest, res: Response): void {
-    const userId = req.user!.userId;
-    const session = onboardingService.getSession(userId);
-    sendSuccess(res, { session });
+  async getSession(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const session = await onboardingService.getSession(userId);
+      sendSuccess(res, { session });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 
   /** POST /api/onboarding/step/1 — save profile */
-  saveProfile(req: AuthRequest, res: Response): void {
+  async saveProfile(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.userId;
       const profile = req.body as Parameters<typeof onboardingService.saveProfile>[1];
@@ -20,7 +25,7 @@ export const onboardingController = {
         sendError(res, 400, 'INVALID_BODY', 'fullName is required');
         return;
       }
-      const session = onboardingService.saveProfile(userId, profile);
+      const session = await onboardingService.saveProfile(userId, profile);
       sendSuccess(res, { session });
     } catch {
       sendError(res, 500, 'SAVE_ERROR', 'Failed to save profile');
@@ -28,21 +33,31 @@ export const onboardingController = {
   },
 
   /** POST /api/onboarding/step/2 — mark tasks step done */
-  advanceToStep3(req: AuthRequest, res: Response): void {
-    const userId = req.user!.userId;
-    const session = onboardingService.advanceToStep3(userId);
-    sendSuccess(res, { session });
+  async advanceToStep3(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const session = await onboardingService.advanceToStep3(userId);
+      sendSuccess(res, { session });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'UPDATE_ERROR', 'Internal server error');
+    }
   },
 
   /** PATCH /api/onboarding/skip */
-  skipStep(req: AuthRequest, res: Response): void {
-    const userId = req.user!.userId;
-    const session = onboardingService.skipStep(userId);
-    sendSuccess(res, { session });
+  async skipStep(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const session = await onboardingService.skipStep(userId);
+      sendSuccess(res, { session });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'UPDATE_ERROR', 'Internal server error');
+    }
   },
 
   /** PATCH /api/onboarding/tasks/:taskId */
-  updateTask(req: AuthRequest, res: Response): void {
+  async updateTask(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.userId;
       const { taskId } = req.params;
@@ -51,7 +66,7 @@ export const onboardingController = {
         sendError(res, 400, 'INVALID_BODY', 'checked must be a boolean');
         return;
       }
-      const result = onboardingService.updateTask(userId, taskId, checked);
+      const result = await onboardingService.updateTask(userId, taskId, checked);
       sendSuccess(res, result);
     } catch {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update task');
@@ -79,10 +94,15 @@ export const onboardingController = {
   },
 
   /** POST /api/onboarding/complete */
-  complete(req: AuthRequest, res: Response): void {
-    const userId = req.user!.userId;
-    const session = onboardingService.complete(userId);
-    sendSuccess(res, { session });
+  async complete(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const session = await onboardingService.complete(userId);
+      sendSuccess(res, { session });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'UPDATE_ERROR', 'Internal server error');
+    }
   },
 
   /** POST /api/onboarding/assistance */
@@ -102,9 +122,14 @@ export const onboardingController = {
   },
 
   /** GET /api/onboarding/activity */
-  getActivity(req: AuthRequest, res: Response): void {
-    const userId = req.user!.userId;
-    const activity = onboardingService.getActivity(userId);
-    sendSuccess(res, { activity });
+  async getActivity(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.userId;
+      const activity = await onboardingService.getActivity(userId);
+      sendSuccess(res, { activity });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, 'FETCH_ERROR', 'Internal server error');
+    }
   },
 };
