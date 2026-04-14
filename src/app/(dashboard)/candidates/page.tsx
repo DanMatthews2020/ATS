@@ -66,7 +66,8 @@ export default function CandidatesPage() {
     try {
       const result = await candidatesApi.getCandidates(1, 100, search);
       setCandidates(result.items);
-    } catch {
+    } catch (err) {
+      console.error('[CandidatesPage] fetch failed:', err);
       setError('Failed to load candidates. Please try again.');
     } finally {
       setIsLoading(false);
