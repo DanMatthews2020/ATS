@@ -178,3 +178,100 @@ test.describe('Candidate drawer', () => {
     await expect(page.getByRole('dialog')).not.toBeVisible();
   });
 });
+
+test.describe('Soft delete', () => {
+  test('soft-deleting a candidate removes them from the candidates list', async ({ page }) => {
+    // Pick the first candidate name visible in the list
+    const firstRow = page.locator('tr, [data-testid="candidate-row"]').first();
+    const candidateName = await firstRow.locator('td').first().innerText();
+
+    // Navigate to that candidate's detail page
+    await firstRow.click();
+    // Wait for candidate detail page to load (could be drawer or page)
+    await page.waitForTimeout(500);
+
+    // If we landed on a detail page (not a drawer), look for the More dropdown
+    // Open the "More" dropdown menu
+    const moreButton = page.getByRole('button', { name: /more/i }).or(page.locator('button:has(svg.lucide-more-horizontal)'));
+    await moreButton.first().click();
+
+    // Click "Delete Profile"
+    await page.getByText(/delete profile/i).click();
+
+    // Confirm in the delete modal
+    await expect(page.getByText(/removed from your active pipeline/i).or(page.getByText(/delete profile/i).nth(1))).toBeVisible();
+    await page.getByRole('button', { name: /^delete$/i }).click();
+
+    // Should redirect back to candidates list
+    await page.waitForURL(/\/candidates$/);
+
+    // The deleted candidate should no longer appear
+    await expect(page.getByText(candidateName)).not.toBeVisible();
+  });
+
+  test('soft-deleted candidate does not appear in search results', async ({ page }) => {
+    // Get a candidate name, soft-delete via API, then search
+    const apiBase = 'http://localhost:3001/api';
+
+    // Login to get auth cookies via API
+    const loginRes = await page.request.post(`${apiBase}/auth/login`, {
+      data: { email: 'hr@teamtalent.com', password: 'Admin123!' },
+    });
+    const cookies = loginRes.headers()['set-cookie'];
+
+    // Get candidates list
+    const listRes = await page.request.get(`${apiBase}/candidates?limit=5`, {
+      headers: cookies ? { cookie: cookies } : {},
+    });
+    const listData = await listRes.json();
+    const candidates = listData?.data?.items ?? listData?.data?.candidates ?? [];
+    const target = candidates[candidates.length - 1]; // pick last to minimise test interference
+
+    if (target) {
+      // Soft-delete via API
+      await page.request.delete(`${apiBase}/candidates/${target.id}?mode=soft`, {
+        headers: cookies ? { cookie: cookies } : {},
+      });
+
+      // Reload the candidates page
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+
+      // Search for the deleted candidate
+      const searchName = target.firstName ?? target.name;
+      await page.getByPlaceholder(/search candidates/i).fill(searchName);
+      await page.getByRole('button', { name: /^search$/i }).click();
+      await page.waitForTimeout(500);
+
+      // Should not find the soft-deleted candidate
+      const fullName = target.firstName && target.lastName
+        ? `${target.firstName} ${target.lastName}`
+        : target.name;
+      await expect(page.getByText(fullName)).not.toBeVisible();
+
+      // Restore the candidate to avoid test pollution
+      await page.request.post(`${apiBase}/candidates/${target.id}/restore`, {
+        headers: cookies ? { cookie: cookies } : {},
+      });
+    }
+  });
+
+  test('hard delete returns 403 for non-ADMIN users', async ({ page }) => {
+    const apiBase = 'http://localhost:3001/api';
+
+    // Login as a non-admin user
+    const loginRes = await page.request.post(`${apiBase}/auth/login`, {
+      data: { email: 'john@teamtalent.com', password: 'password' },
+    });
+    const cookies = loginRes.headers()['set-cookie'];
+
+    // Try hard delete — should get 403
+    const res = await page.request.delete(`${apiBase}/candidates/any-id?mode=hard`, {
+      headers: cookies ? { cookie: cookies } : {},
+    });
+    expect(res.status()).toBe(403);
+
+    const body = await res.json();
+    expect(body.error?.code).toBe('FORBIDDEN');
+  });
+});

@@ -356,6 +356,20 @@ export const candidatesService = {
     try { await candidatesRepository.deleteById(id); return true; } catch { return false; }
   },
 
+  // ── Soft-delete ──────────────────────────────────────────────────────────────
+
+  async softDeleteCandidate(candidateId: string, userId: string, reason: string) {
+    return candidatesRepository.softDelete(candidateId, userId, reason);
+  },
+
+  async restoreCandidate(candidateId: string) {
+    return candidatesRepository.restore(candidateId);
+  },
+
+  async getDeletedCandidates() {
+    return candidatesRepository.findDeleted();
+  },
+
   async setDoNotContact(id: string, data: {
     doNotContact: boolean;
     reason?: string;

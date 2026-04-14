@@ -190,6 +190,11 @@ model Candidate {
   doNotContactReason String?
   doNotContactNote   String?
   doNotContactAt     DateTime?
+  deletedAt          DateTime?
+  deletedBy          String?
+  deletedReason      String?         // 'RETENTION_EXPIRED' | 'ERASURE_REQUEST' | 'MANUAL'
+  isAnonymised       Boolean         @default(false)
+  anonymisedAt       DateTime?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 

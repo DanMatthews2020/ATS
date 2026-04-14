@@ -1254,8 +1254,8 @@ function DeleteProfileModal({ candidateId, candidateName, onClose, onDeleted }: 
   async function handleDelete() {
     setDeleting(true);
     try {
-      await candidatesApi.deleteCandidate(candidateId);
-      showToast(`${candidateName} deleted`, 'success');
+      await candidatesApi.deleteCandidate(candidateId, 'soft');
+      showToast(`${candidateName} removed from active pipeline`, 'success');
       onDeleted();
     } catch {
       showToast('Failed to delete profile', 'error');
@@ -1269,7 +1269,8 @@ function DeleteProfileModal({ candidateId, candidateName, onClose, onDeleted }: 
       <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
         <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-2">Delete Profile</h2>
         <p className="text-sm text-[var(--color-text-muted)] mb-5">
-          This will permanently delete <strong>{candidateName}</strong> and all their data. This cannot be undone.
+          This candidate will be removed from your active pipeline. Their data is retained
+          for compliance purposes and can be permanently deleted from the GDPR compliance settings.
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>

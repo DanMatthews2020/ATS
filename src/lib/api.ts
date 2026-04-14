@@ -479,8 +479,10 @@ export const candidatesApi = {
     api.patch<{ updated: boolean }>(`/candidates/${id}`, data),
   getEnrollments: (id: string) =>
     api.get<{ enrollments: CandidateSequenceEnrollmentDto[] }>(`/candidates/${id}/enrollments`),
-  deleteCandidate: (id: string) =>
-    api.delete<{ deleted: boolean }>(`/candidates/${id}`),
+  deleteCandidate: (id: string, mode: 'soft' | 'hard' = 'soft') =>
+    api.delete<{ deleted?: boolean; deletedAt?: string }>(`/candidates/${id}?mode=${mode}`),
+  fetchDeletedCandidates: () =>
+    api.get<{ items: { id: string; firstName: string; lastName: string; email: string | null; deletedAt: string; deletedReason: string | null }[] }>('/candidates/deleted'),
   setDoNotContact: (id: string, data: { doNotContact: boolean; reason?: string; note?: string }) =>
     api.patch<{ updated: boolean }>(`/candidates/${id}/do-not-contact`, data),
   merge: (keepId: string, mergeId: string, fieldResolutions: Record<string, 'keep' | 'merge'>) =>

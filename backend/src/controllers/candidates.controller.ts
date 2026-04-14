@@ -202,17 +202,70 @@ export const candidatesController = {
     sendSuccess(res, { emails: [] });
   },
 
-  // DELETE /candidates/:id
-  async deleteCandidate(req: Request, res: Response): Promise<void> {
+  // DELETE /candidates/:id?mode=soft|hard
+  async deleteCandidate(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const ok = await candidatesService.deleteCandidate(req.params.id);
-      if (!ok) {
-        sendError(res, 404, 'NOT_FOUND', 'Candidate not found');
-        return;
+      const mode = (req.query.mode as string) ?? 'soft';
+
+      if (mode === 'hard') {
+        // Hard delete — ADMIN only
+        if (req.user?.role !== 'ADMIN') {
+          sendError(res, 403, 'FORBIDDEN', 'Admin access required');
+          return;
+        }
+        const ok = await candidatesService.deleteCandidate(req.params.id);
+        if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Candidate not found'); return; }
+        // TODO: call createAuditLog(CANDIDATE_HARD_DELETED) — see Prompt 3
+        sendSuccess(res, { deleted: true });
+      } else {
+        // Soft delete (default)
+        const candidate = await candidatesService.softDeleteCandidate(
+          req.params.id,
+          req.user?.userId ?? 'system',
+          'MANUAL',
+        );
+        // TODO: call createAuditLog(CANDIDATE_SOFT_DELETED) — see Prompt 3
+        sendSuccess(res, { deletedAt: candidate.deletedAt?.toISOString() ?? null });
       }
-      sendSuccess(res, { deleted: true });
     } catch {
       sendError(res, 500, 'DELETE_ERROR', 'Failed to delete candidate');
+    }
+  },
+
+  // GET /candidates/deleted — ADMIN only, lists soft-deleted candidates
+  async getDeletedCandidates(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (req.user?.role !== 'ADMIN') {
+        sendError(res, 403, 'FORBIDDEN', 'Admin access required');
+        return;
+      }
+      const items = await candidatesService.getDeletedCandidates();
+      sendSuccess(res, {
+        items: items.map((c) => ({
+          id: c.id,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          email: c.email,
+          deletedAt: c.deletedAt?.toISOString() ?? null,
+          deletedReason: c.deletedReason,
+        })),
+      });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch deleted candidates');
+    }
+  },
+
+  // POST /candidates/:id/restore — ADMIN only
+  async restoreCandidate(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (req.user?.role !== 'ADMIN') {
+        sendError(res, 403, 'FORBIDDEN', 'Admin access required');
+        return;
+      }
+      await candidatesService.restoreCandidate(req.params.id);
+      sendSuccess(res, { restored: true });
+    } catch {
+      sendError(res, 500, 'RESTORE_ERROR', 'Failed to restore candidate');
     }
   },
 

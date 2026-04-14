@@ -26,7 +26,9 @@ router.post('/',          authenticate, validate(CreateCandidateSchema), candida
 router.post('/parse-cv',  authenticate, upload.single('cv'), candidatesController.parseCv);
 router.post('/merge',     authenticate, candidatesController.merge);
 router.get('/tracking',   authenticate, candidatesController.getTracking);
+router.get('/deleted',    authenticate, candidatesController.getDeletedCandidates);
 router.get('/:id',                   authenticate, candidatesController.getCandidate);
+router.post('/:id/restore',         authenticate, candidatesController.restoreCandidate);
 router.patch('/:id',                 authenticate, candidatesController.updateCandidate);
 router.delete('/:id',                authenticate, candidatesController.deleteCandidate);
 router.get('/:id/enrollments',       authenticate, candidatesController.getCandidateEnrollments);

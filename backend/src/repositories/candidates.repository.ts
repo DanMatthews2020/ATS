@@ -41,15 +41,18 @@ export const candidatesRepository = {
 
   // ── New: paginated candidate list with latest application ──────────────────
   async findMany(params: { skip: number; take: number; search?: string }) {
-    const where: Prisma.CandidateWhereInput = params.search
-      ? {
-          OR: [
-            { firstName: { contains: params.search, mode: 'insensitive' } },
-            { lastName:  { contains: params.search, mode: 'insensitive' } },
-            { email:     { contains: params.search, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+    const where: Prisma.CandidateWhereInput = {
+      deletedAt: null, // Exclude soft-deleted candidates
+      ...(params.search
+        ? {
+            OR: [
+              { firstName: { contains: params.search, mode: 'insensitive' } },
+              { lastName:  { contains: params.search, mode: 'insensitive' } },
+              { email:     { contains: params.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
 
     const [items, total] = await Promise.all([
       prisma.candidate.findMany({
@@ -159,6 +162,28 @@ export const candidatesRepository = {
 
   async deleteById(id: string) {
     return prisma.candidate.delete({ where: { id } });
+  },
+
+  async softDelete(id: string, userId: string, reason: string) {
+    return prisma.candidate.update({
+      where: { id },
+      data: { deletedAt: new Date(), deletedBy: userId, deletedReason: reason },
+    });
+  },
+
+  async restore(id: string) {
+    return prisma.candidate.update({
+      where: { id },
+      data: { deletedAt: null, deletedBy: null, deletedReason: null },
+    });
+  },
+
+  async findDeleted() {
+    return prisma.candidate.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, firstName: true, lastName: true, email: true, deletedAt: true, deletedReason: true },
+      orderBy: { deletedAt: 'desc' },
+    });
   },
 
   async updateDoNotContact(id: string, data: {

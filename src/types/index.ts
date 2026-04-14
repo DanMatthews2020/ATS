@@ -67,6 +67,20 @@ export interface Candidate {
   status: CandidateStatus;
   appliedAt: string;
   jobId: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  deletedReason?: string | null;
+  isAnonymised?: boolean;
+  anonymisedAt?: string | null;
+}
+
+export interface DeletedCandidate {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  deletedAt: string;
+  deletedReason: string | null;
 }
 
 // ─── Candidate Profile (extended, for Candidates page) ───────────────────────
