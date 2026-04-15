@@ -36,6 +36,7 @@ router.patch('/:id/do-not-contact',  authenticate, candidatesController.setDoNot
 router.get('/:id/privacy',            authenticate, candidatesController.getPrivacy);
 router.patch('/:id/privacy',          authenticate, candidatesController.updatePrivacy);
 router.post('/:id/privacy/send-notice', authenticate, candidatesController.sendPrivacyNotice);
+router.post('/:id/anonymise',            authenticate, candidatesController.anonymiseCandidate);
 router.get('/:id/feed',       authenticate, candidatesController.getFeed);
 router.get('/:id/notes',      authenticate, candidatesController.getNotes);
 router.post('/:id/notes',     authenticate, candidatesController.createNote);

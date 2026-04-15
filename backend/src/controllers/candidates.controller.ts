@@ -6,6 +6,8 @@ import { sendSuccess, sendError } from '../utils/response';
 import type { ApplicationStatus, CandidateSource } from '@prisma/client';
 import { PrivacyUpdateSchema } from '../types/schemas';
 import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
+import { anonymiseCandidate } from '../services/retentionService';
+import { prisma } from '../lib/prisma';
 
 const VALID_STATUSES = new Set<string>([
   'APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED',
@@ -135,6 +137,7 @@ export const candidatesController = {
       if (!content?.trim()) { sendError(res, 400, 'INVALID_BODY', 'content is required'); return; }
       const authorName = req.user?.email ?? 'Recruiter';
       const note = await candidatesService.createNote(req.params.id, { content: content.trim(), applicationId, authorName });
+      void prisma.candidate.update({ where: { id: req.params.id }, data: { lastActivityAt: new Date() } }).catch(() => {});
       sendSuccess(res, { note }, 201);
     } catch { sendError(res, 500, 'CREATE_ERROR', 'Failed to create note'); }
   },
@@ -363,6 +366,31 @@ export const candidatesController = {
         sendError(res, 404, 'NOT_FOUND', 'One or both candidates not found');
       } else {
         sendError(res, 500, 'MERGE_ERROR', 'Failed to merge profiles');
+      }
+    }
+  },
+
+  // POST /candidates/:id/anonymise — ADMIN only
+  async anonymiseCandidate(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      if (req.user?.role !== 'ADMIN') {
+        sendError(res, 403, 'FORBIDDEN', 'Admin access required');
+        return;
+      }
+      const result = await anonymiseCandidate(
+        req.params.id,
+        req.user.userId ?? 'unknown',
+        req.user.email ?? 'unknown',
+      );
+      sendSuccess(res, { anonymisedAt: result.anonymisedAt.toISOString() });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('not found')) {
+        sendError(res, 404, 'NOT_FOUND', 'Candidate not found');
+      } else if (msg.includes('already anonymised')) {
+        sendError(res, 409, 'ALREADY_ANONYMISED', 'Candidate is already anonymised');
+      } else {
+        sendError(res, 500, 'ANONYMISE_ERROR', 'Failed to anonymise candidate');
       }
     }
   },

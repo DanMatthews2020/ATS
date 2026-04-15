@@ -390,6 +390,10 @@ export interface CandidateDetailDto {
   doNotContactReason?: string;
   doNotContactNote?: string;
   doNotContactAt?: string;
+  retentionStatus: string;
+  retentionExpiresAt?: string;
+  lastActivityAt?: string;
+  isAnonymised: boolean;
   referrals: ReferralDto[];
   createdAt: string;
   applications: {
@@ -1691,4 +1695,28 @@ export const auditLogsApi = {
   },
   getCandidateLogs: (candidateId: string) =>
     api.get<{ items: AuditLogEntryDto[] }>(`/gdpr/audit-logs/candidate/${candidateId}`),
+};
+
+// ── Data Retention (GDPR) ──────────────────────────────────────────────────
+
+export interface RetentionCandidateDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  retentionStatus: string;
+  retentionExpiresAt: string | null;
+  lastActivityAt: string | null;
+  deletedAt: string | null;
+  isAnonymised: boolean;
+  retentionLabel: string;
+}
+
+export const retentionApi = {
+  fetchCandidates: () =>
+    api.get<{ items: RetentionCandidateDto[] }>('/gdpr/retention/candidates'),
+  runReview: () =>
+    api.post<{ expiringSoon: number; expired: number; overdueRequests: number; processed: number }>('/gdpr/retention/review'),
+  anonymise: (candidateId: string) =>
+    api.post<{ anonymisedAt: string }>(`/candidates/${candidateId}/anonymise`),
 };

@@ -76,6 +76,15 @@ function fmtDateTime(s: string) {
   });
 }
 
+function getRetentionLabelFe(c: { retentionStatus: string; retentionExpiresAt?: string }): string {
+  if (c.retentionStatus === 'ANONYMISED') return 'Anonymised';
+  if (!c.retentionExpiresAt) return 'No expiry set';
+  const diffMs = new Date(c.retentionExpiresAt).getTime() - Date.now();
+  const days = Math.round(Math.abs(diffMs) / 86_400_000);
+  if (diffMs <= 0) return `Expired ${days}d ago`;
+  return `Expires in ${days}d`;
+}
+
 // ─── Loading Skeleton ─────────────────────────────────────────────────────────
 
 function Skeleton({ className = '' }: { className?: string }) {
@@ -1729,6 +1738,12 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
                 )}
                 {latestStatusCfg && (
                   <Badge variant={latestStatusCfg.variant} className="mt-2">{latestStatusCfg.label}</Badge>
+                )}
+                {candidate.retentionStatus === 'EXPIRING_SOON' && (
+                  <Badge variant="warning" className="mt-2 ml-1">{getRetentionLabelFe(candidate)}</Badge>
+                )}
+                {candidate.retentionStatus === 'EXPIRED' && (
+                  <Badge variant="error" className="mt-2 ml-1">{getRetentionLabelFe(candidate)}</Badge>
                 )}
               </div>
 

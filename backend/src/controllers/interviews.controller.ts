@@ -3,6 +3,7 @@ import type { AuthRequest } from '../types';
 import { interviewsService, type InterviewType, type Recommendation } from '../services/interviews.service';
 import { sendSuccess, sendError } from '../utils/response';
 import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
+import { prisma } from '../lib/prisma';
 
 export const interviewsController = {
   async getAll(req: AuthRequest, res: Response): Promise<void> {
@@ -57,6 +58,13 @@ export const interviewsController = {
         location:     location    || undefined,
         notes:        notes       || undefined,
       });
+      // Update lastActivityAt on the candidate
+      if (applicationId) {
+        const app = await prisma.application.findUnique({ where: { id: applicationId }, select: { candidateId: true } });
+        if (app) void prisma.candidate.update({ where: { id: app.candidateId }, data: { lastActivityAt: new Date() } }).catch(() => {});
+      } else if (candidateId) {
+        void prisma.candidate.update({ where: { id: candidateId }, data: { lastActivityAt: new Date() } }).catch(() => {});
+      }
       sendSuccess(res, { interview: iv }, 201);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create interview';

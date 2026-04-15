@@ -6,7 +6,7 @@ import {
   Settings, User, Users, Link2, Bell, CreditCard, Shield,
   Camera, Eye, EyeOff, Check, X, Plus, Trash2, ChevronDown,
   LogOut, Monitor, Smartphone, Globe, Lock, Zap, RefreshCw, ClipboardList,
-  Mail, GitBranch, MessageSquare,
+  Mail, GitBranch, MessageSquare, Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -1230,6 +1230,7 @@ export default function SettingsPage() {
                 { href: '/settings/sequences',       icon: GitBranch,     label: 'Sequences' },
                 { href: '/settings/feedback-forms',  icon: MessageSquare, label: 'Feedback Forms' },
                 { href: '/settings/gdpr/audit-log',  icon: Shield,        label: 'Audit Log' },
+                { href: '/settings/gdpr/retention',  icon: Clock,         label: 'Data Retention' },
               ] as const).map(({ href, icon: Icon, label }) => (
                 <Link
                   key={href}

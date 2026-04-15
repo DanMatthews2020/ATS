@@ -108,6 +108,10 @@ export interface CandidateDetailDto {
   doNotContactReason?: string;
   doNotContactNote?: string;
   doNotContactAt?: string;
+  retentionStatus: string;
+  retentionExpiresAt?: string;
+  lastActivityAt?: string;
+  isAnonymised: boolean;
   referrals: {
     id: string;
     referredByName: string;
@@ -223,6 +227,10 @@ export const candidatesService = {
       doNotContactReason: c.doNotContactReason ?? undefined,
       doNotContactNote: c.doNotContactNote ?? undefined,
       doNotContactAt: c.doNotContactAt?.toISOString(),
+      retentionStatus: c.retentionStatus,
+      retentionExpiresAt: c.retentionExpiresAt?.toISOString(),
+      lastActivityAt: c.lastActivityAt?.toISOString(),
+      isAnonymised: c.isAnonymised,
       referrals: c.referrals.map((r) => ({
         id: r.id,
         referredByName: r.referredByName,
@@ -304,6 +312,10 @@ export const candidatesService = {
       skills: c.skills,
       tags: c.tags,
       doNotContact: c.doNotContact,
+      retentionStatus: c.retentionStatus,
+      retentionExpiresAt: c.retentionExpiresAt?.toISOString(),
+      lastActivityAt: c.lastActivityAt?.toISOString(),
+      isAnonymised: c.isAnonymised,
       referrals: [],
       createdAt: c.createdAt.toISOString(),
       applications: [],

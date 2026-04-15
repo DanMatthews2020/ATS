@@ -201,6 +201,10 @@ export interface CandidatePrivacy {
   retentionNote: string | null;
 }
 
+// ─── Retention ───────────────────────────────────────────────────────────────
+
+export type RetentionStatus = 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'ANONYMISED';
+
 // ─── Audit Log ───────────────────────────────────────────────────────────────
 
 export interface AuditLogEntry {
