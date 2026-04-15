@@ -1239,7 +1239,7 @@ export const candidatePanelApi = {
     api.delete<{ deleted: boolean }>(`/candidates/${id}/notes/${noteId}`),
   updateTags:  (id: string, tags: string[]) =>
     api.patch<{ tags: string[] }>(`/candidates/${id}/tags`, { tags }),
-  getFeedback: (id: string) => api.get<{ feedback: CandidateFeedbackDto[] }>(`/candidates/${id}/feedback`),
+  getFeedback: (id: string) => api.get<{ feedback: CandidateFeedbackDto[]; hiddenCount?: number }>(`/candidates/${id}/feedback`),
   getEmails:   (id: string) => api.get<{ emails: unknown[] }>(`/candidates/${id}/emails`),
 };
 

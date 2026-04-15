@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/hooks/useAuth';
 import {
   settingsApi, teamApi,
   type UserProfileDto, type TeamMemberDto, type IntegrationDto,
@@ -168,8 +169,16 @@ function ConfirmModal({
 // PROFILE SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const ROLE_BADGE_VARIANT: Record<string, 'error' | 'info' | 'warning' | 'default'> = {
+  ADMIN: 'error',
+  HR: 'info',
+  MANAGER: 'warning',
+  INTERVIEWER: 'default',
+};
+
 function ProfileSection() {
   const { showToast } = useToast();
+  const { user: authUser } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile]   = useState<UserProfileDto | null>(null);
@@ -263,6 +272,12 @@ function ProfileSection() {
               {profile ? `${profile.firstName} ${profile.lastName}` : '—'}
             </p>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{profile?.email}</p>
+            {authUser?.role && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Badge variant={ROLE_BADGE_VARIANT[authUser.role] ?? 'default'}>{authUser.role}</Badge>
+                <span className="text-[10px] text-[var(--color-text-muted)]">Roles are managed by your administrator.</span>
+              </div>
+            )}
             <button
               onClick={() => fileRef.current?.click()}
               className="text-xs text-[var(--color-primary)] hover:underline mt-1"

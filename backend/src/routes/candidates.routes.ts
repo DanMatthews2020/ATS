@@ -4,6 +4,7 @@ import { candidatesController } from '../controllers/candidates.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { CreateCandidateSchema } from '../types/schemas';
+import { requirePermission } from '../utils/permissions';
 
 const router = Router();
 
@@ -22,21 +23,21 @@ const upload = multer({
 });
 
 router.get('/',           authenticate, candidatesController.getCandidates);
-router.post('/',          authenticate, validate(CreateCandidateSchema), candidatesController.createCandidate);
-router.post('/parse-cv',  authenticate, upload.single('cv'), candidatesController.parseCv);
-router.post('/merge',     authenticate, candidatesController.merge);
+router.post('/',          authenticate, requirePermission('candidate:write'), validate(CreateCandidateSchema), candidatesController.createCandidate);
+router.post('/parse-cv',  authenticate, requirePermission('candidate:write'), upload.single('cv'), candidatesController.parseCv);
+router.post('/merge',     authenticate, requirePermission('candidate:write'), candidatesController.merge);
 router.get('/tracking',   authenticate, candidatesController.getTracking);
-router.get('/deleted',    authenticate, candidatesController.getDeletedCandidates);
+router.get('/deleted',    authenticate, requirePermission('admin:access'), candidatesController.getDeletedCandidates);
 router.get('/:id',                   authenticate, candidatesController.getCandidate);
 router.post('/:id/restore',         authenticate, candidatesController.restoreCandidate);
-router.patch('/:id',                 authenticate, candidatesController.updateCandidate);
-router.delete('/:id',                authenticate, candidatesController.deleteCandidate);
+router.patch('/:id',                 authenticate, requirePermission('candidate:write'), candidatesController.updateCandidate);
+router.delete('/:id',                authenticate, requirePermission('candidate:delete_soft'), candidatesController.deleteCandidate);
 router.get('/:id/enrollments',       authenticate, candidatesController.getCandidateEnrollments);
 router.patch('/:id/do-not-contact',  authenticate, candidatesController.setDoNotContact);
 router.get('/:id/privacy',            authenticate, candidatesController.getPrivacy);
 router.patch('/:id/privacy',          authenticate, candidatesController.updatePrivacy);
 router.post('/:id/privacy/send-notice', authenticate, candidatesController.sendPrivacyNotice);
-router.post('/:id/anonymise',            authenticate, candidatesController.anonymiseCandidate);
+router.post('/:id/anonymise',            authenticate, requirePermission('admin:access'), candidatesController.anonymiseCandidate);
 router.get('/:id/feed',       authenticate, candidatesController.getFeed);
 router.get('/:id/notes',      authenticate, candidatesController.getNotes);
 router.post('/:id/notes',     authenticate, candidatesController.createNote);

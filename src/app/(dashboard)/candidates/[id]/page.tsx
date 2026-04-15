@@ -7,7 +7,7 @@ import {
   Briefcase, Clock, MessageSquare, Activity, Check, X,
   ChevronDown, MoreHorizontal, Pencil, Trash2, Send,
   UserPlus, RefreshCw, FolderOpen, GitMerge, UserX,
-  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus, Shield,
+  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus, Shield, Lock,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -27,6 +27,7 @@ import { getActionLabel } from '@/lib/auditLabels';
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 import ScorecardModal from '@/components/ScorecardModal';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/hooks/useAuth';
 import type { BadgeVariant, LegalBasis } from '@/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -523,11 +524,12 @@ const RECOMMENDATION_CONFIG: Record<string, { label: string; variant: BadgeVaria
 function FeedbackTab({ candidateId, onAddEvaluation }: { candidateId: string; onAddEvaluation?: () => void }) {
   const [feedback,    setFeedback]    = useState<CandidateFeedbackDto[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationDto[]>([]);
+  const [hiddenCount, setHiddenCount] = useState(0);
   const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
     Promise.all([
-      candidatePanelApi.getFeedback(candidateId).then((d) => d.feedback).catch(() => [] as CandidateFeedbackDto[]),
+      candidatePanelApi.getFeedback(candidateId).then((d) => { setHiddenCount(d.hiddenCount ?? 0); return d.feedback; }).catch(() => [] as CandidateFeedbackDto[]),
       evaluationsApi.getByCandidate(candidateId).then((d) => d.evaluations).catch(() => [] as EvaluationDto[]),
     ]).then(([fb, ev]) => {
       setFeedback(fb);
@@ -656,6 +658,12 @@ function FeedbackTab({ candidateId, onAddEvaluation }: { candidateId: string; on
           </Card>
         );
       })}
+
+      {hiddenCount > 0 && (
+        <p className="text-sm text-gray-500 mt-2">
+          {hiddenCount} other feedback {hiddenCount === 1 ? 'entry' : 'entries'} — not visible to your role
+        </p>
+      )}
     </div>
   );
 }
@@ -797,7 +805,7 @@ function AuditTrailTab({ candidateId }: { candidateId: string }) {
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ candidate }: { candidate: CandidateDetailDto }) {
+function OverviewTab({ candidate, canReadPII }: { candidate: CandidateDetailDto; canReadPII: boolean }) {
   return (
     <div className="space-y-4">
       {/* Skills */}
@@ -818,17 +826,25 @@ function OverviewTab({ candidate }: { candidate: CandidateDetailDto }) {
       )}
 
       {/* CV Link */}
-      {candidate.cvUrl && (
+      {(candidate.cvUrl || !canReadPII) && (
         <Card padding="lg">
           <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">CV / Resume</h3>
-          <a
-            href={candidate.cvUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm text-[var(--color-primary)] hover:underline"
-          >
-            <FileText size={14} /> Download CV
-          </a>
+          {canReadPII && candidate.cvUrl ? (
+            <a
+              href={candidate.cvUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm text-[var(--color-primary)] hover:underline"
+            >
+              <FileText size={14} /> Download CV
+            </a>
+          ) : (
+            <Tooltip content="Contact details are restricted to recruiters and managers">
+              <span className="inline-flex items-center gap-2 text-sm text-gray-400 cursor-not-allowed select-none">
+                <FileText size={14} /> Download CV <Lock size={14} />
+              </span>
+            </Tooltip>
+          )}
         </Card>
       )}
 
@@ -864,44 +880,44 @@ function OverviewTab({ candidate }: { candidate: CandidateDetailDto }) {
 
 // ─── Sidebar Cards ────────────────────────────────────────────────────────────
 
-function ContactCard({ candidate }: { candidate: CandidateDetailDto }) {
+function MaskedPII() {
+  return (
+    <Tooltip content="Contact details are restricted to recruiters and managers">
+      <span className="inline-flex items-center gap-1 text-gray-400 select-none">
+        <span>••••••••</span>
+        <Lock size={14} />
+      </span>
+    </Tooltip>
+  );
+}
+
+function ContactCard({ candidate, canReadPII }: { candidate: CandidateDetailDto; canReadPII: boolean }) {
   return (
     <Card padding="lg">
       <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">Contact</h3>
       <div className="space-y-2">
-        <a
-          href={`mailto:${candidate.email}`}
-          className="flex items-center gap-2.5 text-sm text-blue-600 hover:underline truncate"
-        >
-          <Mail size={13} className="flex-shrink-0" />
-          <span className="truncate">{candidate.email}</span>
-        </a>
-        {candidate.phone && (
-          <a
-            href={`tel:${candidate.phone}`}
-            className="flex items-center gap-2.5 text-sm text-[var(--color-text-primary)] hover:text-blue-600"
-          >
-            <Phone size={13} className="flex-shrink-0 text-[var(--color-text-muted)]" />
-            {candidate.phone}
-          </a>
-        )}
-        {candidate.location && (
-          <div className="flex items-center gap-2.5 text-sm text-[var(--color-text-muted)]">
-            <MapPin size={13} className="flex-shrink-0" />
-            {candidate.location}
-          </div>
-        )}
-        {candidate.linkedInUrl && (
-          <a
-            href={candidate.linkedInUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2.5 text-sm text-blue-600 hover:underline"
-          >
-            <Linkedin size={13} className="flex-shrink-0" />
-            LinkedIn Profile
-          </a>
-        )}
+        <div className="flex items-center gap-2.5 text-sm truncate">
+          <Mail size={13} className="flex-shrink-0 text-[var(--color-text-muted)]" />
+          {canReadPII ? (
+            <a href={`mailto:${candidate.email}`} className="text-blue-600 hover:underline truncate">{candidate.email}</a>
+          ) : <MaskedPII />}
+        </div>
+        <div className="flex items-center gap-2.5 text-sm">
+          <Phone size={13} className="flex-shrink-0 text-[var(--color-text-muted)]" />
+          {canReadPII ? (
+            candidate.phone ? <a href={`tel:${candidate.phone}`} className="text-[var(--color-text-primary)] hover:text-blue-600">{candidate.phone}</a> : <span className="text-[var(--color-text-muted)]">—</span>
+          ) : <MaskedPII />}
+        </div>
+        <div className="flex items-center gap-2.5 text-sm text-[var(--color-text-muted)]">
+          <MapPin size={13} className="flex-shrink-0" />
+          {canReadPII ? (candidate.location ?? '—') : <MaskedPII />}
+        </div>
+        <div className="flex items-center gap-2.5 text-sm">
+          <Linkedin size={13} className="flex-shrink-0 text-[var(--color-text-muted)]" />
+          {canReadPII ? (
+            candidate.linkedInUrl ? <a href={candidate.linkedInUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">LinkedIn Profile</a> : <span className="text-[var(--color-text-muted)]">—</span>
+          ) : <MaskedPII />}
+        </div>
       </div>
     </Card>
   );
@@ -1628,6 +1644,8 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const fromJobId    = searchParams.get('fromJob');
   const fromJobTitle = searchParams.get('fromJobTitle') ?? '';
   const { showToast } = useToast();
+  const { user: authUser } = useAuth();
+  const canReadPII = !['INTERVIEWER'].includes(authUser?.role ?? '');
 
   const [candidate, setCandidate]   = useState<CandidateDetailDto | null>(null);
   const [isLoading, setIsLoading]   = useState(true);
@@ -1771,23 +1789,23 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
 
             {/* Contact row */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-sm text-[var(--color-text-muted)]">
-              <a href={`mailto:${candidate.email}`} className="flex items-center gap-1.5 text-blue-600 hover:underline">
-                <Mail size={13} /> {candidate.email}
-              </a>
-              {candidate.phone && (
+              <span className="flex items-center gap-1.5">
+                <Mail size={13} /> {canReadPII ? <a href={`mailto:${candidate.email}`} className="text-blue-600 hover:underline">{candidate.email}</a> : <MaskedPII />}
+              </span>
+              {(canReadPII ? candidate.phone : true) && (
                 <span className="flex items-center gap-1.5">
-                  <Phone size={13} /> {candidate.phone}
+                  <Phone size={13} /> {canReadPII ? candidate.phone : <MaskedPII />}
                 </span>
               )}
-              {candidate.location && (
+              {(canReadPII ? candidate.location : true) && (
                 <span className="flex items-center gap-1.5">
-                  <MapPin size={13} /> {candidate.location}
+                  <MapPin size={13} /> {canReadPII ? candidate.location : <MaskedPII />}
                 </span>
               )}
-              {candidate.linkedInUrl && (
-                <a href={candidate.linkedInUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-blue-600 hover:underline">
-                  <Linkedin size={13} /> LinkedIn
-                </a>
+              {(canReadPII ? candidate.linkedInUrl : true) && (
+                <span className="flex items-center gap-1.5">
+                  <Linkedin size={13} /> {canReadPII ? <a href={candidate.linkedInUrl!} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">LinkedIn</a> : <MaskedPII />}
+                </span>
               )}
               <span className="flex items-center gap-1.5">
                 <Calendar size={13} /> Added {fmtDate(candidate.createdAt)}
@@ -1837,13 +1855,13 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} extraInterviews={extraInterviews} />}
           {activeTab === 'feedback'     && <FeedbackTab key={feedbackRefreshKey} candidateId={id} onAddEvaluation={scorecardJobId ? () => setScorecardOpen(true) : undefined} />}
           {activeTab === 'applications' && <ApplicationsTab candidate={candidate} />}
-          {activeTab === 'overview'     && <OverviewTab candidate={candidate} />}
+          {activeTab === 'overview'     && <OverviewTab candidate={candidate} canReadPII={canReadPII} />}
           {activeTab === 'audit'        && <AuditTrailTab candidateId={id} />}
         </div>
 
         {/* ── Right column: sidebar ── */}
         <div className="w-72 flex-shrink-0 space-y-4">
-          <ContactCard candidate={candidate} />
+          <ContactCard candidate={candidate} canReadPII={canReadPII} />
           <PipelineCard candidate={candidate} />
           <SourcingCard candidate={candidate} />
           <PrivacyCard candidateId={id} candidateEmail={candidate.email} />

@@ -36,6 +36,14 @@ export const candidatesController = {
         return;
       }
       void createAuditLog({ actorId: (req as AuthRequest).user?.userId, actorEmail: (req as AuthRequest).user?.email, actorRole: (req as AuthRequest).user?.role, action: AUDIT_ACTIONS.CANDIDATE_VIEWED, resourceType: 'candidate', resourceId: req.params.id, ...extractRequestMeta(req) });
+
+      // PII stripping for INTERVIEWER role — server-side security control
+      if ((req as AuthRequest).user?.role === 'INTERVIEWER') {
+        const stripped = { ...candidate, email: null, phone: null, location: null, cvUrl: null, linkedInUrl: null };
+        sendSuccess(res, { candidate: stripped });
+        return;
+      }
+
       sendSuccess(res, { candidate });
     } catch {
       sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch candidate');
@@ -202,6 +210,20 @@ export const candidatesController = {
   async getFeedback(req: AuthRequest, res: Response): Promise<void> {
     try {
       const feedback = await candidatesService.getFeedback(req.params.id);
+
+      // INTERVIEWER: filter to only interviews they participated in
+      if (req.user?.role === 'INTERVIEWER' && req.user?.userId) {
+        const myInterviewIds = await prisma.interviewsOnUsers.findMany({
+          where: { userId: req.user.userId },
+          select: { interviewId: true },
+        });
+        const myIds = new Set(myInterviewIds.map((r) => r.interviewId));
+        const filtered = feedback.filter((f) => myIds.has(f.id));
+        const hiddenCount = feedback.length - filtered.length;
+        sendSuccess(res, { feedback: filtered, hiddenCount });
+        return;
+      }
+
       sendSuccess(res, { feedback });
     } catch { sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch feedback'); }
   },
@@ -241,13 +263,9 @@ export const candidatesController = {
     }
   },
 
-  // GET /candidates/deleted — ADMIN only, lists soft-deleted candidates
+  // GET /candidates/deleted — access enforced by requirePermission('admin:access') middleware
   async getDeletedCandidates(req: AuthRequest, res: Response): Promise<void> {
     try {
-      if (req.user?.role !== 'ADMIN') {
-        sendError(res, 403, 'FORBIDDEN', 'Admin access required');
-        return;
-      }
       const items = await candidatesService.getDeletedCandidates();
       sendSuccess(res, {
         items: items.map((c) => ({
@@ -370,13 +388,9 @@ export const candidatesController = {
     }
   },
 
-  // POST /candidates/:id/anonymise — ADMIN only
+  // POST /candidates/:id/anonymise — access enforced by requirePermission('admin:access') middleware
   async anonymiseCandidate(req: AuthRequest, res: Response): Promise<void> {
     try {
-      if (req.user?.role !== 'ADMIN') {
-        sendError(res, 403, 'FORBIDDEN', 'Admin access required');
-        return;
-      }
       const result = await anonymiseCandidate(
         req.params.id,
         req.user.userId ?? 'unknown',
