@@ -1720,3 +1720,59 @@ export const retentionApi = {
   anonymise: (candidateId: string) =>
     api.post<{ anonymisedAt: string }>(`/candidates/${candidateId}/anonymise`),
 };
+
+// ── Rights Requests (GDPR) ────────────────────────────────────────────────
+
+export interface RightsRequestDto {
+  id: string;
+  candidateId: string | null;
+  candidateName: string | null;
+  candidateEmail: string | null;
+  requesterEmail: string;
+  requestType: string;
+  status: string;
+  receivedAt: string;
+  dueAt: string;
+  fulfilledAt: string | null;
+  fulfilledBy: string | null;
+  notes: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+}
+
+export interface RightsRequestPageDto {
+  items: RightsRequestDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export const rightsRequestsApi = {
+  fetchAll: (params?: { page?: number; limit?: number; status?: string; requestType?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.status) qs.set('status', params.status);
+    if (params?.requestType) qs.set('requestType', params.requestType);
+    const query = qs.toString();
+    return api.get<RightsRequestPageDto>(`/gdpr/rights-requests${query ? `?${query}` : ''}`);
+  },
+  create: (data: { requesterEmail: string; requestType: string; receivedAt: string; candidateId?: string; notes?: string }) =>
+    api.post<{ request: RightsRequestDto }>('/gdpr/rights-requests', data),
+  update: (id: string, data: { status?: string; notes?: string; rejectionReason?: string }) =>
+    api.patch<{ request: RightsRequestDto }>(`/gdpr/rights-requests/${id}`, data),
+  downloadExport: async (requestId: string) => {
+    const res = await fetch(`${BASE_URL}/gdpr/rights-requests/${requestId}/export`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `candidate-export-${requestId.slice(-6)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  },
+  fulfilErasure: (requestId: string) =>
+    api.post<{ fulfilled: boolean; candidateDeleted: boolean }>(`/gdpr/rights-requests/${requestId}/fulfil-erasure`),
+};

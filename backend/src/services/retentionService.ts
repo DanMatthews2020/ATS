@@ -175,9 +175,15 @@ export async function runRetentionReview(): Promise<{
     });
   }
 
-  // TODO: Query CandidateRightsRequest where dueAt < now() AND status NOT IN ('FULFILLED','REJECTED')
-  //   updateMany status = 'OVERDUE'. Model does not exist yet — will be added in Prompt 5 (Rights Requests).
-  const overdueRequests = 0;
+  // Mark overdue rights requests
+  const overdueResult = await prisma.candidateRightsRequest.updateMany({
+    where: {
+      dueAt: { lt: new Date() },
+      status: { notIn: ['FULFILLED', 'REJECTED', 'OVERDUE'] },
+    },
+    data: { status: 'OVERDUE' },
+  });
+  const overdueRequests = overdueResult.count;
 
   const processed = expiringSoonIds.length + expiredIds.length;
 

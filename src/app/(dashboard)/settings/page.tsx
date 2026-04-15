@@ -1229,8 +1229,9 @@ export default function SettingsPage() {
                 { href: '/settings/email-templates', icon: Mail,          label: 'Email Templates' },
                 { href: '/settings/sequences',       icon: GitBranch,     label: 'Sequences' },
                 { href: '/settings/feedback-forms',  icon: MessageSquare, label: 'Feedback Forms' },
-                { href: '/settings/gdpr/audit-log',  icon: Shield,        label: 'Audit Log' },
-                { href: '/settings/gdpr/retention',  icon: Clock,         label: 'Data Retention' },
+                { href: '/settings/gdpr/audit-log',        icon: Shield,        label: 'Audit Log' },
+                { href: '/settings/gdpr/retention',        icon: Clock,         label: 'Data Retention' },
+                { href: '/settings/gdpr/rights-requests',  icon: ClipboardList, label: 'Rights Requests' },
               ] as const).map(({ href, icon: Icon, label }) => (
                 <Link
                   key={href}

@@ -205,6 +205,11 @@ export interface CandidatePrivacy {
 
 export type RetentionStatus = 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'ANONYMISED';
 
+// ─── Rights Requests ─────────────────────────────────────────────────────────
+
+export type RequestType = 'SAR' | 'ERASURE' | 'PORTABILITY' | 'RECTIFICATION' | 'OBJECTION';
+export type RequestStatus = 'OPEN' | 'IN_PROGRESS' | 'FULFILLED' | 'REJECTED' | 'OVERDUE';
+
 // ─── Audit Log ───────────────────────────────────────────────────────────────
 
 export interface AuditLogEntry {

@@ -102,6 +102,22 @@ enum RetentionStatus {
   ANONYMISED
 }
 
+enum RequestType {
+  SAR
+  ERASURE
+  PORTABILITY
+  RECTIFICATION
+  OBJECTION
+}
+
+enum RequestStatus {
+  OPEN
+  IN_PROGRESS
+  FULFILLED
+  REJECTED
+  OVERDUE
+}
+
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -229,6 +245,7 @@ model Candidate {
   sequenceEnrollments SequenceEnrollment[]
   feedbackSubmissions FeedbackSubmission[]
   referrals           Referral[]
+  rightsRequests      CandidateRightsRequest[]
 }
 
 model Application {
@@ -674,6 +691,27 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@index([actorId])
   @@index([createdAt])
+}
+
+model CandidateRightsRequest {
+  id              String        @id @default(cuid())
+  candidateId     String?
+  requesterEmail  String
+  requestType     RequestType
+  status          RequestStatus @default(OPEN)
+  receivedAt      DateTime
+  dueAt           DateTime
+  fulfilledAt     DateTime?
+  fulfilledBy     String?
+  notes           String?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([dueAt])
 }
 
 model Notification {

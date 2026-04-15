@@ -79,6 +79,25 @@ export const PrivacyUpdateSchema = z.object({
 
 export type PrivacyUpdateInput = z.infer<typeof PrivacyUpdateSchema>;
 
+// ─── Rights Requests ─────────────────────────────────────────────────────────
+
+export const CreateRightsRequestSchema = z.object({
+  requesterEmail: z.string().email('Valid email is required'),
+  requestType: z.enum(['SAR', 'ERASURE', 'PORTABILITY', 'RECTIFICATION', 'OBJECTION']),
+  receivedAt: z.string().datetime(),
+  candidateId: z.string().optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export const UpdateRightsRequestSchema = z.object({
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'FULFILLED', 'REJECTED', 'OVERDUE']).optional(),
+  notes: z.string().max(1000).optional(),
+  rejectionReason: z.string().max(500).optional(),
+});
+
+export type CreateRightsRequestInput = z.infer<typeof CreateRightsRequestSchema>;
+export type UpdateRightsRequestInput = z.infer<typeof UpdateRightsRequestSchema>;
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;
