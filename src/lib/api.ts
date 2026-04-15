@@ -1776,3 +1776,34 @@ export const rightsRequestsApi = {
   fulfilErasure: (requestId: string) =>
     api.post<{ fulfilled: boolean; candidateDeleted: boolean }>(`/gdpr/rights-requests/${requestId}/fulfil-erasure`),
 };
+
+// ── RoPA Register (GDPR) ──────────────────────────────────────────────────
+
+export interface RopaEntryDto {
+  id: string;
+  processingActivity: string;
+  purpose: string;
+  legalBasis: string;
+  dataCategories: string[];
+  dataSubjects: string;
+  recipients: string;
+  retentionPeriod: string;
+  securityMeasures: string;
+  transfersOutsideEEA: boolean;
+  transferMechanism: string | null;
+  lastReviewedAt: string | null;
+  lastReviewedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const ropaApi = {
+  fetchEntries: () =>
+    api.get<{ entries: RopaEntryDto[] }>('/gdpr/ropa'),
+  createEntry: (data: Omit<RopaEntryDto, 'id' | 'lastReviewedAt' | 'lastReviewedBy' | 'createdAt' | 'updatedAt'>) =>
+    api.post<{ entry: RopaEntryDto }>('/gdpr/ropa', data),
+  updateEntry: (id: string, data: Partial<Omit<RopaEntryDto, 'id' | 'lastReviewedAt' | 'lastReviewedBy' | 'createdAt' | 'updatedAt'>>) =>
+    api.patch<{ entry: RopaEntryDto }>(`/gdpr/ropa/${id}`, data),
+  markReviewed: (id: string) =>
+    api.post<{ entry: RopaEntryDto }>(`/gdpr/ropa/${id}/review`),
+};

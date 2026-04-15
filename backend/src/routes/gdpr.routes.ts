@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { auditLogController } from '../controllers/auditLog.controller';
 import { retentionController } from '../controllers/retention.controller';
 import { rightsRequestsController } from '../controllers/rightsRequests.controller';
+import { ropaController } from '../controllers/ropa.controller';
 
 const router = Router();
 
@@ -20,5 +21,11 @@ router.post('/rights-requests', authenticate, rightsRequestsController.create);
 router.patch('/rights-requests/:id', authenticate, rightsRequestsController.update);
 router.get('/rights-requests/:id/export', authenticate, rightsRequestsController.downloadExport);
 router.post('/rights-requests/:id/fulfil-erasure', authenticate, rightsRequestsController.fulfilErasure);
+
+// RoPA register
+router.get('/ropa', authenticate, ropaController.list);
+router.post('/ropa', authenticate, ropaController.create);
+router.patch('/ropa/:id', authenticate, ropaController.update);
+router.post('/ropa/:id/review', authenticate, ropaController.markReviewed);
 
 export default router;

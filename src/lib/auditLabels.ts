@@ -18,6 +18,9 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'rights_request.export_downloaded': 'Downloaded rights export',
   'rights_request.rejected':      'Rejected rights request',
   'retention.review_run':         'Ran retention review',
+  'ropa.entry_created':           'Created RoPA entry',
+  'ropa.entry_updated':           'Updated RoPA entry',
+  'ropa.entry_reviewed':          'Marked RoPA entry as reviewed',
   'user.login':                   'Logged in',
   'user.logout':                  'Logged out',
 };

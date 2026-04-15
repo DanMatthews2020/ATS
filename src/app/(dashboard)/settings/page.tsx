@@ -6,7 +6,7 @@ import {
   Settings, User, Users, Link2, Bell, CreditCard, Shield,
   Camera, Eye, EyeOff, Check, X, Plus, Trash2, ChevronDown,
   LogOut, Monitor, Smartphone, Globe, Lock, Zap, RefreshCw, ClipboardList,
-  Mail, GitBranch, MessageSquare, Clock,
+  Mail, GitBranch, MessageSquare, Clock, FileText, ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -1232,6 +1232,7 @@ export default function SettingsPage() {
                 { href: '/settings/gdpr/audit-log',        icon: Shield,        label: 'Audit Log' },
                 { href: '/settings/gdpr/retention',        icon: Clock,         label: 'Data Retention' },
                 { href: '/settings/gdpr/rights-requests',  icon: ClipboardList, label: 'Rights Requests' },
+                { href: '/settings/gdpr/ropa',              icon: FileText,      label: 'Processing Register' },
               ] as const).map(({ href, icon: Icon, label }) => (
                 <Link
                   key={href}
@@ -1242,6 +1243,15 @@ export default function SettingsPage() {
                   {label}
                 </Link>
               ))}
+              <a
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors duration-100 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]"
+              >
+                <ExternalLink size={15} strokeWidth={1.75} aria-hidden="true" />
+                Privacy Policy
+              </a>
             </div>
           </nav>
         </aside>

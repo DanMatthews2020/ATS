@@ -53,6 +53,9 @@ export const AUDIT_ACTIONS = {
   RIGHTS_REQUEST_EXPORT:      'rights_request.export_downloaded',
   RIGHTS_REQUEST_REJECTED:    'rights_request.rejected',
   RETENTION_REVIEW_RUN:       'retention.review_run',
+  ROPA_ENTRY_CREATED:         'ropa.entry_created',
+  ROPA_ENTRY_UPDATED:         'ropa.entry_updated',
+  ROPA_ENTRY_REVIEWED:        'ropa.entry_reviewed',
   USER_LOGIN:                 'user.login',
   USER_LOGOUT:                'user.logout',
 } as const;

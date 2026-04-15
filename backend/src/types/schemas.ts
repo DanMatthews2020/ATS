@@ -98,6 +98,26 @@ export const UpdateRightsRequestSchema = z.object({
 export type CreateRightsRequestInput = z.infer<typeof CreateRightsRequestSchema>;
 export type UpdateRightsRequestInput = z.infer<typeof UpdateRightsRequestSchema>;
 
+// ─── RoPA ───────────────────────────────────────────────────────────────────
+
+export const CreateRopaEntrySchema = z.object({
+  processingActivity: z.string().min(1, 'Processing activity is required').max(500),
+  purpose: z.string().min(1, 'Purpose is required').max(1000),
+  legalBasis: z.string().min(1, 'Legal basis is required').max(500),
+  dataCategories: z.array(z.string()).min(1, 'At least one data category is required'),
+  dataSubjects: z.string().min(1, 'Data subjects is required').max(500),
+  recipients: z.string().min(1, 'Recipients is required').max(500),
+  retentionPeriod: z.string().min(1, 'Retention period is required').max(500),
+  securityMeasures: z.string().min(1, 'Security measures is required').max(2000),
+  transfersOutsideEEA: z.boolean().default(false),
+  transferMechanism: z.string().max(500).optional(),
+});
+
+export const UpdateRopaEntrySchema = CreateRopaEntrySchema.partial();
+
+export type CreateRopaEntryInput = z.infer<typeof CreateRopaEntrySchema>;
+export type UpdateRopaEntryInput = z.infer<typeof UpdateRopaEntrySchema>;
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;

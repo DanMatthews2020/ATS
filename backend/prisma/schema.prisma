@@ -785,3 +785,21 @@ model ReportSchedule {
   recipients String[]
   createdAt  DateTime @default(now())
 }
+
+model RopaEntry {
+  id                  String    @id @default(cuid())
+  processingActivity  String
+  purpose             String
+  legalBasis          String
+  dataCategories      String[]
+  dataSubjects        String
+  recipients          String
+  retentionPeriod     String
+  securityMeasures    String
+  transfersOutsideEEA Boolean   @default(false)
+  transferMechanism   String?
+  lastReviewedAt      DateTime?
+  lastReviewedBy      String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
