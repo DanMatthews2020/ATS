@@ -1651,3 +1651,44 @@ export const evaluationsApi = {
     responses?: Array<{ criterionId: string; responseValue: string; responseNotes?: string }>;
   }) => api.patch<{ evaluation: EvaluationDto }>(`/evaluations/${id}`, data),
 };
+
+// ── Audit Logs (GDPR) ─────────────────────────────────────────────────────
+
+export interface AuditLogEntryDto {
+  id: string;
+  actorId: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  metadata: Record<string, unknown> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogPageDto {
+  items: AuditLogEntryDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export const auditLogsApi = {
+  getAll: (params?: { page?: number; limit?: number; action?: string; resourceType?: string; actorId?: string; from?: string; to?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.action) qs.set('action', params.action);
+    if (params?.resourceType) qs.set('resourceType', params.resourceType);
+    if (params?.actorId) qs.set('actorId', params.actorId);
+    if (params?.from) qs.set('from', params.from);
+    if (params?.to) qs.set('to', params.to);
+    const query = qs.toString();
+    return api.get<AuditLogPageDto>(`/gdpr/audit-logs${query ? `?${query}` : ''}`);
+  },
+  getCandidateLogs: (candidateId: string) =>
+    api.get<{ items: AuditLogEntryDto[] }>(`/gdpr/audit-logs/candidate/${candidateId}`),
+};

@@ -201,6 +201,30 @@ export interface CandidatePrivacy {
   retentionNote: string | null;
 }
 
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  actorId: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  metadata: Record<string, unknown> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogPage {
+  items: AuditLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 // ─── People Search ────────────────────────────────────────────────────────────
 
 export interface PersonResult {

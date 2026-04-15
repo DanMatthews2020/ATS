@@ -3,6 +3,7 @@ import type { AuthRequest } from '../types';
 import { applicationsService } from '../services/applications.service';
 import { sendSuccess, sendError } from '../utils/response';
 import type { ApplicationStatus } from '@prisma/client';
+import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
 
 export const applicationsController = {
   async updateStage(req: AuthRequest, res: Response): Promise<void> {
@@ -13,6 +14,7 @@ export const applicationsController = {
         sendError(res, 404, 'NOT_FOUND', 'Application not found');
         return;
       }
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.STAGE_CHANGED, resourceType: 'application', resourceId: req.params.id, metadata: { newStatus: status }, ...extractRequestMeta(req) });
       sendSuccess(res, result);
     } catch {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update application stage');

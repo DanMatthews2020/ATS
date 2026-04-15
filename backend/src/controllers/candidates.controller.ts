@@ -5,6 +5,7 @@ import { parseCvBuffer } from '../services/cv-parser.service';
 import { sendSuccess, sendError } from '../utils/response';
 import type { ApplicationStatus, CandidateSource } from '@prisma/client';
 import { PrivacyUpdateSchema } from '../types/schemas';
+import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
 
 const VALID_STATUSES = new Set<string>([
   'APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED',
@@ -32,6 +33,7 @@ export const candidatesController = {
         sendError(res, 404, 'NOT_FOUND', 'Candidate not found');
         return;
       }
+      void createAuditLog({ actorId: (req as AuthRequest).user?.userId, actorEmail: (req as AuthRequest).user?.email, actorRole: (req as AuthRequest).user?.role, action: AUDIT_ACTIONS.CANDIDATE_VIEWED, resourceType: 'candidate', resourceId: req.params.id, ...extractRequestMeta(req) });
       sendSuccess(res, { candidate });
     } catch {
       sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch candidate');
@@ -56,6 +58,7 @@ export const candidatesController = {
         source: body.source ?? 'JOB_BOARD',
         skills: body.skills ?? [],
       });
+      void createAuditLog({ actorId: (req as AuthRequest).user?.userId, actorEmail: (req as AuthRequest).user?.email, actorRole: (req as AuthRequest).user?.role, action: AUDIT_ACTIONS.CANDIDATE_CREATED, resourceType: 'candidate', resourceId: candidate.id, ...extractRequestMeta(req) });
       sendSuccess(res, { candidate }, 201);
     } catch (err: unknown) {
       // Prisma unique constraint violation (duplicate email)
@@ -83,6 +86,7 @@ export const candidatesController = {
       }
 
       const parsed = await parseCvBuffer(file.buffer, file.mimetype);
+      void createAuditLog({ actorId: (req as AuthRequest).user?.userId, actorEmail: (req as AuthRequest).user?.email, actorRole: (req as AuthRequest).user?.role, action: AUDIT_ACTIONS.CV_UPLOADED, resourceType: 'candidate', resourceId: 'cv-parse', metadata: { mimetype: file.mimetype, size: file.size }, ...extractRequestMeta(req) });
       sendSuccess(res, { parsed });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'CV parsing failed';
@@ -160,6 +164,7 @@ export const candidatesController = {
     try {
       const { currentCompany } = req.body as { currentCompany?: string | null };
       await candidatesService.updateCandidate(req.params.id, { currentCompany });
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.CANDIDATE_UPDATED, resourceType: 'candidate', resourceId: req.params.id, metadata: { changedFields: Object.keys(req.body as Record<string, unknown>) }, ...extractRequestMeta(req) });
       sendSuccess(res, { updated: true });
     } catch { sendError(res, 500, 'UPDATE_ERROR', 'Failed to update candidate'); }
   },
@@ -216,7 +221,7 @@ export const candidatesController = {
         }
         const ok = await candidatesService.deleteCandidate(req.params.id);
         if (!ok) { sendError(res, 404, 'NOT_FOUND', 'Candidate not found'); return; }
-        // TODO: call createAuditLog(CANDIDATE_HARD_DELETED) — see Prompt 3
+        void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.CANDIDATE_HARD_DELETED, resourceType: 'candidate', resourceId: req.params.id, ...extractRequestMeta(req) });
         sendSuccess(res, { deleted: true });
       } else {
         // Soft delete (default)
@@ -225,7 +230,7 @@ export const candidatesController = {
           req.user?.userId ?? 'system',
           'MANUAL',
         );
-        // TODO: call createAuditLog(CANDIDATE_SOFT_DELETED) — see Prompt 3
+        void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.CANDIDATE_SOFT_DELETED, resourceType: 'candidate', resourceId: req.params.id, metadata: { reason: 'MANUAL' }, ...extractRequestMeta(req) });
         sendSuccess(res, { deletedAt: candidate.deletedAt?.toISOString() ?? null });
       }
     } catch {
@@ -264,6 +269,7 @@ export const candidatesController = {
         return;
       }
       await candidatesService.restoreCandidate(req.params.id);
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.CANDIDATE_RESTORED, resourceType: 'candidate', resourceId: req.params.id, ...extractRequestMeta(req) });
       sendSuccess(res, { restored: true });
     } catch {
       sendError(res, 500, 'RESTORE_ERROR', 'Failed to restore candidate');
@@ -312,6 +318,7 @@ export const candidatesController = {
       }
 
       await candidatesService.updatePrivacy(req.params.id, data);
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.PRIVACY_UPDATED, resourceType: 'candidate', resourceId: req.params.id, metadata: { changedFields: Object.keys(data) }, ...extractRequestMeta(req) });
       const privacy = await candidatesService.getPrivacy(req.params.id);
       sendSuccess(res, privacy);
     } catch { sendError(res, 500, 'UPDATE_ERROR', 'Failed to update privacy settings'); }
@@ -326,7 +333,7 @@ export const candidatesController = {
       const result = await candidatesService.sendPrivacyNotice(req.params.id, userId);
       if (!result) { sendError(res, 404, 'NOT_FOUND', 'Candidate not found'); return; }
 
-      // TODO: call createAuditLog(PRIVACY_NOTICE_SENT) — see Prompt 3
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.PRIVACY_NOTICE_SENT, resourceType: 'candidate', resourceId: req.params.id, ...extractRequestMeta(req) });
       sendSuccess(res, result);
     } catch { sendError(res, 500, 'SEND_ERROR', 'Failed to send privacy notice'); }
   },

@@ -11,6 +11,7 @@ import type { AuthRequest } from '../types';
 import { authService } from '../services/auth.service';
 import { sendSuccess, sendError } from '../utils/response';
 import { isServiceError } from '../types';
+import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
 
 const isProd = process.env.NODE_ENV === 'production';
 
@@ -38,6 +39,7 @@ export const authController = {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
+      void createAuditLog({ actorId: result.user.id, actorEmail: result.user.email, actorRole: result.user.role, action: AUDIT_ACTIONS.USER_LOGIN, resourceType: 'user', resourceId: result.user.id, ...extractRequestMeta(req) });
       sendSuccess(res, { user: result.user });
     } catch (err) {
       if (isServiceError(err)) {
@@ -82,6 +84,9 @@ export const authController = {
     try {
       const refreshToken = (req.cookies as Record<string, string> | undefined)?.refresh_token;
       if (refreshToken) await authService.logout(refreshToken);
+
+      const authReq = req as AuthRequest;
+      void createAuditLog({ actorId: authReq.user?.userId, actorEmail: authReq.user?.email, actorRole: authReq.user?.role, action: AUDIT_ACTIONS.USER_LOGOUT, resourceType: 'user', resourceId: authReq.user?.userId ?? 'unknown', ...extractRequestMeta(req) });
 
       res.clearCookie('access_token', COOKIE_BASE);
       res.clearCookie('refresh_token', COOKIE_BASE);

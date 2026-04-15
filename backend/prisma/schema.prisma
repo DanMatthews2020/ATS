@@ -649,6 +649,24 @@ model Referral {
   createdAt       DateTime  @default(now())
 }
 
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?
+  actorEmail   String?
+  actorRole    String?
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([resourceType, resourceId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
 model Notification {
   id        String   @id @default(cuid())
   userId    String

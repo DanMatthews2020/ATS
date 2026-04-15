@@ -2,6 +2,7 @@ import type { Response } from 'express';
 import type { AuthRequest } from '../types';
 import { interviewsService, type InterviewType, type Recommendation } from '../services/interviews.service';
 import { sendSuccess, sendError } from '../utils/response';
+import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
 
 export const interviewsController = {
   async getAll(req: AuthRequest, res: Response): Promise<void> {
@@ -95,6 +96,7 @@ export const interviewsController = {
         recommendation: recommendation as Recommendation,
         notes:          notes ?? '',
       });
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.FEEDBACK_CREATED, resourceType: 'interview', resourceId: req.params.id, metadata: { rating, recommendation }, ...extractRequestMeta(req) });
       sendSuccess(res, { interview: iv });
     } catch {
       sendError(res, 404, 'NOT_FOUND', 'Interview not found');

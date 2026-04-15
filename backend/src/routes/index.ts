@@ -24,6 +24,7 @@ import sequencesRoutes from './sequences.routes';
 import feedbackFormsRoutes from './feedback-forms.routes';
 import referralsRoutes from './referrals.routes';
 import usersRoutes from './users.routes';
+import gdprRoutes from './gdpr.routes';
 
 const router = Router();
 
@@ -52,5 +53,6 @@ router.use('/sequences',        sequencesRoutes);
 router.use('/feedback-forms',   feedbackFormsRoutes);
 router.use('/referrals',        referralsRoutes);
 router.use('/users',            usersRoutes);
+router.use('/gdpr',             gdprRoutes);
 
 export default router;

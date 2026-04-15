@@ -18,11 +18,12 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { Tooltip } from '@/components/ui/Tooltip';
 import {
-  candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi, interviewsApi,
+  candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi, interviewsApi, auditLogsApi,
   type CandidateDetailDto, type CandidateNoteDto,
   type FeedEventDto, type CandidateFeedbackDto, type FollowUpDto, type EvaluationDto,
-  type InterviewDto,
+  type InterviewDto, type AuditLogEntryDto,
 } from '@/lib/api';
+import { getActionLabel } from '@/lib/auditLabels';
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 import ScorecardModal from '@/components/ScorecardModal';
 import { useToast } from '@/contexts/ToastContext';
@@ -49,7 +50,7 @@ const SOURCE_LABELS: Record<string, string> = {
   'event':      'Event',
 };
 
-type Tab = 'feed' | 'notes' | 'emails' | 'interviews' | 'feedback' | 'applications' | 'overview';
+type Tab = 'feed' | 'notes' | 'emails' | 'interviews' | 'feedback' | 'applications' | 'overview' | 'audit';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'feed',         label: 'Feed' },
@@ -59,6 +60,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'feedback',     label: 'Feedback' },
   { id: 'applications', label: 'Applications' },
   { id: 'overview',     label: 'Overview' },
+  { id: 'audit',        label: 'Audit Trail' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -701,6 +703,86 @@ function ApplicationsTab({ candidate }: { candidate: CandidateDetailDto }) {
         );
       })}
     </div>
+  );
+}
+
+// ─── Audit Trail Tab ──────────────────────────────────────────────────────────
+
+function relativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function AuditTrailTab({ candidateId }: { candidateId: string }) {
+  const [entries, setEntries] = useState<AuditLogEntryDto[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    auditLogsApi.getCandidateLogs(candidateId)
+      .then((d) => setEntries(d.items))
+      .catch(() => {/* show empty */})
+      .finally(() => setLoading(false));
+  }, [candidateId]);
+
+  if (loading) {
+    return (
+      <Card padding="lg">
+        <div className="flex justify-center py-10">
+          <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
+        </div>
+      </Card>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <Card padding="lg">
+        <div className="flex flex-col items-center py-12 gap-3 text-[var(--color-text-muted)]">
+          <Shield size={28} />
+          <p className="text-sm">No audit entries yet.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card padding="lg">
+      <div className="space-y-0">
+        {entries.map((entry, idx) => (
+          <div key={entry.id} className="flex gap-4">
+            <div className="flex flex-col items-center">
+              <div className="w-8 h-8 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
+                <Shield size={13} className="text-[var(--color-text-muted)]" />
+              </div>
+              {idx < entries.length - 1 && (
+                <div className="w-px flex-1 bg-[var(--color-border)] my-1" style={{ minHeight: 24 }} />
+              )}
+            </div>
+            <div className="pb-5 flex-1 min-w-0">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">{getActionLabel(entry.action)}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-[var(--color-text-muted)]">{relativeTime(entry.createdAt)}</p>
+                {entry.actorEmail && (
+                  <p className="text-xs text-[var(--color-text-muted)]">· {entry.actorEmail}</p>
+                )}
+                {entry.ipAddress && entry.ipAddress !== 'unknown' && (
+                  <p className="text-xs text-[var(--color-text-muted)]">· {entry.ipAddress}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -1741,6 +1823,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           {activeTab === 'feedback'     && <FeedbackTab key={feedbackRefreshKey} candidateId={id} onAddEvaluation={scorecardJobId ? () => setScorecardOpen(true) : undefined} />}
           {activeTab === 'applications' && <ApplicationsTab candidate={candidate} />}
           {activeTab === 'overview'     && <OverviewTab candidate={candidate} />}
+          {activeTab === 'audit'        && <AuditTrailTab candidateId={id} />}
         </div>
 
         {/* ── Right column: sidebar ── */}
