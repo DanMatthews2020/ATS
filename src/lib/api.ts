@@ -346,7 +346,18 @@ export interface CandidateListDto {
   latestJobTitle?: string;
   latestStatus?: string;
   latestAppliedAt?: string;
+  privacyNoticeSentAt?: string;
   createdAt: string;
+}
+
+export interface CandidatePrivacyDto {
+  legalBasis: string;
+  privacyNoticeSentAt: string | null;
+  privacyNoticeSentBy: string | null;
+  consentGivenAt: string | null;
+  consentScope: string | null;
+  retentionExpiresAt: string | null;
+  retentionNote: string | null;
 }
 
 export interface ReferralDto {
@@ -487,6 +498,13 @@ export const candidatesApi = {
     api.patch<{ updated: boolean }>(`/candidates/${id}/do-not-contact`, data),
   merge: (keepId: string, mergeId: string, fieldResolutions: Record<string, 'keep' | 'merge'>) =>
     api.post<{ merged: boolean; keepId: string }>('/candidates/merge', { keepId, mergeId, fieldResolutions }),
+  // Privacy & Consent
+  getPrivacy: (id: string) =>
+    api.get<CandidatePrivacyDto>(`/candidates/${id}/privacy`),
+  updatePrivacy: (id: string, data: { legalBasis?: string; consentGivenAt?: string; consentScope?: string; retentionExpiresAt?: string; retentionNote?: string }) =>
+    api.patch<CandidatePrivacyDto>(`/candidates/${id}/privacy`, data),
+  sendPrivacyNotice: (id: string) =>
+    api.post<{ sentAt: string; sentBy: string }>(`/candidates/${id}/privacy/send-notice`),
 };
 
 export const referralsApi = {

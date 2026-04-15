@@ -3,7 +3,7 @@
  * @description Database access layer for candidates and their applications.
  */
 import { prisma } from '../lib/prisma';
-import type { ApplicationStatus, Prisma } from '@prisma/client';
+import type { ApplicationStatus, LegalBasis, Prisma } from '@prisma/client';
 
 export const candidatesRepository = {
   // ── Existing: applications tracking list ──────────────────────────────────
@@ -278,6 +278,43 @@ export const candidatesRepository = {
 
       // Delete merge candidate — cascade removes remaining records
       await tx.candidate.delete({ where: { id: mergeId } });
+    });
+  },
+
+  // ── Privacy & Consent ────────────────────────────────────────────────────
+
+  async getPrivacy(id: string) {
+    return prisma.candidate.findUnique({
+      where: { id },
+      select: {
+        legalBasis: true,
+        privacyNoticeSentAt: true,
+        privacyNoticeSentBy: true,
+        consentGivenAt: true,
+        consentScope: true,
+        retentionExpiresAt: true,
+        retentionNote: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    });
+  },
+
+  async updatePrivacy(id: string, data: {
+    legalBasis?: LegalBasis;
+    consentGivenAt?: Date | null;
+    consentScope?: string | null;
+    retentionExpiresAt?: Date | null;
+    retentionNote?: string | null;
+  }) {
+    return prisma.candidate.update({ where: { id }, data });
+  },
+
+  async markPrivacyNoticeSent(id: string, userId: string) {
+    return prisma.candidate.update({
+      where: { id },
+      data: { privacyNoticeSentAt: new Date(), privacyNoticeSentBy: userId },
     });
   },
 

@@ -67,6 +67,18 @@ export const CreateApplicationSchema = z.object({
     .default('APPLIED'),
 });
 
+// ─── Privacy & Consent ───────────────────────────────────────────────────────
+
+export const PrivacyUpdateSchema = z.object({
+  legalBasis: z.enum(['LEGITIMATE_INTERESTS', 'CONSENT', 'CONTRACT']).optional(),
+  consentGivenAt: z.string().datetime().optional(),
+  consentScope: z.string().max(500).optional(),
+  retentionExpiresAt: z.string().datetime().optional(),
+  retentionNote: z.string().max(200).optional(),
+});
+
+export type PrivacyUpdateInput = z.infer<typeof PrivacyUpdateSchema>;
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;

@@ -7,12 +7,16 @@ import {
   Briefcase, Clock, MessageSquare, Activity, Check, X,
   ChevronDown, MoreHorizontal, Pencil, Trash2, Send,
   UserPlus, RefreshCw, FolderOpen, GitMerge, UserX,
-  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus,
+  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus, Shield,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { Modal } from '@/components/ui/Modal';
+import { Select } from '@/components/ui/Select';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi, interviewsApi,
   type CandidateDetailDto, type CandidateNoteDto,
@@ -22,7 +26,7 @@ import {
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 import ScorecardModal from '@/components/ScorecardModal';
 import { useToast } from '@/contexts/ToastContext';
-import type { BadgeVariant } from '@/types';
+import type { BadgeVariant, LegalBasis } from '@/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -870,6 +874,245 @@ function SourcingCard({ candidate }: { candidate: CandidateDetailDto }) {
   );
 }
 
+// ─── Privacy & Consent Card ──────────────────────────────────────────────────
+
+const LEGAL_BASIS_OPTIONS = [
+  { value: 'LEGITIMATE_INTERESTS', label: 'Legitimate Interests' },
+  { value: 'CONSENT', label: 'Consent' },
+  { value: 'CONTRACT', label: 'Contractual Necessity' },
+];
+
+function PrivacyCard({ candidateId, candidateEmail }: { candidateId: string; candidateEmail: string }) {
+  const { showToast } = useToast();
+
+  // Remote state
+  const [loading, setLoading] = useState(true);
+  const [legalBasis, setLegalBasis] = useState<LegalBasis>('LEGITIMATE_INTERESTS');
+  const [noticeSentAt, setNoticeSentAt] = useState<string | null>(null);
+  const [noticeSentBy, setNoticeSentBy] = useState<string | null>(null);
+  const [consentGivenAt, setConsentGivenAt] = useState('');
+  const [consentScope, setConsentScope] = useState('');
+  const [retentionExpiresAt, setRetentionExpiresAt] = useState('');
+  const [retentionNote, setRetentionNote] = useState('');
+
+  // UI state
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [noticeModalOpen, setNoticeModalOpen] = useState(false);
+  const [consentDateError, setConsentDateError] = useState('');
+  const [retentionDateError, setRetentionDateError] = useState('');
+
+  // Fetch privacy data
+  useEffect(() => {
+    setLoading(true);
+    candidatesApi.getPrivacy(candidateId)
+      .then((p) => {
+        setLegalBasis((p.legalBasis as LegalBasis) || 'LEGITIMATE_INTERESTS');
+        setNoticeSentAt(p.privacyNoticeSentAt);
+        setNoticeSentBy(p.privacyNoticeSentBy);
+        setConsentGivenAt(p.consentGivenAt ? p.consentGivenAt.slice(0, 10) : '');
+        setConsentScope(p.consentScope ?? '');
+        setRetentionExpiresAt(p.retentionExpiresAt ? p.retentionExpiresAt.slice(0, 10) : '');
+        setRetentionNote(p.retentionNote ?? '');
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [candidateId]);
+
+  // Client-side validation
+  function validate(): boolean {
+    let valid = true;
+    setConsentDateError('');
+    setRetentionDateError('');
+
+    if (legalBasis === 'CONSENT' && !consentGivenAt) {
+      setConsentDateError('Consent date is required');
+      valid = false;
+    }
+    if (retentionExpiresAt && new Date(retentionExpiresAt) < new Date()) {
+      setRetentionDateError('Retention date is in the past');
+      valid = false;
+    }
+    return valid;
+  }
+
+  async function handleSave() {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const payload: Record<string, string | undefined> = {
+        legalBasis,
+        retentionExpiresAt: retentionExpiresAt ? new Date(retentionExpiresAt).toISOString() : undefined,
+        retentionNote: retentionNote || undefined,
+      };
+      if (legalBasis === 'CONSENT') {
+        payload.consentGivenAt = consentGivenAt ? new Date(consentGivenAt).toISOString() : undefined;
+        payload.consentScope = consentScope || undefined;
+      }
+      await candidatesApi.updatePrivacy(candidateId, payload);
+      showToast('Privacy settings saved', 'success');
+    } catch {
+      showToast('Failed to save privacy settings', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSendNotice() {
+    setSending(true);
+    try {
+      const result = await candidatesApi.sendPrivacyNotice(candidateId);
+      setNoticeSentAt(result.sentAt);
+      setNoticeModalOpen(false);
+      showToast('Privacy notice sent', 'success');
+      // Refetch to get resolved sentBy name
+      candidatesApi.getPrivacy(candidateId).then((p) => {
+        setNoticeSentBy(p.privacyNoticeSentBy);
+      }).catch(() => {});
+    } catch {
+      showToast('Failed to send privacy notice', 'error');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card padding="lg">
+        <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <Shield size={12} /> Privacy & Consent
+        </h3>
+        <div className="flex items-center justify-center py-4">
+          <Loader2 size={16} className="animate-spin text-[var(--color-text-muted)]" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card padding="lg">
+        <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <Shield size={12} /> Privacy & Consent
+        </h3>
+
+        <div className="space-y-3">
+          {/* Status row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {noticeSentAt ? (
+              <>
+                <Badge variant="success">Notice Sent</Badge>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Sent {fmtDate(noticeSentAt)}{noticeSentBy ? ` by ${noticeSentBy}` : ''}
+                </span>
+              </>
+            ) : (
+              <Badge variant="error">Notice Required</Badge>
+            )}
+          </div>
+
+          {/* Legal basis */}
+          <Select
+            label="Legal basis"
+            options={LEGAL_BASIS_OPTIONS}
+            value={legalBasis}
+            onChange={(v) => setLegalBasis(v as LegalBasis)}
+          />
+
+          {/* Consent fields (conditional) */}
+          {legalBasis === 'CONSENT' && (
+            <div className="space-y-3">
+              <Input
+                type="date"
+                label="Consent given"
+                value={consentGivenAt}
+                onChange={(e) => { setConsentGivenAt(e.target.value); setConsentDateError(''); }}
+                error={consentDateError || undefined}
+              />
+              <Input
+                label="Consent scope"
+                value={consentScope}
+                onChange={(e) => setConsentScope(e.target.value)}
+                placeholder="e.g. Talent pool retention 24 months"
+                hint="e.g. Talent pool retention 24 months"
+              />
+            </div>
+          )}
+
+          {/* Retention fields */}
+          <Input
+            type="date"
+            label="Retention expires"
+            value={retentionExpiresAt}
+            onChange={(e) => { setRetentionExpiresAt(e.target.value); setRetentionDateError(''); }}
+            error={retentionDateError || undefined}
+          />
+          <Input
+            label="Retention note"
+            value={retentionNote}
+            onChange={(e) => setRetentionNote(e.target.value)}
+            placeholder="Optional note"
+            maxLength={200}
+          />
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <Button variant="primary" size="sm" isLoading={saving} onClick={handleSave}>
+              Save Privacy Settings
+            </Button>
+            {candidateEmail ? (
+              <Button variant="secondary" size="sm" onClick={() => setNoticeModalOpen(true)}>
+                Send Privacy Notice
+              </Button>
+            ) : (
+              <Tooltip content="Candidate has no email address on file">
+                <Button variant="secondary" size="sm" disabled>
+                  Send Privacy Notice
+                </Button>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Send Privacy Notice Modal */}
+      <Modal
+        isOpen={noticeModalOpen}
+        onClose={() => setNoticeModalOpen(false)}
+        title="Send Privacy Notice"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setNoticeModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" isLoading={sending} onClick={handleSendNotice}>
+              Confirm & Send
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="max-h-64 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-xs text-[var(--color-text-primary)] leading-relaxed">
+            <p className="font-semibold mb-2">Privacy Notice Preview</p>
+            <p className="mb-2">This notice informs the candidate about:</p>
+            <ul className="list-disc pl-4 space-y-1">
+              <li>Who is the data controller</li>
+              <li>What personal data is collected (name, contact, CV, employment history, interview notes)</li>
+              <li>Legal basis for processing (Legitimate Interests, GDPR Art. 6(1)(f))</li>
+              <li>Retention periods (active: process duration, unsuccessful: 12 months, talent pool: 24 months)</li>
+              <li>Data recipients (recruiters and hiring team)</li>
+              <li>Data subject rights (access, erasure, rectification, portability, objection)</li>
+              <li>Supervisory authority (Autoriteit Persoonsgegevens)</li>
+              <li>Link to full privacy policy</li>
+            </ul>
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Sending records the notice timestamp. Wire your email provider to deliver this.
+          </p>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 // ─── Follow Up Dropdown ───────────────────────────────────────────────────────
 
 function FollowUpDropdown({ candidateId, onChanged }: { candidateId: string; onChanged: () => void }) {
@@ -1505,6 +1748,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           <ContactCard candidate={candidate} />
           <PipelineCard candidate={candidate} />
           <SourcingCard candidate={candidate} />
+          <PrivacyCard candidateId={id} candidateEmail={candidate.email} />
         </div>
       </div>
 

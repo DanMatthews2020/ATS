@@ -33,6 +33,9 @@ router.patch('/:id',                 authenticate, candidatesController.updateCa
 router.delete('/:id',                authenticate, candidatesController.deleteCandidate);
 router.get('/:id/enrollments',       authenticate, candidatesController.getCandidateEnrollments);
 router.patch('/:id/do-not-contact',  authenticate, candidatesController.setDoNotContact);
+router.get('/:id/privacy',            authenticate, candidatesController.getPrivacy);
+router.patch('/:id/privacy',          authenticate, candidatesController.updatePrivacy);
+router.post('/:id/privacy/send-notice', authenticate, candidatesController.sendPrivacyNotice);
 router.get('/:id/feed',       authenticate, candidatesController.getFeed);
 router.get('/:id/notes',      authenticate, candidatesController.getNotes);
 router.post('/:id/notes',     authenticate, candidatesController.createNote);

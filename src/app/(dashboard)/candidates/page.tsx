@@ -13,6 +13,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Tooltip } from '@/components/ui/Tooltip';
 import { candidatesApi, jobsApi, applicationsApi, type CandidateListDto, type ParsedCvData, type JobListingDto, type WorkflowStageDto } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 import type { CandidateStatus, BadgeVariant } from '@/types';
@@ -191,7 +192,14 @@ export default function CandidatesPage() {
                     >
                       <Avatar name={candidate.name} size="md" />
                       <div className="w-48 flex-shrink-0">
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{candidate.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-[var(--color-text-primary)]">{candidate.name}</p>
+                          {!candidate.privacyNoticeSentAt && (
+                            <Tooltip content="Privacy notice not yet sent">
+                              <Badge variant="warning">No notice</Badge>
+                            </Tooltip>
+                          )}
+                        </div>
                         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{candidate.latestJobTitle ?? 'No applications yet'}</p>
                       </div>
                       <div className="flex-1 min-w-0">

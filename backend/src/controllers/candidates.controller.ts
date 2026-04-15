@@ -4,6 +4,7 @@ import { candidatesService } from '../services/candidates.service';
 import { parseCvBuffer } from '../services/cv-parser.service';
 import { sendSuccess, sendError } from '../utils/response';
 import type { ApplicationStatus, CandidateSource } from '@prisma/client';
+import { PrivacyUpdateSchema } from '../types/schemas';
 
 const VALID_STATUSES = new Set<string>([
   'APPLIED', 'SCREENING', 'INTERVIEW', 'OFFER', 'HIRED', 'REJECTED',
@@ -283,6 +284,51 @@ export const candidatesController = {
     } catch {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update Do Not Contact status');
     }
+  },
+
+  // GET /candidates/:id/privacy
+  async getPrivacy(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const privacy = await candidatesService.getPrivacy(req.params.id);
+      if (!privacy) { sendError(res, 404, 'NOT_FOUND', 'Candidate not found'); return; }
+      sendSuccess(res, privacy);
+    } catch { sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch privacy data'); }
+  },
+
+  // PATCH /candidates/:id/privacy
+  async updatePrivacy(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const parsed = PrivacyUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        sendError(res, 400, 'VALIDATION_ERROR', parsed.error.errors[0]?.message ?? 'Invalid input');
+        return;
+      }
+      const data = parsed.data;
+
+      // If legalBasis is CONSENT, consentGivenAt is required
+      if (data.legalBasis === 'CONSENT' && !data.consentGivenAt) {
+        sendError(res, 422, 'VALIDATION_ERROR', 'consentGivenAt required when legalBasis is CONSENT');
+        return;
+      }
+
+      await candidatesService.updatePrivacy(req.params.id, data);
+      const privacy = await candidatesService.getPrivacy(req.params.id);
+      sendSuccess(res, privacy);
+    } catch { sendError(res, 500, 'UPDATE_ERROR', 'Failed to update privacy settings'); }
+  },
+
+  // POST /candidates/:id/privacy/send-notice
+  async sendPrivacyNotice(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) { sendError(res, 401, 'UNAUTHORIZED', 'Not authenticated'); return; }
+
+      const result = await candidatesService.sendPrivacyNotice(req.params.id, userId);
+      if (!result) { sendError(res, 404, 'NOT_FOUND', 'Candidate not found'); return; }
+
+      // TODO: call createAuditLog(PRIVACY_NOTICE_SENT) — see Prompt 3
+      sendSuccess(res, result);
+    } catch { sendError(res, 500, 'SEND_ERROR', 'Failed to send privacy notice'); }
   },
 
   // POST /candidates/merge

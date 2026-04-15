@@ -179,6 +179,28 @@ export interface ApplicationStatusEntry {
   candidateId: string;
 }
 
+// ─── Privacy & Consent ───────────────────────────────────────────────────────
+
+export type LegalBasis = 'LEGITIMATE_INTERESTS' | 'CONSENT' | 'CONTRACT';
+
+export interface PrivacyUpdatePayload {
+  legalBasis?: LegalBasis;
+  consentGivenAt?: string;
+  consentScope?: string;
+  retentionExpiresAt?: string;
+  retentionNote?: string;
+}
+
+export interface CandidatePrivacy {
+  legalBasis: string;
+  privacyNoticeSentAt: string | null;
+  privacyNoticeSentBy: string | null;
+  consentGivenAt: string | null;
+  consentScope: string | null;
+  retentionExpiresAt: string | null;
+  retentionNote: string | null;
+}
+
 // ─── People Search ────────────────────────────────────────────────────────────
 
 export interface PersonResult {

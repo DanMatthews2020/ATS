@@ -5,7 +5,9 @@
  */
 import { candidatesRepository } from '../repositories/candidates.repository';
 import { sequencesRepository } from '../repositories/sequences.repository';
-import type { ApplicationStatus, CandidateSource } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { generatePrivacyNoticeEmail } from '../utils/privacyNotice';
+import type { ApplicationStatus, CandidateSource, LegalBasis } from '@prisma/client';
 import type { PaginatedResponse } from '../types';
 
 // ─── Status/source mappers ────────────────────────────────────────────────────
@@ -85,6 +87,7 @@ export interface CandidateListDto {
   latestJobTitle?: string;
   latestStatus?: string;  // mapped CandidateStatus string
   latestAppliedAt?: string;
+  privacyNoticeSentAt?: string;
   createdAt: string;
 }
 
@@ -187,6 +190,7 @@ export const candidatesService = {
           latestJobTitle: latest?.jobPosting.title,
           latestStatus: latest ? mapStatus(latest.status) : undefined,
           latestAppliedAt: latest?.appliedAt.toISOString(),
+          privacyNoticeSentAt: c.privacyNoticeSentAt?.toISOString(),
           createdAt: c.createdAt.toISOString(),
         };
       }),
@@ -368,6 +372,78 @@ export const candidatesService = {
 
   async getDeletedCandidates() {
     return candidatesRepository.findDeleted();
+  },
+
+  // ── Privacy & Consent ──────────────────────────────────────────────────────
+
+  async getPrivacy(id: string) {
+    const c = await candidatesRepository.getPrivacy(id);
+    if (!c) return null;
+
+    // Resolve privacyNoticeSentBy to user name if possible
+    let sentByName: string | null = null;
+    if (c.privacyNoticeSentBy) {
+      const user = await prisma.user.findUnique({
+        where: { id: c.privacyNoticeSentBy },
+        select: { firstName: true, lastName: true },
+      });
+      sentByName = user ? `${user.firstName} ${user.lastName}` : c.privacyNoticeSentBy;
+    }
+
+    return {
+      legalBasis: c.legalBasis,
+      privacyNoticeSentAt: c.privacyNoticeSentAt?.toISOString() ?? null,
+      privacyNoticeSentBy: sentByName,
+      consentGivenAt: c.consentGivenAt?.toISOString() ?? null,
+      consentScope: c.consentScope ?? null,
+      retentionExpiresAt: c.retentionExpiresAt?.toISOString() ?? null,
+      retentionNote: c.retentionNote ?? null,
+    };
+  },
+
+  async updatePrivacy(id: string, data: {
+    legalBasis?: string;
+    consentGivenAt?: string;
+    consentScope?: string;
+    retentionExpiresAt?: string;
+    retentionNote?: string;
+  }) {
+    return candidatesRepository.updatePrivacy(id, {
+      legalBasis: data.legalBasis as LegalBasis | undefined,
+      consentGivenAt: data.consentGivenAt ? new Date(data.consentGivenAt) : undefined,
+      consentScope: data.consentScope,
+      retentionExpiresAt: data.retentionExpiresAt ? new Date(data.retentionExpiresAt) : undefined,
+      retentionNote: data.retentionNote,
+    });
+  },
+
+  async sendPrivacyNotice(candidateId: string, userId: string) {
+    const [c, user] = await Promise.all([
+      candidatesRepository.getPrivacy(candidateId),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      }),
+    ]);
+    if (!c) return null;
+
+    const recruiterName = user ? `${user.firstName} ${user.lastName}` : 'Recruiter';
+    const appBaseUrl = process.env.APP_BASE_URL ?? 'http://localhost:3000';
+    const email = generatePrivacyNoticeEmail({
+      candidateName: `${c.firstName} ${c.lastName}`,
+      recruiterName,
+      companyName: process.env.COMPANY_NAME ?? 'TeamTalent',
+      appBaseUrl,
+    });
+
+    // Stub: log instead of sending
+    console.log('[PrivacyNotice] Generated for', c.email, '— HTML length:', email.html.length, 'Text length:', email.text.length);
+
+    const updated = await candidatesRepository.markPrivacyNoticeSent(candidateId, userId);
+    return {
+      sentAt: updated.privacyNoticeSentAt?.toISOString() ?? null,
+      sentBy: userId,
+    };
   },
 
   async setDoNotContact(id: string, data: {
