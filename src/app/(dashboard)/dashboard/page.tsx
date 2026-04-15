@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import { dashboardApi, jobsApi, candidatesApi, ApiError } from '@/lib/api';
+import Link from 'next/link';
+import { AlertCircle, RefreshCw, Shield, X } from 'lucide-react';
+import { dashboardApi, jobsApi, candidatesApi, rightsRequestsApi, retentionApi, ApiError } from '@/lib/api';
 import type { DashboardStats, JobListingDto, CandidateTrackingDto } from '@/lib/api';
 import { JobListingCard } from '@/components/dashboard/JobListingCard';
 import { CandidateCard } from '@/components/dashboard/CandidateCard';
+import { useAuth } from '@/hooks/useAuth';
 import type { Job, Candidate } from '@/types';
 
 // ─── Stat card labels & fallback ordering ─────────────────────────────────────
@@ -90,7 +92,56 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── Compliance banner ──────────────────────────────────────────────────────
+
+const BANNER_DISMISS_KEY = 'compliance-banner-dismissed';
+
+function ComplianceBanner() {
+  const [dismissed, setDismissed] = useState(true); // default hidden to avoid flash
+  const [items, setItems] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (sessionStorage.getItem(BANNER_DISMISS_KEY)) return;
+    setDismissed(false);
+
+    Promise.all([
+      rightsRequestsApi.fetchAll({ status: 'OPEN', limit: 1 }),
+      retentionApi.fetchCandidates(),
+    ]).then(([reqData, retData]) => {
+      const alerts: string[] = [];
+      if (reqData.total > 0) alerts.push(`${reqData.total} open rights request${reqData.total > 1 ? 's' : ''}`);
+      const expired = retData.items.filter((c) => c.retentionStatus === 'EXPIRED').length;
+      if (expired > 0) alerts.push(`${expired} expired retention record${expired > 1 ? 's' : ''}`);
+      setItems(alerts);
+    }).catch(() => {});
+  }, []);
+
+  if (dismissed || items.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800" data-testid="compliance-banner">
+      <Shield size={16} className="flex-shrink-0 text-amber-600" />
+      <span className="flex-1">
+        <strong>Compliance attention needed:</strong> {items.join(' · ')}.{' '}
+        <Link href="/settings/gdpr" className="underline hover:text-amber-900">Review in GDPR hub →</Link>
+      </span>
+      <button
+        onClick={() => { sessionStorage.setItem(BANNER_DISMISS_KEY, '1'); setDismissed(true); }}
+        className="p-0.5 rounded hover:bg-amber-100 transition-colors"
+        aria-label="Dismiss compliance banner"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const isComplianceUser = user?.role === 'ADMIN' || user?.role === 'HR';
+
   const [stats, setStats]           = useState<DashboardStats | null>(null);
   const [jobs, setJobs]             = useState<JobListingDto[]>([]);
   const [candidates, setCandidates] = useState<CandidateTrackingDto[]>([]);
@@ -157,6 +208,9 @@ export default function DashboardPage() {
           Here&apos;s what&apos;s happening across your talent pipeline today.
         </p>
       </header>
+
+      {/* ── Compliance banner (ADMIN/HR only) ─────────────────────────── */}
+      {isComplianceUser && <ComplianceBanner />}
 
       {/* ── Stat cards ──────────────────────────────────────────────────── */}
       <section aria-label="Key metrics">

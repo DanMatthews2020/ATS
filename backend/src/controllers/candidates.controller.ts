@@ -393,8 +393,8 @@ export const candidatesController = {
     try {
       const result = await anonymiseCandidate(
         req.params.id,
-        req.user.userId ?? 'unknown',
-        req.user.email ?? 'unknown',
+        req.user!.userId ?? 'unknown',
+        req.user!.email ?? 'unknown',
       );
       sendSuccess(res, { anonymisedAt: result.anonymisedAt.toISOString() });
     } catch (err: unknown) {

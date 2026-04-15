@@ -1187,7 +1187,9 @@ function SecuritySection() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function SettingsPage() {
+  const { user: navUser } = useAuth();
   const [section, setSection] = useState<SectionId>('profile');
+  const isComplianceUser = navUser?.role === 'ADMIN' || navUser?.role === 'HR';
 
   // Read ?section= param on mount to allow deep linking
   useEffect(() => {
@@ -1244,10 +1246,6 @@ export default function SettingsPage() {
                 { href: '/settings/email-templates', icon: Mail,          label: 'Email Templates' },
                 { href: '/settings/sequences',       icon: GitBranch,     label: 'Sequences' },
                 { href: '/settings/feedback-forms',  icon: MessageSquare, label: 'Feedback Forms' },
-                { href: '/settings/gdpr/audit-log',        icon: Shield,        label: 'Audit Log' },
-                { href: '/settings/gdpr/retention',        icon: Clock,         label: 'Data Retention' },
-                { href: '/settings/gdpr/rights-requests',  icon: ClipboardList, label: 'Rights Requests' },
-                { href: '/settings/gdpr/ropa',              icon: FileText,      label: 'Processing Register' },
               ] as const).map(({ href, icon: Icon, label }) => (
                 <Link
                   key={href}
@@ -1258,16 +1256,39 @@ export default function SettingsPage() {
                   {label}
                 </Link>
               ))}
-              <a
-                href="/privacy-policy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors duration-100 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]"
-              >
-                <ExternalLink size={15} strokeWidth={1.75} aria-hidden="true" />
-                Privacy Policy
-              </a>
             </div>
+            {isComplianceUser && (
+              <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+                <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-[var(--color-text-muted)]">Compliance</p>
+                <div className="space-y-0.5">
+                  {([
+                    { href: '/settings/gdpr',                  icon: Shield,        label: 'Overview' },
+                    { href: '/settings/gdpr/rights-requests',  icon: ClipboardList, label: 'Rights Requests' },
+                    { href: '/settings/gdpr/audit-log',        icon: Shield,        label: 'Audit Log' },
+                    { href: '/settings/gdpr/retention',        icon: Clock,         label: 'Data Retention' },
+                    { href: '/settings/gdpr/ropa',             icon: FileText,      label: 'Processing Register' },
+                  ] as const).map(({ href, icon: Icon, label }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors duration-100 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]"
+                    >
+                      <Icon size={15} strokeWidth={1.75} aria-hidden="true" />
+                      {label}
+                    </Link>
+                  ))}
+                  <a
+                    href="/privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors duration-100 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]"
+                  >
+                    <ExternalLink size={15} strokeWidth={1.75} aria-hidden="true" />
+                    Privacy Policy
+                  </a>
+                </div>
+              </div>
+            )}
           </nav>
         </aside>
 
