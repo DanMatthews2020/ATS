@@ -296,8 +296,8 @@ export const jobsService = {
     return jobsService.getJobById(id);
   },
 
-  async getJobApplications(jobId: string): Promise<PipelineApplicationDto[]> {
-    const apps = await jobsRepository.findApplicationsByJobId(jobId);
+  async getJobApplications(jobId: string, status?: string): Promise<PipelineApplicationDto[]> {
+    const apps = await jobsRepository.findApplicationsByJobId(jobId, status);
     return apps.map(toApplicationDto);
   },
 
