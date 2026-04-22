@@ -113,6 +113,7 @@ export const candidatesRepository = {
                 expiresAt: true,
               },
             },
+            rejection: true,
           },
         },
       },

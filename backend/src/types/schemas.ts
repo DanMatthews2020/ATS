@@ -135,6 +135,16 @@ export const UpdateRejectionReasonSchema = z.object({
 export type CreateRejectionReasonInput = z.infer<typeof CreateRejectionReasonSchema>;
 export type UpdateRejectionReasonInput = z.infer<typeof UpdateRejectionReasonSchema>;
 
+// ─── Application Rejection ────────────────────────────────────────────────────
+
+export const RejectApplicationSchema = z.object({
+  reasonId: z.string().min(1).optional(),
+  reasonLabel: z.string().min(1, 'Rejection reason is required').max(100),
+  note: z.string().max(500).optional(),
+});
+
+export type RejectApplicationInput = z.infer<typeof RejectApplicationSchema>;
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;

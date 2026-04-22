@@ -152,6 +152,15 @@ export interface CandidateDetailDto {
       sentAt?: string;
       expiresAt?: string;
     } | null;
+    rejection?: {
+      id: string;
+      applicationId: string;
+      reasonId: string | null;
+      reasonLabel: string;
+      note: string | null;
+      rejectedBy: string;
+      rejectedAt: string;
+    } | null;
   }[];
 }
 
@@ -271,6 +280,17 @@ export const candidatesService = {
               status: app.offer.status.toLowerCase(),
               sentAt: app.offer.sentAt?.toISOString(),
               expiresAt: app.offer.expiresAt?.toISOString(),
+            }
+          : null,
+        rejection: app.rejection
+          ? {
+              id: app.rejection.id,
+              applicationId: app.rejection.applicationId,
+              reasonId: app.rejection.reasonId,
+              reasonLabel: app.rejection.reasonLabel,
+              note: app.rejection.note,
+              rejectedBy: app.rejection.rejectedBy,
+              rejectedAt: app.rejection.rejectedAt.toISOString(),
             }
           : null,
       })),

@@ -10,6 +10,11 @@ export const applicationsController = {
   async updateStage(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { status } = req.body as { status: ApplicationStatus };
+      // Guard: reject must use the dedicated endpoint
+      if (status === 'REJECTED') {
+        sendError(res, 400, 'USE_REJECT_ENDPOINT', 'Use PATCH /api/applications/:id/reject to reject a candidate');
+        return;
+      }
       const result = await applicationsService.updateStage(req.params.id, status);
       if (!result) {
         sendError(res, 404, 'NOT_FOUND', 'Application not found');
@@ -76,6 +81,80 @@ export const applicationsController = {
       sendSuccess(res, result);
     } catch {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update notes');
+    }
+  },
+
+  async rejectApplication(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { reasonId, reasonLabel, note } = req.body as {
+        reasonId?: string;
+        reasonLabel: string;
+        note?: string;
+      };
+
+      // 1. Fetch application with candidate and rejection
+      const application = await prisma.application.findUnique({
+        where: { id },
+        include: { candidate: true, rejection: true },
+      });
+
+      if (!application) {
+        sendError(res, 404, 'NOT_FOUND', 'Application not found');
+        return;
+      }
+
+      // 2. Check if already rejected
+      if (application.rejection) {
+        sendError(res, 409, 'ALREADY_REJECTED', 'This application has already been rejected');
+        return;
+      }
+
+      // 3. Validate rejection reason if provided
+      if (reasonId) {
+        const reason = await prisma.rejectionReason.findUnique({ where: { id: reasonId } });
+        if (!reason || !reason.isActive) {
+          sendError(res, 422, 'INVALID_REASON', 'Rejection reason not found or has been disabled');
+          return;
+        }
+      }
+
+      // 4. Run in a transaction
+      const [updatedApp, createdRejection] = await prisma.$transaction(async (tx) => {
+        const rejection = await tx.applicationRejection.create({
+          data: {
+            applicationId: id,
+            reasonId: reasonId ?? null,
+            reasonLabel,
+            note: note ?? null,
+            rejectedBy: req.user?.userId ?? 'unknown',
+          },
+        });
+
+        // Candidate has no status field — status is derived from application status
+        const app = await tx.application.update({
+          where: { id },
+          data: { status: 'REJECTED' },
+        });
+
+        return [app, rejection] as const;
+      });
+
+      // 5. Fire-and-forget audit log
+      void createAuditLog({
+        actorId: req.user?.userId,
+        actorEmail: req.user?.email,
+        actorRole: req.user?.role,
+        action: AUDIT_ACTIONS.STAGE_CHANGED,
+        resourceType: 'application',
+        resourceId: id,
+        metadata: { newStatus: 'REJECTED', reasonLabel, note },
+        ...extractRequestMeta(req),
+      });
+
+      sendSuccess(res, { application: { ...updatedApp, rejection: createdRejection } });
+    } catch {
+      sendError(res, 500, 'REJECT_ERROR', 'Failed to reject application');
     }
   },
 };

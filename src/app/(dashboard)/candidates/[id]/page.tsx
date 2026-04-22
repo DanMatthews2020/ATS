@@ -7,7 +7,7 @@ import {
   Briefcase, Clock, MessageSquare, Activity, Check, X,
   ChevronDown, MoreHorizontal, Pencil, Trash2, Send,
   UserPlus, RefreshCw, FolderOpen, GitMerge, UserX,
-  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus, Shield, Lock,
+  AlertTriangle, FileText, Star, ExternalLink, Loader2, User, Search, Plus, Shield, Lock, XCircle,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -19,9 +19,10 @@ import { Select } from '@/components/ui/Select';
 import { Tooltip } from '@/components/ui/Tooltip';
 import {
   candidatesApi, candidatePanelApi, followUpsApi, evaluationsApi, interviewsApi, auditLogsApi,
+  applicationsApi, rejectionReasonsApi, ApiError,
   type CandidateDetailDto, type CandidateNoteDto,
   type FeedEventDto, type CandidateFeedbackDto, type FollowUpDto, type EvaluationDto,
-  type InterviewDto, type AuditLogEntryDto,
+  type InterviewDto, type AuditLogEntryDto, type RejectionReasonDto,
 } from '@/lib/api';
 import { getActionLabel } from '@/lib/auditLabels';
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
@@ -1635,6 +1636,171 @@ function DeleteProfileModal({ candidateId, candidateName, onClose, onDeleted }: 
   );
 }
 
+// ─── Reject Modal ────────────────────────────────────────────────────────────
+
+function RejectCandidateModal({ applicationId, candidateName, fromJobTitle, onClose, onRejected }: {
+  applicationId: string;
+  candidateName: string;
+  fromJobTitle: string;
+  onClose: () => void;
+  onRejected: () => void;
+}) {
+  const { showToast } = useToast();
+  const [reasons, setReasons] = useState<RejectionReasonDto[]>([]);
+  const [reasonsLoading, setReasonsLoading] = useState(true);
+  const [selectedReasonId, setSelectedReasonId] = useState('');
+  const [customReasonLabel, setCustomReasonLabel] = useState('');
+  const [note, setNote] = useState('');
+  const [selectError, setSelectError] = useState('');
+  const [customReasonError, setCustomReasonError] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  useEffect(() => {
+    rejectionReasonsApi.fetchAll()
+      .then((data) => {
+        setReasons(data);
+        if (data.length > 0) setSelectedReasonId(data[0].id);
+      })
+      .catch(() => showToast('Failed to load rejection reasons', 'error'))
+      .finally(() => setReasonsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedReason = reasons.find((r) => r.id === selectedReasonId);
+  const isOtherSelected = selectedReasonId === 'other';
+  const resolvedReasonLabel = isOtherSelected
+    ? customReasonLabel.trim()
+    : selectedReason?.label ?? '';
+
+  async function handleConfirm() {
+    if (reasons.length > 0 && !selectedReasonId) {
+      setSelectError('Please select a rejection reason');
+      return;
+    }
+    if (isOtherSelected && !customReasonLabel.trim()) {
+      setCustomReasonError('Please enter a rejection reason');
+      return;
+    }
+    if (reasons.length === 0 && !customReasonLabel.trim()) {
+      setCustomReasonError('Please enter a rejection reason');
+      return;
+    }
+    if (resolvedReasonLabel.length > 100) {
+      setCustomReasonError('Reason must be 100 characters or less');
+      return;
+    }
+    setIsRejecting(true);
+    try {
+      await applicationsApi.rejectApplication(applicationId, {
+        reasonId: !isOtherSelected && selectedReasonId ? selectedReasonId : undefined,
+        reasonLabel: reasons.length === 0 ? customReasonLabel.trim() : resolvedReasonLabel,
+        note: note.trim() || undefined,
+      });
+      showToast(`${candidateName} rejected`, 'success');
+      onRejected();
+      onClose();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        onClose();
+        showToast('This candidate has already been rejected', 'error');
+      } else if (err instanceof ApiError && err.status === 422) {
+        setSelectError('The selected reason is no longer active — please refresh and try again');
+      } else {
+        showToast('Failed to reject candidate — please try again', 'error');
+      }
+    } finally {
+      setIsRejecting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="relative bg-[var(--color-bg-primary)] rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+          <div>
+            <h2 className="text-base font-semibold text-red-600">Reject Candidate</h2>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              Rejecting {candidateName}{fromJobTitle ? ` for ${fromJobTitle}` : ''}
+            </p>
+          </div>
+          <button onClick={onClose} disabled={isRejecting} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          {/* Reason dropdown */}
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1.5">Rejection reason *</label>
+            {reasonsLoading ? (
+              <select disabled className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-muted)]">
+                <option>Loading reasons...</option>
+              </select>
+            ) : reasons.length === 0 ? (
+              <Input
+                label=""
+                value={customReasonLabel}
+                onChange={(e) => { setCustomReasonLabel(e.target.value); setCustomReasonError(''); }}
+                placeholder="Enter rejection reason"
+                error={customReasonError}
+                hint="No reasons configured in settings — type one manually"
+                maxLength={100}
+              />
+            ) : (
+              <>
+                <select
+                  value={selectedReasonId}
+                  onChange={(e) => { setSelectedReasonId(e.target.value); setSelectError(''); }}
+                  aria-label="Rejection reason"
+                  className="w-full text-sm border border-[var(--color-border)] rounded-lg px-3 py-2 bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] focus:outline-none"
+                >
+                  {reasons.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  <option value="other">Other (specify below)</option>
+                </select>
+                {selectError && <p className="text-xs text-red-600 mt-1">{selectError}</p>}
+                {selectedReason?.description && !isOtherSelected && (
+                  <p className="text-xs text-gray-500 mt-1">{selectedReason.description}</p>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Custom reason input when Other selected */}
+          {isOtherSelected && reasons.length > 0 && (
+            <Input
+              label="Specify reason *"
+              value={customReasonLabel}
+              onChange={(e) => { setCustomReasonLabel(e.target.value); setCustomReasonError(''); }}
+              error={customReasonError}
+              placeholder="Enter rejection reason"
+              maxLength={100}
+            />
+          )}
+
+          {/* Internal note */}
+          <div>
+            <Input
+              label="Internal note (optional)"
+              hint="Not shared with the candidate"
+              multiline
+              rows={3}
+              value={note}
+              onChange={(e) => setNote((e.target as unknown as HTMLTextAreaElement).value)}
+              maxLength={500}
+            />
+            <p className="text-xs text-gray-400 text-right mt-0.5">{note.length}/500</p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-6 pb-5">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={isRejecting}>Cancel</Button>
+          <Button variant="danger" size="sm" isLoading={isRejecting} disabled={reasonsLoading} onClick={handleConfirm}>
+            Confirm Rejection
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CandidateProfilePage({ params }: { params: { id: string } }) {
@@ -1658,6 +1824,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const [deleteOpen,             setDeleteOpen]             = useState(false);
   const [scheduleInterviewOpen,  setScheduleInterviewOpen]  = useState(false);
   const [scorecardOpen,          setScorecardOpen]          = useState(false);
+  const [showRejectModal,        setShowRejectModal]        = useState(false);
 
   // Extra interviews added this session (before page refresh)
   const [extraInterviews, setExtraInterviews] = useState<InterviewDto[]>([]);
@@ -1706,6 +1873,19 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
 
   // Best jobId to use for scorecard evaluation modal
   const scorecardJobId = fromJobId ?? latestApp?.jobId ?? '';
+
+  // Resolve applicationId: prefer the application matching fromJob, otherwise most recent non-rejected
+  const currentApplication = fromJobId
+    ? candidate.applications.find((a) => a.jobId === fromJobId)
+    : candidate.applications.find((a) => a.status !== 'rejected');
+  const currentApplicationId = currentApplication?.id;
+  const currentRejection = candidate.applications.find((a) => a.rejection)?.rejection;
+  // Show reject button when there's an active application, not already rejected/hired, and user is not INTERVIEWER
+  const canReject = currentApplicationId
+    && !currentApplication?.rejection
+    && currentApplication?.status !== 'rejected'
+    && latestApp?.status !== 'hired'
+    && authUser?.role !== 'INTERVIEWER';
 
   function handleDeleted() {
     router.push('/candidates');
@@ -1763,10 +1943,22 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
                 {candidate.retentionStatus === 'EXPIRED' && (
                   <Badge variant="error" className="mt-2 ml-1">{getRetentionLabelFe(candidate)}</Badge>
                 )}
+                {currentRejection && (
+                  <div className="text-sm text-gray-500 mt-1">
+                    <span>Rejected: <strong>{currentRejection.reasonLabel}</strong></span>
+                    {currentRejection.note && <span> · {currentRejection.note}</span>}
+                    <span> · {fmtDate(currentRejection.rejectedAt)}</span>
+                  </div>
+                )}
               </div>
 
               {/* Action buttons */}
               <div className="flex flex-wrap items-center gap-2">
+                {canReject && (
+                  <Button variant="danger" size="sm" onClick={() => setShowRejectModal(true)}>
+                    <XCircle size={13} className="mr-1" /> Reject
+                  </Button>
+                )}
                 <FollowUpDropdown candidateId={id} onChanged={() => {}} />
 
                 <Button
@@ -1917,6 +2109,19 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
             setScorecardOpen(false);
             setFeedbackRefreshKey((k) => k + 1);
             setActiveTab('feedback');
+          }}
+        />
+      )}
+
+      {showRejectModal && currentApplicationId && (
+        <RejectCandidateModal
+          applicationId={currentApplicationId}
+          candidateName={fullName}
+          fromJobTitle={fromJobTitle}
+          onClose={() => setShowRejectModal(false)}
+          onRejected={() => {
+            candidatesApi.getCandidate(id).then((d) => setCandidate(d.candidate)).catch(() => {});
+            setFeedKey((k) => k + 1);
           }}
         />
       )}

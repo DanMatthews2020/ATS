@@ -424,6 +424,15 @@ export interface CandidateDetailDto {
       sentAt?: string;
       expiresAt?: string;
     } | null;
+    rejection?: {
+      id: string;
+      applicationId: string;
+      reasonId: string | null;
+      reasonLabel: string;
+      note: string | null;
+      rejectedBy: string;
+      rejectedAt: string;
+    } | null;
   }[];
 }
 
@@ -1124,6 +1133,11 @@ export const applicationsApi = {
     api.patch<{ id: string; notes: string; updatedAt: string }>(
       `/applications/${id}/notes`,
       { notes },
+    ),
+  rejectApplication: (applicationId: string, data: { reasonId?: string; reasonLabel: string; note?: string }) =>
+    api.patch<{ application: { id: string; status: string; rejection: { id: string; reasonLabel: string; note: string | null; rejectedBy: string; rejectedAt: string } } }>(
+      `/applications/${applicationId}/reject`,
+      data,
     ),
 };
 

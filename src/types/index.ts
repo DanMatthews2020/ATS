@@ -264,3 +264,15 @@ export interface RejectionReason {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Application Rejection ──────────────────────────────────────────────────
+
+export interface ApplicationRejection {
+  id: string;
+  applicationId: string;
+  reasonId: string | null;
+  reasonLabel: string;
+  note: string | null;
+  rejectedBy: string;
+  rejectedAt: string;
+}

@@ -263,6 +263,7 @@ model Application {
   interviews          Interview[]
   offer               Offer?
   candidateNotes      CandidateNote[]
+  rejection           ApplicationRejection?
   feedbackSubmissions FeedbackSubmission[]
 
   @@unique([candidateId, jobPostingId])
@@ -814,4 +815,19 @@ model RejectionReason {
   createdBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  rejections  ApplicationRejection[]
+}
+
+model ApplicationRejection {
+  id            String   @id @default(cuid())
+  applicationId String   @unique
+  reasonId      String?
+  reasonLabel   String
+  note          String?
+  rejectedBy    String
+  rejectedAt    DateTime @default(now())
+
+  application Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  reason      RejectionReason? @relation(fields: [reasonId], references: [id], onDelete: SetNull)
 }
