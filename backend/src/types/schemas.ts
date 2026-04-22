@@ -118,6 +118,23 @@ export const UpdateRopaEntrySchema = CreateRopaEntrySchema.partial();
 export type CreateRopaEntryInput = z.infer<typeof CreateRopaEntrySchema>;
 export type UpdateRopaEntryInput = z.infer<typeof UpdateRopaEntrySchema>;
 
+// ─── Rejection Reasons ────────────────────────────────────────────────────────
+
+export const CreateRejectionReasonSchema = z.object({
+  label: z.string().min(1, 'Label is required').max(100),
+  description: z.string().max(300).optional(),
+});
+
+export const UpdateRejectionReasonSchema = z.object({
+  label: z.string().min(1).max(100).optional(),
+  description: z.string().max(300).optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export type CreateRejectionReasonInput = z.infer<typeof CreateRejectionReasonSchema>;
+export type UpdateRejectionReasonInput = z.infer<typeof UpdateRejectionReasonSchema>;
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type UpdateJobInput = z.infer<typeof UpdateJobSchema>;

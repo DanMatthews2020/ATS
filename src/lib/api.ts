@@ -1807,3 +1807,28 @@ export const ropaApi = {
   markReviewed: (id: string) =>
     api.post<{ entry: RopaEntryDto }>(`/gdpr/ropa/${id}/review`),
 };
+
+// ─── Rejection Reasons ──────────────────────────────────────────────────────
+
+export interface RejectionReasonDto {
+  id: string;
+  label: string;
+  description: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const rejectionReasonsApi = {
+  fetchAll: () =>
+    api.get<{ reasons: RejectionReasonDto[] }>('/settings/rejection-reasons').then((d) => d.reasons),
+  create: (data: { label: string; description?: string }) =>
+    api.post<{ reason: RejectionReasonDto }>('/settings/rejection-reasons', data).then((d) => d.reason),
+  update: (id: string, data: { label?: string; description?: string; isActive?: boolean; sortOrder?: number }) =>
+    api.patch<{ reason: RejectionReasonDto }>(`/settings/rejection-reasons/${id}`, data).then((d) => d.reason),
+  remove: (id: string) =>
+    api.delete<{ id: string }>(`/settings/rejection-reasons/${id}`),
+};

@@ -250,3 +250,17 @@ export interface PersonResult {
   locked?: boolean;
   savedToShortlist?: boolean;
 }
+
+// ─── Rejection Reasons ──────────────────────────────────────────────────────
+
+export interface RejectionReason {
+  id: string;
+  label: string;
+  description: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
