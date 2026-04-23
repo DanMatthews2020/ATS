@@ -81,6 +81,7 @@ export const jobsRepository = {
       where: {
         jobPostingId: jobId,
         ...(status ? { status: status as import('@prisma/client').ApplicationStatus } : { status: { not: 'REJECTED' as import('@prisma/client').ApplicationStatus } }),
+        candidate: { deletedAt: null },
       },
       orderBy: { appliedAt: 'desc' },
       select: {

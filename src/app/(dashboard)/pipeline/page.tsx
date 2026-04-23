@@ -639,8 +639,8 @@ export default function PipelinePage() {
       const res = await jobsApi.getJobApplications(jobId);
       const grouped: Record<string, PipelineApplicationDto[]> =
         Object.fromEntries(COLUMNS.map((c) => [c.id, []]));
-      // Safety net: backend already excludes rejected, but filter client-side too
-      const activeApps = res.applications.filter((app) => app.status !== 'rejected');
+      // Safety net: backend filters rejected and soft-deleted, but guard client-side too
+      const activeApps = res.applications.filter((app) => app.status !== 'rejected' && app.candidateName?.trim());
       for (const app of activeApps) {
         const key = app.status in grouped ? app.status : 'applied';
         grouped[key].push(app);
