@@ -119,7 +119,8 @@ export const applicationsController = {
         }
       }
 
-      // 4. Run in a transaction
+      // 4. Run in a transaction — capture current stage before updating to REJECTED
+      const stageAtRejection = application.status;
       const [updatedApp, createdRejection] = await prisma.$transaction(async (tx) => {
         const rejection = await tx.applicationRejection.create({
           data: {
@@ -128,6 +129,7 @@ export const applicationsController = {
             reasonLabel,
             note: note ?? null,
             rejectedBy: req.user?.userId ?? 'unknown',
+            stageAtRejection,
           },
         });
 

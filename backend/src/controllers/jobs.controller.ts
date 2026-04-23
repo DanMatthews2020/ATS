@@ -4,6 +4,7 @@ import { jobsService } from '../services/jobs.service';
 import { workflowsService } from '../services/workflows.service';
 import { jobMembersService } from '../services/jobMembers.service';
 import { sendSuccess, sendError } from '../utils/response';
+import { prisma } from '../lib/prisma';
 
 export const jobsController = {
   async getPipelineStats(req: AuthRequest, res: Response): Promise<void> {
@@ -176,6 +177,36 @@ export const jobsController = {
       sendSuccess(res, { stage });
     } catch {
       sendError(res, 500, 'UPDATE_ERROR', 'Failed to update stage scorecard');
+    }
+  },
+
+  async getArchivedApplications(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const jobId = req.params.id;
+      const applications = await prisma.application.findMany({
+        where: { jobPostingId: jobId, status: 'REJECTED' },
+        include: {
+          candidate: { select: { id: true, firstName: true, lastName: true, email: true, currentCompany: true } },
+          rejection: { select: { reasonLabel: true, note: true, rejectedAt: true, rejectedBy: true, stageAtRejection: true } },
+        },
+        orderBy: { rejection: { rejectedAt: 'desc' } },
+      });
+
+      const archivedCandidates = applications.map((app) => ({
+        applicationId: app.id,
+        candidateId: app.candidate.id,
+        candidateName: `${app.candidate.firstName} ${app.candidate.lastName}`,
+        candidateEmail: app.candidate.email ?? null,
+        currentCompany: app.candidate.currentCompany ?? null,
+        stageAtRejection: app.rejection?.stageAtRejection ?? null,
+        rejectionReason: app.rejection?.reasonLabel ?? 'Unknown',
+        rejectionNote: app.rejection?.note ?? null,
+        rejectedAt: app.rejection?.rejectedAt?.toISOString() ?? app.updatedAt.toISOString(),
+      }));
+
+      sendSuccess(res, { archivedCandidates, total: archivedCandidates.length, jobId });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch archived applications');
     }
   },
 

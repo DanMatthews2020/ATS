@@ -312,6 +312,8 @@ export const jobsApi = {
   }) => api.patch<{ job: JobDetailDto }>(`/jobs/${id}`, data),
   getJobApplications: (jobId: string) =>
     api.get<{ applications: PipelineApplicationDto[] }>(`/jobs/${jobId}/applications`),
+  getArchivedApplications: (jobId: string) =>
+    api.get<{ archivedCandidates: import('@/types').ArchivedCandidate[]; total: number; jobId: string }>(`/jobs/${jobId}/applications/archived`),
   getPipelineStats: () =>
     api.get<{ stats: JobPipelineStatsDto }>('/jobs/pipeline-stats'),
   getJobPipelineStats: (id: string) =>

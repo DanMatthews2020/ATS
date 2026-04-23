@@ -275,4 +275,19 @@ export interface ApplicationRejection {
   note: string | null;
   rejectedBy: string;
   rejectedAt: string;
+  stageAtRejection: string | null;
+}
+
+// ─── Archive ────────────────────────────────────────────────────────────────
+
+export interface ArchivedCandidate {
+  applicationId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateEmail: string | null;
+  currentCompany: string | null;
+  stageAtRejection: string | null;
+  rejectionReason: string;
+  rejectionNote: string | null;
+  rejectedAt: string;
 }

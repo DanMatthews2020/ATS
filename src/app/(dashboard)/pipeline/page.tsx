@@ -18,7 +18,7 @@ import {
 import {
   SlidersHorizontal, Plus, X, Mail, Phone, MapPin,
   Linkedin, FileDown, Star, ChevronDown, Loader2,
-  Search, Calendar,
+  Search, Calendar, Archive,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -605,6 +605,9 @@ export default function PipelinePage() {
   const [appsLoading, setAppsLoading] = useState(false);
   const [appsError, setAppsError] = useState('');
 
+  // Archive count for the selected job
+  const [archivedCount, setArchivedCount] = useState(0);
+
   // UI state
   const [activeSkillFilters, setActiveSkillFilters] = useState<Set<string>>(new Set());
   const [openPanelApp, setOpenPanelApp] = useState<PipelineApplicationDto | null>(null);
@@ -653,6 +656,14 @@ export default function PipelinePage() {
   useEffect(() => {
     if (selectedJobId) fetchApplications(selectedJobId);
   }, [selectedJobId, fetchApplications]);
+
+  // Fetch archived count for the Archive button badge (lightweight count query)
+  useEffect(() => {
+    if (!selectedJobId) { setArchivedCount(0); return; }
+    jobsApi.getJobPipelineStats(selectedJobId)
+      .then((res) => setArchivedCount(res.stats.archived))
+      .catch(() => {}); // non-fatal — badge just shows no count
+  }, [selectedJobId]);
 
   // Sync open panel app when columns update (e.g., after stage move)
   useEffect(() => {
@@ -801,6 +812,19 @@ export default function PipelinePage() {
               </select>
             )}
           </div>
+
+          {/* Archive */}
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!selectedJobId}
+            title={!selectedJobId ? 'Select a job to view its archived candidates' : undefined}
+            onClick={() => router.push(`/archive?jobId=${selectedJobId}&jobTitle=${encodeURIComponent(jobs.find(j => j.id === selectedJobId)?.title ?? '')}`)}
+          >
+            <Archive size={13} />
+            Archive
+            {archivedCount > 0 && <Badge variant="error">{archivedCount}</Badge>}
+          </Button>
 
           {/* Refresh */}
           <Button variant="secondary" size="sm" onClick={() => fetchApplications(selectedJobId)} disabled={appsLoading}>

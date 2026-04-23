@@ -820,13 +820,14 @@ model RejectionReason {
 }
 
 model ApplicationRejection {
-  id            String   @id @default(cuid())
-  applicationId String   @unique
-  reasonId      String?
-  reasonLabel   String
-  note          String?
-  rejectedBy    String
-  rejectedAt    DateTime @default(now())
+  id               String   @id @default(cuid())
+  applicationId    String   @unique
+  reasonId         String?
+  reasonLabel      String
+  note             String?
+  rejectedBy       String
+  rejectedAt       DateTime @default(now())
+  stageAtRejection String?
 
   application Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   reason      RejectionReason? @relation(fields: [reasonId], references: [id], onDelete: SetNull)
