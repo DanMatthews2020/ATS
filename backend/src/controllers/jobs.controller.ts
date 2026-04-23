@@ -183,13 +183,17 @@ export const jobsController = {
   async getArchivedApplications(req: AuthRequest, res: Response): Promise<void> {
     try {
       const jobId = req.params.id;
+      // Query by application.status (source of truth for rejection state).
+      // Use updatedAt for ordering instead of rejection.rejectedAt to avoid
+      // Prisma optional-relation orderBy issues with applications that have
+      // no ApplicationRejection record (e.g. legacy seed data).
       const applications = await prisma.application.findMany({
         where: { jobPostingId: jobId, status: 'REJECTED' },
         include: {
           candidate: { select: { id: true, firstName: true, lastName: true, email: true, currentCompany: true } },
           rejection: { select: { reasonLabel: true, note: true, rejectedAt: true, rejectedBy: true, stageAtRejection: true } },
         },
-        orderBy: { rejection: { rejectedAt: 'desc' } },
+        orderBy: { updatedAt: 'desc' },
       });
 
       const archivedCandidates = applications.map((app) => ({
