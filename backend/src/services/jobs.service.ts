@@ -157,6 +157,9 @@ export const jobsService = {
     const skip = (page - 1) * limit;
     const { items, total } = await jobsRepository.findMany({ skip, take: limit, status });
 
+    // Get accurate active-candidate counts (excludes soft-deleted candidates and REJECTED)
+    const activeCounts = await jobsRepository.getActiveApplicationCounts(items.map((j) => j.id));
+
     return {
       items: items.map((job) => ({
         id: job.id,
@@ -166,7 +169,7 @@ export const jobsService = {
         type: mapJobType(job.type),
         status: mapJobStatus(job.status),
         description: job.description,
-        applicantCount: job._count.applications,
+        applicantCount: activeCounts[job.id] ?? 0,
         postedAt: (job.openedAt ?? job.createdAt).toISOString(),
       })),
       total,
@@ -179,6 +182,8 @@ export const jobsService = {
   async getJobById(id: string): Promise<JobDetailDto | null> {
     const job = await jobsRepository.findById(id);
     if (!job) return null;
+    // Count only active candidates (non-rejected, non-soft-deleted) from the filtered applications
+    const activeCount = job.applications.filter((a) => a.status !== 'REJECTED').length;
     return {
       id: job.id,
       title: job.title,
@@ -190,7 +195,7 @@ export const jobsService = {
       requirements: job.requirements ?? undefined,
       salaryMin: job.salaryMin ? Number(job.salaryMin) : undefined,
       salaryMax: job.salaryMax ? Number(job.salaryMax) : undefined,
-      applicantCount: job._count.applications,
+      applicantCount: activeCount,
       postedAt: (job.openedAt ?? job.createdAt).toISOString(),
       createdByName: `${job.createdBy.firstName} ${job.createdBy.lastName}`,
       createdAt: job.createdAt.toISOString(),

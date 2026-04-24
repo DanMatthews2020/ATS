@@ -307,7 +307,7 @@ function JobCard({
   const status = STATUS_CONFIG[job.status] ?? { label: job.status, variant: 'default' as BadgeVariant, dot: 'bg-neutral-400' };
   const salary = formatSalary((job as { salaryMin?: number }).salaryMin, (job as { salaryMax?: number }).salaryMax);
   const totalInPipeline = pipelineStats
-    ? Object.values(pipelineStats).reduce((a, b) => a + b, 0)
+    ? (pipelineStats.leads + pipelineStats.applicationReview + pipelineStats.active + pipelineStats.pendingOffer + pipelineStats.hired)
     : job.applicantCount;
 
   return (
@@ -421,8 +421,9 @@ function JobTable({
         <tbody className="divide-y divide-[var(--color-border)]">
           {jobs.map((job) => {
             const status = STATUS_CONFIG[job.status] ?? { label: job.status, variant: 'default' as BadgeVariant, dot: 'bg-neutral-400' };
-            const total = pipeline[job.id]
-              ? Object.values(pipeline[job.id]).reduce((a, b) => a + b, 0)
+            const stats = pipeline[job.id];
+            const total = stats
+              ? (stats.leads + stats.applicationReview + stats.active + stats.pendingOffer + stats.hired)
               : job.applicantCount;
             return (
               <tr

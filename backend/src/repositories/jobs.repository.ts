@@ -35,6 +35,7 @@ export const jobsRepository = {
         _count: { select: { applications: true } },
         createdBy: { select: { firstName: true, lastName: true } },
         applications: {
+          where: { candidate: { deletedAt: null } },
           orderBy: { appliedAt: 'desc' },
           select: {
             id: true,
@@ -66,7 +67,7 @@ export const jobsRepository = {
   async getPipelineStatsByJobId(jobId: string) {
     const rows = await prisma.application.groupBy({
       by: ['status'],
-      where: { jobPostingId: jobId },
+      where: { jobPostingId: jobId, candidate: { deletedAt: null } },
       _count: { _all: true },
     });
     const map: Record<string, number> = {};
@@ -114,12 +115,31 @@ export const jobsRepository = {
   async getPipelineStats() {
     const rows = await prisma.application.groupBy({
       by: ['jobPostingId', 'status'],
+      where: { candidate: { deletedAt: null } },
       _count: { _all: true },
     });
     const map: Record<string, Record<string, number>> = {};
     for (const row of rows) {
       if (!map[row.jobPostingId]) map[row.jobPostingId] = {};
       map[row.jobPostingId][row.status] = row._count._all;
+    }
+    return map;
+  },
+
+  async getActiveApplicationCounts(jobIds: string[]): Promise<Record<string, number>> {
+    if (jobIds.length === 0) return {};
+    const rows = await prisma.application.groupBy({
+      by: ['jobPostingId'],
+      where: {
+        jobPostingId: { in: jobIds },
+        status: { not: 'REJECTED' as import('@prisma/client').ApplicationStatus },
+        candidate: { deletedAt: null },
+      },
+      _count: { _all: true },
+    });
+    const map: Record<string, number> = {};
+    for (const row of rows) {
+      map[row.jobPostingId] = row._count._all;
     }
     return map;
   },
