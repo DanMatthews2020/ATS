@@ -25,6 +25,7 @@ import feedbackFormsRoutes from './feedback-forms.routes';
 import referralsRoutes from './referrals.routes';
 import usersRoutes from './users.routes';
 import gdprRoutes from './gdpr.routes';
+import feedRoutes from './feed.routes';
 
 const router = Router();
 
@@ -54,5 +55,6 @@ router.use('/feedback-forms',   feedbackFormsRoutes);
 router.use('/referrals',        referralsRoutes);
 router.use('/users',            usersRoutes);
 router.use('/gdpr',             gdprRoutes);
+router.use('/feed',             feedRoutes);
 
 export default router;

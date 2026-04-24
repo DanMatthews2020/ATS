@@ -36,6 +36,7 @@ enum CandidateSource {
   DIRECT
   AGENCY
   AI_SOURCED
+  EXTERNAL_WEBSITE
 }
 
 enum ApplicationStatus {
