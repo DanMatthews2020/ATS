@@ -9,7 +9,7 @@ import {
 } from '@dnd-kit/core';
 import {
   Plus, X, Mail, Phone, MapPin, FileDown, Star,
-  ChevronDown, Loader2, Search, Calendar, GitBranch,
+  ChevronDown, Loader2, Search, Calendar, GitBranch, CalendarPlus,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +19,7 @@ import {
   type WorkflowStageDto, type PipelineApplicationDto, type CandidateListDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
+import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -117,10 +118,12 @@ function DroppableColumn({
 // ─── CandidatePanel ───────────────────────────────────────────────────────────
 
 function CandidatePanel({
-  app, stages, onClose, onStageUpdated, onNotesUpdated,
+  app, stages, jobId, jobTitle, onClose, onStageUpdated, onNotesUpdated,
 }: {
   app: PipelineApplicationDto;
   stages: WorkflowStageDto[];
+  jobId: string;
+  jobTitle: string;
   onClose: () => void;
   onStageUpdated: (appId: string, newStage: string) => void;
   onNotesUpdated: (appId: string, notes: string) => void;
@@ -133,6 +136,7 @@ function CandidatePanel({
   useEffect(() => { setNoteText(app.notes ?? ''); }, [app.notes]);
   const [showStageSelect, setShowStageSelect] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   const scoreColor = app.score >= 85 ? 'text-emerald-600' : app.score >= 70 ? 'text-amber-500' : 'text-neutral-400';
 
@@ -270,7 +274,16 @@ function CandidatePanel({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-[var(--color-border)] p-4 flex-shrink-0">
+        <div className="border-t border-[var(--color-border)] p-4 flex-shrink-0 space-y-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full justify-center"
+            onClick={() => setShowScheduleModal(true)}
+          >
+            <CalendarPlus size={13} />
+            Schedule Interview
+          </Button>
           <div className="relative">
             <Button
               variant="primary"
@@ -300,6 +313,17 @@ function CandidatePanel({
             )}
           </div>
         </div>
+
+        {/* Schedule Interview Modal */}
+        <ScheduleInterviewModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          onSuccess={() => { setShowScheduleModal(false); showToast('Interview scheduled', 'success'); }}
+          candidateId={app.candidateId}
+          candidateName={app.candidateName}
+          preselectedJobId={jobId}
+          preselectedJobTitle={jobTitle}
+        />
       </div>
     </>
   );
@@ -655,6 +679,8 @@ export function JobKanbanBoard({
         <CandidatePanel
           app={openPanelApp}
           stages={stages}
+          jobId={jobId}
+          jobTitle={jobTitle}
           onClose={() => setOpenPanelApp(null)}
           onStageUpdated={handleStageUpdated}
           onNotesUpdated={handleNotesUpdated}

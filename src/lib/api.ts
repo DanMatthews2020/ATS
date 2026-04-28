@@ -1873,3 +1873,91 @@ export const calendarApi = {
   getFreeBusy: (params: { userIds: string[]; timeMin: string; timeMax: string }) =>
     api.post<{ freeBusy: Record<string, BusyIntervalDto[]> }>('/calendar/free-busy', params).then((d) => d.freeBusy),
 };
+
+// ── Scheduling ────────────────────────────────────────────────────────────────
+
+export interface SlotSuggestionDto {
+  start: string;
+  end: string;
+}
+
+export interface SuggestSlotsParams {
+  interviewerUserIds: string[];
+  durationMinutes: number;
+  bufferBefore?: number;
+  bufferAfter?: number;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  workingHoursStart?: number;
+  workingHoursEnd?: number;
+  maxSlots?: number;
+}
+
+export interface SchedulingLinkDto {
+  id: string;
+  token: string;
+  url: string;
+  expiresAt: string;
+  slots: { id: string; start: string; end: string }[];
+}
+
+export interface PublicSchedulingLinkDto {
+  id: string;
+  candidateName: string;
+  jobTitle: string;
+  durationMinutes: number;
+  timezone: string;
+  isExpired: boolean;
+  isUsed: boolean;
+  createdBy: string;
+  slots: { id: string; start: string; end: string }[];
+}
+
+export interface BookSlotResult {
+  interviewId: string;
+  scheduledAt: string;
+  duration: number;
+}
+
+export const schedulingApi = {
+  suggestSlots: (params: SuggestSlotsParams) =>
+    api.post<{ slots: SlotSuggestionDto[] }>('/scheduling/suggest-slots', params).then((d) => d.slots),
+
+  createLink: (params: {
+    applicationId: string;
+    interviewStageId?: string;
+    durationMinutes: number;
+    bufferBefore?: number;
+    bufferAfter?: number;
+    expiresInHours?: number;
+    timezone: string;
+    slots: { start: string; end: string }[];
+  }) => api.post<SchedulingLinkDto>('/scheduling/links', params),
+
+  getLink: (token: string) =>
+    api.get<PublicSchedulingLinkDto>(`/scheduling/links/${token}`),
+
+  bookSlot: (token: string, data: {
+    slotId: string;
+    interviewType: 'PHONE' | 'VIDEO' | 'ON_SITE' | 'TECHNICAL';
+    meetingLink?: string;
+    location?: string;
+    notes?: string;
+  }) => api.post<BookSlotResult>(`/scheduling/links/${token}/book`, data),
+
+  reschedule: (interviewId: string, data: {
+    scheduledAt: string;
+    duration?: number;
+    meetingLink?: string | null;
+    location?: string | null;
+    notes?: string;
+    reason?: string;
+  }) => api.patch<{ id: string; scheduledAt: string; duration: number; status: string }>(
+    `/scheduling/interviews/${interviewId}/reschedule`, data,
+  ),
+
+  cancel: (interviewId: string, reason?: string) =>
+    api.patch<{ id: string; status: string }>(
+      `/scheduling/interviews/${interviewId}/cancel`, { reason },
+    ),
+};

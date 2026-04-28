@@ -27,6 +27,7 @@ import usersRoutes from './users.routes';
 import gdprRoutes from './gdpr.routes';
 import feedRoutes from './feed.routes';
 import calendarRoutes from './calendar.routes';
+import schedulingRoutes from './scheduling.routes';
 
 const router = Router();
 
@@ -58,5 +59,6 @@ router.use('/users',            usersRoutes);
 router.use('/gdpr',             gdprRoutes);
 router.use('/feed',             feedRoutes);
 router.use('/calendar',         calendarRoutes);
+router.use('/scheduling',      schedulingRoutes);
 
 export default router;
