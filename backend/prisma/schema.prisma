@@ -125,6 +125,47 @@ enum TaskStatus {
   DONE
 }
 
+enum CalendarProvider {
+  GOOGLE
+}
+
+enum ParticipantRole {
+  INTERVIEWER
+  NOTETAKER
+  OBSERVER
+}
+
+enum NotificationType {
+  MENTION
+  FEEDBACK_REQUEST
+  FEEDBACK_REMINDER
+  INTERVIEW_SCHEDULED
+  INTERVIEW_RESCHEDULED
+  INTERVIEW_CANCELLED
+  SCHEDULING_LINK_BOOKED
+}
+
+enum FeedbackStatus {
+  PENDING
+  SUBMITTED
+  OVERDUE
+}
+
+enum TimelineEventType {
+  SCHEDULING_LINK_SENT
+  INTERVIEW_SCHEDULED
+  INTERVIEW_RESCHEDULED
+  INTERVIEW_CANCELLED
+  FEEDBACK_REQUESTED
+  FEEDBACK_SUBMITTED
+  FEEDBACK_REMINDER_SENT
+  COMMENT_ADDED
+  MENTION_CREATED
+  APPLICATION_STAGE_CHANGED
+  OFFER_SENT
+  CANDIDATE_CREATED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -156,6 +197,13 @@ model User {
   feedbackFormsCreated  FeedbackForm[]        @relation("FeedbackFormCreatedBy")
   feedbackSubmissions   FeedbackSubmission[]  @relation("FeedbackSubmittedBy")
   notifications         Notification[]
+  calendarIntegration    CalendarIntegration?
+  interviewParticipants  InterviewParticipant[]
+  candidateComments      CandidateComment[]     @relation("CommentAuthor")
+  mentionsReceived       Mention[]              @relation("MentionedUser")
+  feedbackRequests       FeedbackRequest[]      @relation("FeedbackRequestUser")
+  schedulingLinksCreated SchedulingLink[]        @relation("SchedulingLinkCreatedBy")
+  timelineActions        TimelineEvent[]         @relation("TimelineActor")
 }
 
 model RefreshToken {
@@ -247,6 +295,8 @@ model Candidate {
   feedbackSubmissions FeedbackSubmission[]
   referrals           Referral[]
   rightsRequests      CandidateRightsRequest[]
+  comments            CandidateComment[]     // queries must always filter candidate.deletedAt: null
+  timelineEvents      TimelineEvent[]        // queries must always filter candidate.deletedAt: null
 }
 
 model Application {
@@ -266,6 +316,9 @@ model Application {
   candidateNotes      CandidateNote[]
   rejection           ApplicationRejection?
   feedbackSubmissions FeedbackSubmission[]
+  schedulingLinks     SchedulingLink[]
+  comments            CandidateComment[]
+  timelineEvents      TimelineEvent[]
 
   @@unique([candidateId, jobPostingId])
 }
@@ -287,7 +340,10 @@ model Interview {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  interviewers InterviewsOnUsers[]
+  interviewers      InterviewsOnUsers[]
+  calendarMapping   CalendarEventMapping?
+  participants      InterviewParticipant[]
+  feedbackRequests  FeedbackRequest[]
 }
 
 model InterviewsOnUsers {
@@ -397,7 +453,8 @@ model WorkflowStage {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
-  evaluations CandidateEvaluation[]
+  evaluations     CandidateEvaluation[]
+  schedulingLinks SchedulingLink[]
 }
 
 model Scorecard {
@@ -717,15 +774,20 @@ model CandidateRightsRequest {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String
-  title     String
-  body      String
-  link      String?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id               String            @id @default(cuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type             String
+  title            String
+  body             String
+  link             String?
+  read             Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  // Phase 1 additions — nullable so existing rows remain valid
+  notificationType NotificationType?
+  entityType       String?
+  entityId         String?
+  message          String?
 }
 
 model PerformanceCycle {
@@ -832,4 +894,132 @@ model ApplicationRejection {
 
   application Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   reason      RejectionReason? @relation(fields: [reasonId], references: [id], onDelete: SetNull)
+}
+
+// ─── Phase 1: Calendar, Scheduling & Collaboration ──────────────────────────
+
+model CalendarIntegration {
+  id           String           @id @default(cuid())
+  userId       String           @unique
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     CalendarProvider
+  accessToken  String           // encrypted at rest — never sent to frontend
+  refreshToken String           // encrypted at rest
+  tokenExpiry  DateTime
+  calendarId   String
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model CalendarEventMapping {
+  id              String           @id @default(cuid())
+  interviewId     String           @unique
+  interview       Interview        @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  externalEventId String
+  provider        CalendarProvider
+  calendarId      String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model SchedulingLink {
+  id               String       @id @default(cuid())
+  applicationId    String
+  application      Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  interviewStageId String?
+  interviewStage   WorkflowStage? @relation(fields: [interviewStageId], references: [id], onDelete: SetNull)
+  token            String       @unique
+  durationMinutes  Int
+  bufferBefore     Int          @default(0)
+  bufferAfter      Int          @default(0)
+  expiresAt        DateTime
+  usedAt           DateTime?    // null = still active
+  timezone         String
+  createdById      String
+  createdBy        User         @relation("SchedulingLinkCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  slots SchedulingLinkSlot[]
+}
+
+model SchedulingLinkSlot {
+  id               String         @id @default(cuid())
+  schedulingLinkId String
+  schedulingLink   SchedulingLink @relation(fields: [schedulingLinkId], references: [id], onDelete: Cascade)
+  startTime        DateTime
+  endTime          DateTime
+  isBooked         Boolean        @default(false)
+}
+
+model InterviewParticipant {
+  id          String          @id @default(cuid())
+  interviewId String
+  interview   Interview       @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        ParticipantRole
+  notified    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  @@unique([interviewId, userId])
+}
+
+// Queries on CandidateComment must always filter candidate.deletedAt: null
+model CandidateComment {
+  id            String       @id @default(cuid())
+  candidateId   String
+  candidate     Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  authorId      String
+  author        User         @relation("CommentAuthor", fields: [authorId], references: [id])
+  body          String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?    // soft delete — mirrors candidate pattern
+
+  mentions Mention[]
+}
+
+model Mention {
+  id        String           @id @default(cuid())
+  commentId String
+  comment   CandidateComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User             @relation("MentionedUser", fields: [userId], references: [id], onDelete: Cascade)
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@unique([commentId, userId])
+}
+
+model FeedbackRequest {
+  id             String         @id @default(cuid())
+  interviewId    String
+  interview      Interview      @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User           @relation("FeedbackRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  status         FeedbackStatus @default(PENDING)
+  reminderSentAt DateTime?
+  submittedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([interviewId, userId])
+}
+
+// Queries on TimelineEvent must always filter candidate.deletedAt: null
+model TimelineEvent {
+  id            String            @id @default(cuid())
+  candidateId   String
+  candidate     Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   Application?      @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  actorId       String?
+  actor         User?             @relation("TimelineActor", fields: [actorId], references: [id], onDelete: SetNull)
+  type          TimelineEventType
+  metadata      Json              @default("{}")
+  createdAt     DateTime          @default(now())
 }
