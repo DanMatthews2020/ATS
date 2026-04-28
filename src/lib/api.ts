@@ -1848,3 +1848,28 @@ export const rejectionReasonsApi = {
   remove: (id: string) =>
     api.delete<{ id: string }>(`/settings/rejection-reasons/${id}`),
 };
+
+// ─── Calendar Integration ────────────────────────────────────────────────────
+
+export interface CalendarStatusDto {
+  connected: boolean;
+  email?: string;
+  calendarId?: string;
+  provider?: string;
+}
+
+export interface BusyIntervalDto {
+  start: string;
+  end: string;
+}
+
+export const calendarApi = {
+  getAuthUrl: () =>
+    api.get<{ url: string }>('/calendar/auth-url').then((d) => d.url),
+  getStatus: () =>
+    api.get<CalendarStatusDto>('/calendar/status'),
+  disconnect: () =>
+    api.delete<{ disconnected: boolean }>('/calendar/disconnect'),
+  getFreeBusy: (params: { userIds: string[]; timeMin: string; timeMax: string }) =>
+    api.post<{ freeBusy: Record<string, BusyIntervalDto[]> }>('/calendar/free-busy', params).then((d) => d.freeBusy),
+};
