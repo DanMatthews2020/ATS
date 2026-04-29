@@ -2,254 +2,231 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Calendar, Clock, MapPin, Loader2, CheckCircle2, AlertCircle, Video, Phone, Building2, Code2 } from 'lucide-react';
-import { schedulingApi, type PublicSchedulingLinkDto } from '@/lib/api';
+import { Calendar, Clock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
 
-type InterviewType = 'PHONE' | 'VIDEO' | 'ON_SITE' | 'TECHNICAL';
-type PageState = 'loading' | 'ready' | 'confirming' | 'booked' | 'error' | 'expired';
-
-const TYPE_OPTIONS: { value: InterviewType; label: string; icon: typeof Video }[] = [
-  { value: 'VIDEO',     label: 'Video Call',  icon: Video },
-  { value: 'PHONE',     label: 'Phone Call',  icon: Phone },
-  { value: 'ON_SITE',   label: 'On-site',     icon: Building2 },
-  { value: 'TECHNICAL', label: 'Technical',   icon: Code2 },
-];
-
-// ─── Page ───────────────────────────────────────────────────────────────────
+interface PublicLink {
+  jobTitle: string;
+  companyName: string;
+  durationMinutes: number;
+  timezone: string;
+  expiresAt: string;
+  slots: { id: string; startTime: string; endTime: string }[];
+}
 
 export default function ScheduleSelfBookingPage() {
   const { token } = useParams<{ token: string }>();
 
-  const [state, setState] = useState<PageState>('loading');
-  const [link, setLink] = useState<PublicSchedulingLinkDto | null>(null);
+  const [link, setLink] = useState<PublicLink | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
+
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  const [interviewType, setInterviewType] = useState<InterviewType>('VIDEO');
-  const [notes, setNotes] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [bookedTime, setBookedTime] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [booked, setBooked] = useState(false);
+  const [bookedSlot, setBookedSlot] = useState<{ startTime: string; endTime: string } | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    schedulingApi.getLink(token)
-      .then((data) => {
-        setLink(data);
-        setState('ready');
-      })
-      .catch((err) => {
-        const code = err?.code;
-        if (code === 'LINK_EXPIRED' || code === 'LINK_USED') {
-          setState('expired');
-          setErrorMsg(code === 'LINK_EXPIRED'
-            ? 'This scheduling link has expired. Please contact the recruiter for a new link.'
-            : 'This time slot has already been booked.');
+    fetch(`${API_URL}/scheduling/public/${token}`)
+      .then((res) => res.json())
+      .then((body) => {
+        if (body.success && body.data) {
+          setLink(body.data);
         } else {
-          setState('error');
-          setErrorMsg('Scheduling link not found.');
+          const code = body.error?.code;
+          if (code === 'LINK_EXPIRED' || code === 'LINK_USED') {
+            setExpired(true);
+            setError(
+              code === 'LINK_EXPIRED'
+                ? 'This scheduling link has expired. Please contact the recruiter for a new link.'
+                : 'This interview has already been scheduled.',
+            );
+          } else {
+            setError('Scheduling link not found.');
+          }
         }
-      });
+      })
+      .catch(() => setError('Network error. Please check your connection and try again.'))
+      .finally(() => setLoading(false));
   }, [token]);
 
   async function handleBook() {
     if (!selectedSlotId || !token) return;
-    setState('confirming');
+    setSubmitting(true);
+    setError(null);
+
     try {
-      const result = await schedulingApi.bookSlot(token, {
-        slotId: selectedSlotId,
-        interviewType,
-        notes: notes || undefined,
+      const res = await fetch(`${API_URL}/scheduling/public/${token}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slotId: selectedSlotId }),
       });
-      setBookedTime(result.scheduledAt);
-      setState('booked');
-    } catch (err) {
-      setState('ready');
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to book slot. Please try again.');
+
+      const body = await res.json();
+      if (!res.ok) {
+        if (res.status === 409) {
+          setError('This slot has already been booked. Please select another time or contact the recruiter.');
+        } else {
+          setError(body.error?.message ?? 'Something went wrong. Please try again.');
+        }
+        return;
+      }
+
+      const slot = link?.slots.find((s) => s.id === selectedSlotId);
+      if (slot) setBookedSlot(slot);
+      setBooked(true);
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
   // ── Loading ─────────────────────────────────────────────────────────────
-  if (state === 'loading') {
+  if (loading) {
     return (
-      <Shell>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
-      </Shell>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
     );
   }
 
   // ── Error / Expired ─────────────────────────────────────────────────────
-  if (state === 'error' || state === 'expired') {
+  if (error && !link) {
     return (
-      <Shell>
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <AlertCircle size={48} strokeWidth={1.5} className="text-gray-300 mb-4" />
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">
-            {state === 'expired' ? 'Link Expired' : 'Not Found'}
-          </h2>
-          <p className="text-sm text-gray-500 max-w-sm">{errorMsg}</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">
+            {expired ? 'Link Expired' : 'Not Available'}
+          </h1>
+          <p className="text-gray-500">{error}</p>
         </div>
-      </Shell>
+      </div>
     );
   }
 
-  // ── Booked (success) ────────────────────────────────────────────────────
-  if (state === 'booked') {
-    const dt = new Date(bookedTime);
-    const formatted = dt.toLocaleDateString('en-US', {
-      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    });
-    const timeFormatted = dt.toLocaleTimeString('en-US', {
-      hour: 'numeric', minute: '2-digit',
-    });
-
+  // ── Success ─────────────────────────────────────────────────────────────
+  if (booked) {
+    const dt = bookedSlot ? new Date(bookedSlot.startTime) : null;
     return (
-      <Shell>
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-5">
-            <CheckCircle2 size={32} className="text-emerald-500" />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Interview Booked!</h2>
-          <p className="text-sm text-gray-500 mb-6 max-w-sm">
-            Your interview for <span className="font-medium text-gray-700">{link?.jobTitle}</span> has been confirmed.
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+          <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">Interview Scheduled!</h1>
+          <p className="text-gray-500 mb-1">
+            Your interview for <span className="font-medium text-gray-700">{link?.jobTitle}</span> at{' '}
+            <span className="font-medium text-gray-700">{link?.companyName}</span> has been confirmed.
           </p>
-          <div className="bg-gray-50 rounded-xl px-6 py-4 text-sm space-y-2">
-            <div className="flex items-center gap-2 text-gray-700">
-              <Calendar size={15} className="text-gray-400" />
-              {formatted}
+          {dt && (
+            <div className="mt-4 bg-gray-50 rounded-xl px-6 py-4 text-sm space-y-2 inline-block">
+              <div className="flex items-center gap-2 text-gray-700">
+                <Calendar size={15} className="text-gray-400" />
+                {dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </div>
+              <div className="flex items-center gap-2 text-gray-700">
+                <Clock size={15} className="text-gray-400" />
+                {dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} ({link?.durationMinutes} min)
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-gray-700">
-              <Clock size={15} className="text-gray-400" />
-              {timeFormatted} ({link?.durationMinutes} min)
-            </div>
-          </div>
-          <p className="text-xs text-gray-400 mt-6">You may close this page.</p>
+          )}
+          <p className="text-gray-400 text-sm mt-6">You may close this page.</p>
         </div>
-      </Shell>
+      </div>
     );
   }
 
-  // ── Ready — slot selection ──────────────────────────────────────────────
-  const selectedSlot = link?.slots.find((s) => s.id === selectedSlotId);
+  // ── Slot selection ──────────────────────────────────────────────────────
+  if (!link) return null;
 
   return (
-    <Shell>
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-xl font-semibold text-gray-800">Pick a Time</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {link?.candidateName} — <span className="font-medium">{link?.jobTitle}</span>
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">{link.jobTitle}</h1>
+          <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <Clock size={14} /> {link.durationMinutes} min
+            </span>
+            <span>{link.companyName}</span>
+          </div>
+        </div>
+
+        {/* Slot selection card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-5">Select a time</h2>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {link.slots.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm">No available time slots. Please contact the recruiter.</p>
+            </div>
+          ) : (
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6 max-h-[400px] overflow-y-auto pr-1"
+              role="radiogroup"
+              aria-label="Available interview time slots"
+            >
+              {link.slots.map((slot) => {
+                const start = new Date(slot.startTime);
+                const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                const selected = selectedSlotId === slot.id;
+
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => { setSelectedSlotId(slot.id); setError(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedSlotId(slot.id); setError(null); } }}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40 ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                    }`}
+                  >
+                    <Calendar size={16} className={selected ? 'text-blue-500' : 'text-gray-400'} />
+                    <div>
+                      <div className="text-sm font-medium">{dateStr}</div>
+                      <div className="text-xs text-gray-500">{timeStr}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={!selectedSlotId || submitting}
+            onClick={handleBook}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
+          >
+            {submitting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Calendar size={16} />
+            )}
+            {submitting ? 'Scheduling...' : 'Confirm Interview'}
+          </button>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          Powered by {link.companyName}
         </p>
-        <p className="text-xs text-gray-400 mt-0.5">
-          {link?.durationMinutes} min · Scheduled by {link?.createdBy}
-        </p>
-      </div>
-
-      {errorMsg && (
-        <div className="bg-red-50 text-red-700 text-sm rounded-xl px-4 py-3 mb-4">
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Slot grid */}
-      <div className="space-y-3 mb-6">
-        <label className="block text-sm font-medium text-gray-700">Available Times</label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
-          {link?.slots.map((slot) => {
-            const start = new Date(slot.start);
-            const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-            const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const selected = selectedSlotId === slot.id;
-
-            return (
-              <button
-                key={slot.id}
-                type="button"
-                onClick={() => { setSelectedSlotId(slot.id); setErrorMsg(''); }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-colors ${
-                  selected
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-blue-300 text-gray-700'
-                }`}
-              >
-                <Calendar size={16} className={selected ? 'text-blue-500' : 'text-gray-400'} />
-                <div>
-                  <div className="text-sm font-medium">{dateStr}</div>
-                  <div className="text-xs text-gray-500">{timeStr}</div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Interview type */}
-      <div className="mb-5">
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Interview Format</label>
-        <div className="grid grid-cols-2 gap-2">
-          {TYPE_OPTIONS.map((opt) => {
-            const Icon = opt.icon;
-            const selected = interviewType === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setInterviewType(opt.value)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm transition-colors ${
-                  selected
-                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                    : 'border-gray-200 text-gray-600 hover:border-blue-300'
-                }`}
-              >
-                <Icon size={15} />
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Notes <span className="text-gray-400 font-normal">(optional)</span>
-        </label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          placeholder="Anything the team should know…"
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none"
-        />
-      </div>
-
-      {/* Confirm */}
-      <button
-        type="button"
-        disabled={!selectedSlotId || state === 'confirming'}
-        onClick={handleBook}
-        className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-      >
-        {state === 'confirming' ? (
-          <><Loader2 size={16} className="animate-spin" /> Booking…</>
-        ) : selectedSlot ? (
-          <>Confirm — {new Date(selectedSlot.start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {new Date(selectedSlot.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</>
-        ) : (
-          'Select a time slot'
-        )}
-      </button>
-    </Shell>
-  );
-}
-
-// ─── Shell wrapper ──────────────────────────────────────────────────────────
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-start justify-center px-4 py-12">
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8">
-        {children}
       </div>
     </div>
   );

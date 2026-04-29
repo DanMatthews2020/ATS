@@ -8,10 +8,10 @@ const INCLUDE = {
   application: {
     include: {
       candidate: { select: { id: true, firstName: true, lastName: true, email: true } },
-      jobPosting: { select: { id: true, title: true } },
+      jobPosting: { select: { id: true, title: true, department: true, location: true } },
     },
   },
-  createdBy: { select: { id: true, firstName: true, lastName: true } },
+  createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
   slots: { orderBy: { startTime: 'asc' as const } },
 } as const;
 
@@ -66,12 +66,16 @@ export const schedulingLinkRepository = {
   },
 
   async createSlots(schedulingLinkId: string, slots: { startTime: Date; endTime: Date }[]) {
-    return prisma.schedulingLinkSlot.createMany({
+    await prisma.schedulingLinkSlot.createMany({
       data: slots.map((s) => ({
         schedulingLinkId,
         startTime: s.startTime,
         endTime: s.endTime,
       })),
+    });
+    return prisma.schedulingLinkSlot.findMany({
+      where: { schedulingLinkId },
+      orderBy: { startTime: 'asc' },
     });
   },
 
@@ -79,13 +83,6 @@ export const schedulingLinkRepository = {
     return prisma.schedulingLinkSlot.update({
       where: { id: slotId },
       data: { isBooked: true },
-    });
-  },
-
-  async findSlotById(slotId: string) {
-    return prisma.schedulingLinkSlot.findUnique({
-      where: { id: slotId },
-      include: { schedulingLink: { include: INCLUDE } },
     });
   },
 };

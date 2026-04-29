@@ -159,10 +159,12 @@ export const api = {
     request<T>(url, { ...opts, method: 'GET' }),
   post:   <T>(url: string, body?: unknown, opts?: FetchOptions) =>
     request<T>(url, { ...opts, method: 'POST', body }),
+  put:    <T>(url: string, body?: unknown, opts?: FetchOptions) =>
+    request<T>(url, { ...opts, method: 'PUT', body }),
   patch:  <T>(url: string, body?: unknown, opts?: FetchOptions) =>
     request<T>(url, { ...opts, method: 'PATCH', body }),
-  delete: <T>(url: string, opts?: FetchOptions) =>
-    request<T>(url, { ...opts, method: 'DELETE' }),
+  delete: <T>(url: string, body?: unknown, opts?: FetchOptions) =>
+    request<T>(url, { ...opts, method: 'DELETE', ...(body !== undefined ? { body } : {}) }),
 };
 
 // ─── Typed API methods ────────────────────────────────────────────────────────
@@ -1876,21 +1878,14 @@ export const calendarApi = {
 
 // ── Scheduling ────────────────────────────────────────────────────────────────
 
-export interface SlotSuggestionDto {
+export interface TimeSlotDto {
   start: string;
   end: string;
 }
 
-export interface SuggestSlotsParams {
-  interviewerUserIds: string[];
-  durationMinutes: number;
-  bufferBefore?: number;
-  bufferAfter?: number;
-  dateRangeStart: string;
-  dateRangeEnd: string;
-  workingHoursStart?: number;
-  workingHoursEnd?: number;
-  maxSlots?: number;
+export interface SuggestSlotsResponse {
+  slots: TimeSlotDto[];
+  warnings?: string[];
 }
 
 export interface SchedulingLinkDto {
@@ -1898,66 +1893,68 @@ export interface SchedulingLinkDto {
   token: string;
   url: string;
   expiresAt: string;
-  slots: { id: string; start: string; end: string }[];
+  durationMinutes: number;
+  timezone: string;
+  slots: { id: string; startTime: string; endTime: string }[];
+}
+
+export interface SchedulingLinkSummaryDto {
+  id: string;
+  token: string;
+  durationMinutes: number;
+  timezone: string;
+  expiresAt: string;
+  usedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  slotCount: number;
+  bookedSlots: number;
 }
 
 export interface PublicSchedulingLinkDto {
-  id: string;
-  candidateName: string;
   jobTitle: string;
+  companyName: string;
   durationMinutes: number;
   timezone: string;
-  isExpired: boolean;
-  isUsed: boolean;
-  createdBy: string;
-  slots: { id: string; start: string; end: string }[];
-}
-
-export interface BookSlotResult {
-  interviewId: string;
-  scheduledAt: string;
-  duration: number;
+  expiresAt: string;
+  slots: { id: string; startTime: string; endTime: string }[];
 }
 
 export const schedulingApi = {
-  suggestSlots: (params: SuggestSlotsParams) =>
-    api.post<{ slots: SlotSuggestionDto[] }>('/scheduling/suggest-slots', params).then((d) => d.slots),
+  suggestSlots: (params: {
+    interviewerUserIds: string[];
+    durationMinutes: number;
+    bufferBefore: number;
+    bufferAfter: number;
+    windowStart: string;
+    windowEnd: string;
+    timezone: string;
+  }) => api.post<SuggestSlotsResponse>('/scheduling/suggest-slots', params),
 
   createLink: (params: {
     applicationId: string;
-    interviewStageId?: string;
+    interviewerUserIds: string[];
     durationMinutes: number;
-    bufferBefore?: number;
-    bufferAfter?: number;
-    expiresInHours?: number;
+    bufferBefore: number;
+    bufferAfter: number;
+    expiresInHours: number;
     timezone: string;
-    slots: { start: string; end: string }[];
   }) => api.post<SchedulingLinkDto>('/scheduling/links', params),
 
-  getLink: (token: string) =>
-    api.get<PublicSchedulingLinkDto>(`/scheduling/links/${token}`),
+  getLinksByApplication: (applicationId: string) =>
+    api.get<{ links: SchedulingLinkSummaryDto[] }>(`/scheduling/links/${applicationId}`).then((d) => d.links),
 
-  bookSlot: (token: string, data: {
-    slotId: string;
-    interviewType: 'PHONE' | 'VIDEO' | 'ON_SITE' | 'TECHNICAL';
-    meetingLink?: string;
-    location?: string;
-    notes?: string;
-  }) => api.post<BookSlotResult>(`/scheduling/links/${token}/book`, data),
+  getPublicLink: (token: string) =>
+    api.get<PublicSchedulingLinkDto>(`/scheduling/public/${token}`),
 
-  reschedule: (interviewId: string, data: {
-    scheduledAt: string;
-    duration?: number;
-    meetingLink?: string | null;
-    location?: string | null;
-    notes?: string;
-    reason?: string;
-  }) => api.patch<{ id: string; scheduledAt: string; duration: number; status: string }>(
-    `/scheduling/interviews/${interviewId}/reschedule`, data,
-  ),
+  bookSlot: (token: string, slotId: string) =>
+    api.post<{ message: string }>(`/scheduling/public/${token}/book`, { slotId }),
 
-  cancel: (interviewId: string, reason?: string) =>
-    api.patch<{ id: string; status: string }>(
-      `/scheduling/interviews/${interviewId}/cancel`, { reason },
+  rescheduleInterview: (id: string, params: { newStart: string; newEnd: string }) =>
+    api.put<{ id: string; scheduledAt: string; duration: number; status: string }>(
+      `/scheduling/interviews/${id}/reschedule`, params,
     ),
+
+  cancelInterview: (id: string, reason?: string) =>
+    api.delete<{ message: string }>(`/scheduling/interviews/${id}`, { reason }),
 };

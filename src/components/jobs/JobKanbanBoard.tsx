@@ -19,7 +19,7 @@ import {
   type WorkflowStageDto, type PipelineApplicationDto, type CandidateListDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
-import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
+import { ScheduleInterviewModal } from '@/components/scheduling/ScheduleInterviewModal';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -318,11 +318,10 @@ function CandidatePanel({
         <ScheduleInterviewModal
           isOpen={showScheduleModal}
           onClose={() => setShowScheduleModal(false)}
-          onSuccess={() => { setShowScheduleModal(false); showToast('Interview scheduled', 'success'); }}
-          candidateId={app.candidateId}
-          candidateName={app.candidateName}
-          preselectedJobId={jobId}
-          preselectedJobTitle={jobTitle}
+          onScheduled={() => { setShowScheduleModal(false); showToast('Interview scheduled', 'success'); }}
+          applicationId={app.id}
+          jobId={jobId}
+          jobTitle={jobTitle}
         />
       </div>
     </>

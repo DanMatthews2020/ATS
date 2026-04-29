@@ -3,8 +3,9 @@
  * @description Interview scheduling endpoints — slot suggestions, link creation,
  * candidate self-booking, reschedule, and cancel.
  *
- * Public endpoints (no auth): getSchedulingLink, bookSlot
- * Authenticated endpoints: suggestSlots, createLink, reschedule, cancel
+ * Public endpoints (no auth): GET /public/:token, POST /public/:token/book
+ * Authenticated endpoints: POST /suggest-slots, POST /links, GET /links/:applicationId,
+ *   PUT /interviews/:id/reschedule, DELETE /interviews/:id
  */
 import type { Request, Response } from 'express';
 import type { AuthRequest } from '../types';
@@ -17,85 +18,80 @@ import { z } from 'zod';
 const SuggestSlotsSchema = z.object({
   interviewerUserIds: z.array(z.string().min(1)).min(1).max(20),
   durationMinutes: z.number().int().min(15).max(480),
-  bufferBefore: z.number().int().min(0).max(60).optional(),
-  bufferAfter: z.number().int().min(0).max(60).optional(),
-  dateRangeStart: z.string().datetime(),
-  dateRangeEnd: z.string().datetime(),
-  workingHoursStart: z.number().int().min(0).max(23).optional(),
-  workingHoursEnd: z.number().int().min(0).max(23).optional(),
-  maxSlots: z.number().int().min(1).max(50).optional(),
+  bufferBefore: z.number().int().min(0).max(60),
+  bufferAfter: z.number().int().min(0).max(60),
+  windowStart: z.string().datetime(),
+  windowEnd: z.string().datetime(),
+  timezone: z.string().min(1),
 });
 
 const CreateLinkSchema = z.object({
   applicationId: z.string().min(1),
-  interviewStageId: z.string().min(1).optional(),
+  interviewerUserIds: z.array(z.string().min(1)).min(1).max(20),
   durationMinutes: z.number().int().min(15).max(480),
-  bufferBefore: z.number().int().min(0).max(60).optional(),
-  bufferAfter: z.number().int().min(0).max(60).optional(),
-  expiresInHours: z.number().int().min(1).max(720).optional(),
+  bufferBefore: z.number().int().min(0).max(60),
+  bufferAfter: z.number().int().min(0).max(60),
+  expiresInHours: z.number().int().min(1).max(720),
   timezone: z.string().min(1),
-  slots: z.array(z.object({
-    start: z.string().datetime(),
-    end: z.string().datetime(),
-  })).min(1).max(50),
 });
 
 const BookSlotSchema = z.object({
   slotId: z.string().min(1),
-  interviewType: z.enum(['PHONE', 'VIDEO', 'ON_SITE', 'TECHNICAL']),
-  meetingLink: z.string().optional(),
-  location: z.string().optional(),
-  notes: z.string().optional(),
 });
 
 const RescheduleSchema = z.object({
-  scheduledAt: z.string().datetime(),
-  duration: z.number().int().min(15).max(480).optional(),
-  meetingLink: z.string().nullable().optional(),
-  location: z.string().nullable().optional(),
-  notes: z.string().optional(),
-  reason: z.string().optional(),
+  newStart: z.string().datetime(),
+  newEnd: z.string().datetime(),
 });
 
 const CancelSchema = z.object({
   reason: z.string().optional(),
 });
 
+// ─── Validation helper ──────────────────────────────────────────────────────
+
+function zodValidate<T>(schema: z.ZodSchema<T>, data: unknown, res: Response): T | null {
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) {
+    const details = parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
+    sendError(res, 422, 'VALIDATION_ERROR', 'Request validation failed', details);
+    return null;
+  }
+  return parsed.data;
+}
+
 // ─── Controller ─────────────────────────────────────────────────────────────
 
 export const schedulingController = {
-  /** POST /api/scheduling/suggest-slots — suggest available interview slots */
+  /** POST /api/scheduling/suggest-slots */
   async suggestSlots(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const parsed = SuggestSlotsSchema.safeParse(req.body);
-      if (!parsed.success) {
-        const details = parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
-        sendError(res, 422, 'VALIDATION_ERROR', 'Request validation failed', details);
-        return;
-      }
+      const body = zodValidate(SuggestSlotsSchema, req.body, res);
+      if (!body) return;
 
-      const slots = await schedulingService.suggestSlots(parsed.data);
-      sendSuccess(res, { slots });
+      const result = await schedulingService.suggestSlots({
+        ...body,
+        windowStart: new Date(body.windowStart),
+        windowEnd: new Date(body.windowEnd),
+      });
+
+      sendSuccess(res, result);
     } catch {
       sendError(res, 500, 'SUGGEST_SLOTS_ERROR', 'Failed to suggest interview slots');
     }
   },
 
-  /** POST /api/scheduling/links — create a scheduling link */
+  /** POST /api/scheduling/links */
   async createLink(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.userId;
       if (!userId) { sendError(res, 401, 'UNAUTHORIZED', 'Authentication required'); return; }
 
-      const parsed = CreateLinkSchema.safeParse(req.body);
-      if (!parsed.success) {
-        const details = parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
-        sendError(res, 422, 'VALIDATION_ERROR', 'Request validation failed', details);
-        return;
-      }
+      const body = zodValidate(CreateLinkSchema, req.body, res);
+      if (!body) return;
 
       const link = await schedulingService.createSchedulingLink({
-        ...parsed.data,
+        ...body,
         createdById: userId,
       });
 
@@ -105,10 +101,12 @@ export const schedulingController = {
         token: link.token,
         url: `${frontendUrl}/schedule/${link.token}`,
         expiresAt: link.expiresAt.toISOString(),
+        durationMinutes: link.durationMinutes,
+        timezone: link.timezone,
         slots: link.slots.map((s) => ({
           id: s.id,
-          start: s.startTime.toISOString(),
-          end: s.endTime.toISOString(),
+          startTime: s.startTime.toISOString(),
+          endTime: s.endTime.toISOString(),
         })),
       }, 201);
     } catch {
@@ -116,59 +114,61 @@ export const schedulingController = {
     }
   },
 
-  /** GET /api/scheduling/links/:token — public: get link details for self-booking page */
-  async getLink(req: Request, res: Response): Promise<void> {
+  /** GET /api/scheduling/links/:applicationId */
+  async getLinksByApplication(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { applicationId } = req.params;
+      const links = await schedulingService.getLinksByApplication(applicationId);
+      sendSuccess(res, { links });
+    } catch {
+      sendError(res, 500, 'FETCH_LINKS_ERROR', 'Failed to fetch scheduling links');
+    }
+  },
+
+  /** GET /api/scheduling/public/:token — public, no auth, no PII */
+  async getPublicLink(req: Request, res: Response): Promise<void> {
     try {
       const { token } = req.params;
-      const link = await schedulingService.getSchedulingLink(token);
+      const link = await schedulingService.getPublicLink(token);
 
       if (!link) {
         sendError(res, 404, 'NOT_FOUND', 'Scheduling link not found');
         return;
       }
-
       if (link.isExpired) {
         sendError(res, 410, 'LINK_EXPIRED', 'This scheduling link has expired');
         return;
       }
-
       if (link.isUsed) {
         sendError(res, 410, 'LINK_USED', 'This scheduling link has already been used');
         return;
       }
 
-      sendSuccess(res, link);
+      // Strip internal flags before sending
+      const { isExpired: _e, isUsed: _u, ...safeData } = link;
+      sendSuccess(res, safeData);
     } catch {
       sendError(res, 500, 'FETCH_LINK_ERROR', 'Failed to fetch scheduling link');
     }
   },
 
-  /** POST /api/scheduling/links/:token/book — public: candidate books a slot */
+  /** POST /api/scheduling/public/:token/book — public, no auth, idempotent-safe */
   async bookSlot(req: Request, res: Response): Promise<void> {
     try {
       const { token } = req.params;
-      const parsed = BookSlotSchema.safeParse(req.body);
-      if (!parsed.success) {
-        const details = parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
-        sendError(res, 422, 'VALIDATION_ERROR', 'Request validation failed', details);
-        return;
-      }
+      const body = zodValidate(BookSlotSchema, req.body, res);
+      if (!body) return;
 
-      const interview = await schedulingService.bookSlot({
-        token,
-        ...parsed.data,
-      });
+      await schedulingService.bookSlot(token, body.slotId);
 
-      sendSuccess(res, {
-        interviewId: interview.id,
-        scheduledAt: interview.scheduledAt.toISOString(),
-        duration: interview.duration,
-      }, 201);
+      sendSuccess(res, { message: 'Interview scheduled' }, 201);
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === 'LINK_NOT_FOUND' || code === 'SLOT_NOT_FOUND') {
         sendError(res, 404, code, (err as Error).message);
-      } else if (code === 'LINK_USED' || code === 'LINK_EXPIRED' || code === 'SLOT_BOOKED') {
+      } else if (code === 'LINK_ALREADY_USED' || code === 'SLOT_ALREADY_BOOKED') {
+        sendError(res, 409, code, (err as Error).message);
+      } else if (code === 'LINK_EXPIRED') {
         sendError(res, 410, code, (err as Error).message);
       } else {
         sendError(res, 500, 'BOOK_SLOT_ERROR', 'Failed to book interview slot');
@@ -176,18 +176,23 @@ export const schedulingController = {
     }
   },
 
-  /** PATCH /api/scheduling/interviews/:id/reschedule — reschedule an interview */
+  /** PUT /api/scheduling/interviews/:id/reschedule */
   async reschedule(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-      const parsed = RescheduleSchema.safeParse(req.body);
-      if (!parsed.success) {
-        const details = parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
-        sendError(res, 422, 'VALIDATION_ERROR', 'Request validation failed', details);
-        return;
-      }
+      const userId = req.user?.userId;
+      if (!userId) { sendError(res, 401, 'UNAUTHORIZED', 'Authentication required'); return; }
 
-      const interview = await schedulingService.rescheduleInterview(id, parsed.data);
+      const { id } = req.params;
+      const body = zodValidate(RescheduleSchema, req.body, res);
+      if (!body) return;
+
+      const interview = await schedulingService.rescheduleInterview(
+        id,
+        new Date(body.newStart),
+        new Date(body.newEnd),
+        userId,
+      );
+
       sendSuccess(res, {
         id: interview.id,
         scheduledAt: interview.scheduledAt.toISOString(),
@@ -200,34 +205,35 @@ export const schedulingController = {
         sendError(res, 404, code, (err as Error).message);
       } else if (code === 'ALREADY_CANCELLED') {
         sendError(res, 409, code, (err as Error).message);
+      } else if (code === 'FORBIDDEN') {
+        sendError(res, 403, code, (err as Error).message);
       } else {
         sendError(res, 500, 'RESCHEDULE_ERROR', 'Failed to reschedule interview');
       }
     }
   },
 
-  /** PATCH /api/scheduling/interviews/:id/cancel — cancel an interview */
+  /** DELETE /api/scheduling/interviews/:id */
   async cancel(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
-      const parsed = CancelSchema.safeParse(req.body);
-      if (!parsed.success) {
-        const details = parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
-        sendError(res, 422, 'VALIDATION_ERROR', 'Request validation failed', details);
-        return;
-      }
+      const userId = req.user?.userId;
+      if (!userId) { sendError(res, 401, 'UNAUTHORIZED', 'Authentication required'); return; }
 
-      const interview = await schedulingService.cancelInterview(id, parsed.data.reason);
-      sendSuccess(res, {
-        id: interview.id,
-        status: interview.status,
-      });
+      const { id } = req.params;
+      const body = zodValidate(CancelSchema, req.body ?? {}, res);
+      if (!body) return;
+
+      await schedulingService.cancelInterview(id, body.reason, userId);
+
+      sendSuccess(res, { message: 'Interview cancelled' });
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === 'NOT_FOUND') {
         sendError(res, 404, code, (err as Error).message);
       } else if (code === 'ALREADY_CANCELLED') {
         sendError(res, 409, code, (err as Error).message);
+      } else if (code === 'FORBIDDEN') {
+        sendError(res, 403, code, (err as Error).message);
       } else {
         sendError(res, 500, 'CANCEL_ERROR', 'Failed to cancel interview');
       }
