@@ -1958,3 +1958,65 @@ export const schedulingApi = {
   cancelInterview: (id: string, reason?: string) =>
     api.delete<{ message: string }>(`/scheduling/interviews/${id}`, { reason }),
 };
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export interface CommentAuthorDto {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+export interface MentionDto {
+  id: string;
+  userId: string;
+  user: { id: string; firstName: string; lastName: string };
+}
+
+export interface CandidateCommentDto {
+  id: string;
+  candidateId: string;
+  applicationId: string | null;
+  authorId: string;
+  author: CommentAuthorDto;
+  body: string;
+  mentions: MentionDto[];
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface DeletedCommentDto {
+  id: string;
+  deletedAt: string;
+  body: null;
+  createdAt: string;
+}
+
+export type CommentDto = CandidateCommentDto | DeletedCommentDto;
+
+export interface CommentListResponse {
+  comments: CommentDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export const commentsApi = {
+  list: (candidateId: string, params?: { applicationId?: string; page?: number; pageSize?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.applicationId) qs.set('applicationId', params.applicationId);
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+    const query = qs.toString();
+    return api.get<CommentListResponse>(`/candidates/${candidateId}/comments${query ? `?${query}` : ''}`);
+  },
+
+  create: (candidateId: string, body: { body: string; applicationId?: string }) =>
+    api.post<{ comment: CandidateCommentDto }>(`/candidates/${candidateId}/comments`, body),
+
+  delete: (candidateId: string, commentId: string) =>
+    api.delete<{ deleted: boolean }>(`/candidates/${candidateId}/comments/${commentId}`),
+};
+

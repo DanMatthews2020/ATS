@@ -27,6 +27,7 @@ import {
 import { getActionLabel } from '@/lib/auditLabels';
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 import ScorecardModal from '@/components/ScorecardModal';
+import { CandidateComments } from '@/components/candidates/CandidateComments';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import type { BadgeVariant, LegalBasis } from '@/types';
@@ -52,11 +53,12 @@ const SOURCE_LABELS: Record<string, string> = {
   'event':      'Event',
 };
 
-type Tab = 'feed' | 'notes' | 'emails' | 'interviews' | 'feedback' | 'applications' | 'overview' | 'audit';
+type Tab = 'feed' | 'notes' | 'comments' | 'emails' | 'interviews' | 'feedback' | 'applications' | 'overview' | 'audit';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'feed',         label: 'Feed' },
   { id: 'notes',        label: 'Notes' },
+  { id: 'comments',     label: 'Comments' },
   { id: 'emails',       label: 'Emails' },
   { id: 'interviews',   label: 'Interviews' },
   { id: 'feedback',     label: 'Feedback' },
@@ -2043,6 +2045,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           {/* Tab content */}
           {activeTab === 'feed'         && <FeedTab key={feedKey} candidateId={id} />}
           {activeTab === 'notes'        && <NotesTab candidateId={id} />}
+          {activeTab === 'comments'     && <CandidateComments candidateId={id} applicationId={currentApplicationId} currentUserRole={authUser?.role ?? ''} currentUserId={authUser?.id ?? ''} />}
           {activeTab === 'emails'       && <EmailsTab candidateId={id} />}
           {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} extraInterviews={extraInterviews} />}
           {activeTab === 'feedback'     && <FeedbackTab key={feedbackRefreshKey} candidateId={id} onAddEvaluation={scorecardJobId ? () => setScorecardOpen(true) : undefined} />}

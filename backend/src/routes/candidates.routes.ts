@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { CreateCandidateSchema } from '../types/schemas';
 import { requirePermission } from '../utils/permissions';
+import commentRoutes from './comment.routes';
 
 const router = Router();
 
@@ -46,5 +47,8 @@ router.delete('/:id/notes/:noteId', authenticate, candidatesController.deleteNot
 router.patch('/:id/tags',     authenticate, candidatesController.updateTags);
 router.get('/:id/feedback',   authenticate, candidatesController.getFeedback);
 router.get('/:id/emails',     authenticate, candidatesController.getEmails);
+
+// ── Comments (nested, with job-access middleware) ─────────────────────────────
+router.use('/:candidateId/comments', commentRoutes);
 
 export default router;

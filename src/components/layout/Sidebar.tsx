@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   LayoutDashboard,
   Search,
@@ -20,11 +20,14 @@ import {
   Bell,
   FolderOpen,
   Mail,
+  CheckCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { NAV_ITEMS, SETTINGS_NAV_ITEM, INBOX_NAV_ITEM } from '@/lib/constants';
 import { Avatar } from '@/components/ui/Avatar';
+import { relativeTime } from '@/lib/relativeTime';
+import { notificationsApi, type NotificationDto } from '@/lib/api';
 import type { IconName } from '@/types';
 
 // ─── Icon registry ────────────────────────────────────────────────────────────
@@ -83,8 +86,69 @@ function useUnreadCount() {
 
 export function Sidebar() {
   const pathname    = usePathname();
+  const router      = useRouter();
   const { user, logout } = useAuth();
   const unreadCount = useUnreadCount();
+
+  // Notification dropdown
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    setNotifLoading(true);
+    try {
+      const data = await notificationsApi.getAll();
+      setNotifications(data.notifications);
+    } catch { /* ignore */ }
+    finally { setNotifLoading(false); }
+  }, []);
+
+  function toggleDropdown() {
+    const next = !notifOpen;
+    setNotifOpen(next);
+    if (next) fetchNotifications();
+  }
+
+  async function handleMarkAllRead() {
+    try {
+      await notificationsApi.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch { /* ignore */ }
+  }
+
+  async function handleClickNotif(notif: NotificationDto) {
+    if (!notif.read) {
+      try {
+        await notificationsApi.markRead(notif.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)),
+        );
+      } catch { /* ignore */ }
+    }
+    setNotifOpen(false);
+    if (notif.href) router.push(notif.href);
+  }
+
+  // Close dropdown on outside click or Escape
+  useEffect(() => {
+    if (!notifOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setNotifOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [notifOpen]);
 
   function isActive(href: string, exact = false): boolean {
     if (exact) return pathname === href;
@@ -167,38 +231,117 @@ export function Sidebar() {
       {/* ── Bottom section ──────────────────────────────────────────────── */}
       <div className="flex-shrink-0 border-t border-[var(--color-border)] px-2.5 py-2.5 space-y-0.5">
 
-        {/* Inbox with unread badge */}
-        <Link
-          href={INBOX_NAV_ITEM.href}
-          className={[
-            'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors duration-100 outline-none',
-            'focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30',
-            isActive(INBOX_NAV_ITEM.href)
-              ? 'bg-[var(--color-primary)] text-white'
-              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          aria-current={isActive(INBOX_NAV_ITEM.href) ? 'page' : undefined}
-        >
-          <div className="relative">
-            <NavIcon name={INBOX_NAV_ITEM.icon} />
-            {unreadCount > 0 && (
-              <span className={[
-                'absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full text-[9px] font-bold leading-[14px] text-center',
-                isActive(INBOX_NAV_ITEM.href) ? 'bg-white text-[var(--color-primary)]' : 'bg-red-500 text-white',
-              ].join(' ')}>
+        {/* Inbox with notification dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={toggleDropdown}
+            aria-expanded={notifOpen}
+            aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+            className={[
+              'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors duration-100 outline-none',
+              'focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30',
+              notifOpen
+                ? 'bg-[var(--color-primary)] text-white'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)]',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <div className="relative">
+              <NavIcon name={INBOX_NAV_ITEM.icon} />
+              {unreadCount > 0 && (
+                <span className={[
+                  'absolute -top-1.5 -right-1.5 min-w-[14px] h-3.5 px-0.5 rounded-full text-[9px] font-bold leading-[14px] text-center',
+                  notifOpen ? 'bg-white text-[var(--color-primary)]' : 'bg-red-500 text-white',
+                ].join(' ')}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+            {INBOX_NAV_ITEM.label}
+            {unreadCount > 0 && !notifOpen && (
+              <span className="ml-auto text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full leading-none">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-          </div>
-          {INBOX_NAV_ITEM.label}
-          {unreadCount > 0 && !isActive(INBOX_NAV_ITEM.href) && (
-            <span className="ml-auto text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full leading-none">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
+          </button>
+
+          {/* Dropdown */}
+          {notifOpen && (
+            <div className="absolute bottom-full left-0 mb-1 w-80 bg-white border border-[var(--color-border)] rounded-xl shadow-lg z-50 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-border)]">
+                <span className="text-[13px] font-semibold text-[var(--color-text-primary)]">
+                  Notifications
+                </span>
+                {notifications.some((n) => !n.read) && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-primary)] hover:underline"
+                  >
+                    <CheckCheck size={12} />
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              {/* List */}
+              <div className="max-h-[320px] overflow-y-auto">
+                {notifLoading && notifications.length === 0 && (
+                  <div className="py-6 text-center text-[12px] text-[var(--color-text-muted)]">
+                    Loading...
+                  </div>
+                )}
+                {!notifLoading && notifications.length === 0 && (
+                  <div className="py-6 text-center text-[12px] text-[var(--color-text-muted)]">
+                    No notifications
+                  </div>
+                )}
+                {notifications.slice(0, 15).map((notif) => (
+                  <button
+                    key={notif.id}
+                    type="button"
+                    onClick={() => handleClickNotif(notif)}
+                    className={[
+                      'w-full text-left px-4 py-2.5 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface)] transition-colors',
+                      !notif.read ? 'bg-blue-50/40' : '',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-start gap-2">
+                      {!notif.read && (
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-medium text-[var(--color-text-primary)] truncate">
+                          {notif.title}
+                        </p>
+                        <p className="text-[11px] text-[var(--color-text-muted)] line-clamp-2 leading-snug">
+                          {notif.message}
+                        </p>
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                          {relativeTime(notif.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-[var(--color-border)] px-4 py-2">
+                <Link
+                  href={INBOX_NAV_ITEM.href}
+                  onClick={() => setNotifOpen(false)}
+                  className="text-[12px] font-medium text-[var(--color-primary)] hover:underline"
+                >
+                  View all notifications
+                </Link>
+              </div>
+            </div>
           )}
-        </Link>
+        </div>
 
         {/* Settings */}
         <Link
