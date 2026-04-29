@@ -233,6 +233,39 @@ export const candidatesController = {
     sendSuccess(res, { emails: [] });
   },
 
+  // GET /candidates/:id/timeline
+  async getTimeline(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { applicationId } = req.query as { applicationId?: string };
+      const where: Record<string, unknown> = {
+        candidateId: req.params.id,
+        candidate: { deletedAt: null },
+      };
+      if (applicationId) where.applicationId = applicationId;
+
+      const events = await prisma.timelineEvent.findMany({
+        where,
+        include: {
+          actor: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+
+      const mapped = events.map((e) => ({
+        id: e.id,
+        type: e.type,
+        actorName: e.actor ? `${e.actor.firstName} ${e.actor.lastName}` : null,
+        metadata: e.metadata,
+        createdAt: e.createdAt.toISOString(),
+      }));
+
+      sendSuccess(res, { events: mapped });
+    } catch {
+      sendError(res, 500, 'FETCH_ERROR', 'Failed to fetch timeline');
+    }
+  },
+
   // DELETE /candidates/:id?mode=soft|hard
   async deleteCandidate(req: AuthRequest, res: Response): Promise<void> {
     try {

@@ -11,5 +11,7 @@ router.get('/:id',                     authenticate, interviewsController.getByI
 router.patch('/:id',                   authenticate, requirePermission('feedback:write'), interviewsController.update);
 router.patch('/:id/cancel',            authenticate, interviewsController.cancel);
 router.post('/:id/feedback',           authenticate, requirePermission('feedback:write'), interviewsController.submitFeedback);
+router.post('/:id/feedback-submit',   authenticate, interviewsController.submitFeedbackWorkflow);
+router.get('/:id/feedback-status',    authenticate, interviewsController.getFeedbackStatus);
 
 export default router;

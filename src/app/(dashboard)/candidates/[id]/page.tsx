@@ -28,6 +28,7 @@ import { getActionLabel } from '@/lib/auditLabels';
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 import ScorecardModal from '@/components/ScorecardModal';
 import { CandidateComments } from '@/components/candidates/CandidateComments';
+import { CandidateTimeline } from '@/components/candidates/CandidateTimeline';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import type { BadgeVariant, LegalBasis } from '@/types';
@@ -53,7 +54,7 @@ const SOURCE_LABELS: Record<string, string> = {
   'event':      'Event',
 };
 
-type Tab = 'feed' | 'notes' | 'comments' | 'emails' | 'interviews' | 'feedback' | 'applications' | 'overview' | 'audit';
+type Tab = 'feed' | 'notes' | 'comments' | 'emails' | 'interviews' | 'feedback' | 'applications' | 'overview' | 'timeline' | 'audit';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'feed',         label: 'Feed' },
@@ -64,6 +65,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'feedback',     label: 'Feedback' },
   { id: 'applications', label: 'Applications' },
   { id: 'overview',     label: 'Overview' },
+  { id: 'timeline',     label: 'Timeline' },
   { id: 'audit',        label: 'Audit Trail' },
 ];
 
@@ -2051,6 +2053,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           {activeTab === 'feedback'     && <FeedbackTab key={feedbackRefreshKey} candidateId={id} onAddEvaluation={scorecardJobId ? () => setScorecardOpen(true) : undefined} />}
           {activeTab === 'applications' && <ApplicationsTab candidate={candidate} />}
           {activeTab === 'overview'     && <OverviewTab candidate={candidate} canReadPII={canReadPII} />}
+          {activeTab === 'timeline'     && <CandidateTimeline candidateId={id} applicationId={currentApplicationId} />}
           {activeTab === 'audit'        && <AuditTrailTab candidateId={id} />}
         </div>
 

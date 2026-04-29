@@ -2003,6 +2003,44 @@ export interface CommentListResponse {
   pageSize: number;
 }
 
+// Feedback workflow
+export interface FeedbackRequestItemDto {
+  userId: string;
+  userName: string;
+  status: 'PENDING' | 'SUBMITTED' | 'OVERDUE';
+  submittedAt: string | null;
+  scorecard: { rating: number; recommendation: string; notes: string } | null;
+  locked: boolean;
+}
+
+export interface FeedbackStatusResponseDto {
+  requests: FeedbackRequestItemDto[];
+  summary: { total: number; submitted: number; pending: number; overdue: number };
+}
+
+export const feedbackApi = {
+  getStatus: (interviewId: string) =>
+    api.get<FeedbackStatusResponseDto>(`/interviews/${interviewId}/feedback-status`),
+  submit: (interviewId: string, data: { rating: number; recommendation: Recommendation; notes: string }) =>
+    api.post<{ submitted: boolean }>(`/interviews/${interviewId}/feedback-submit`, data),
+};
+
+// Timeline
+export interface TimelineEventDto {
+  id: string;
+  type: string;
+  actorName: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export const timelineApi = {
+  list: (candidateId: string, applicationId?: string) => {
+    const qs = applicationId ? `?applicationId=${applicationId}` : '';
+    return api.get<{ events: TimelineEventDto[] }>(`/candidates/${candidateId}/timeline${qs}`);
+  },
+};
+
 export const commentsApi = {
   list: (candidateId: string, params?: { applicationId?: string; page?: number; pageSize?: number }) => {
     const qs = new URLSearchParams();

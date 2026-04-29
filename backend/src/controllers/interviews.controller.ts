@@ -1,6 +1,7 @@
 import type { Response } from 'express';
 import type { AuthRequest } from '../types';
 import { interviewsService, type InterviewType, type Recommendation } from '../services/interviews.service';
+import { feedbackWorkflowService } from '../services/feedbackWorkflow.service';
 import { sendSuccess, sendError } from '../utils/response';
 import { createAuditLog, extractRequestMeta, AUDIT_ACTIONS } from '../services/auditService';
 import { prisma } from '../lib/prisma';
@@ -108,6 +109,47 @@ export const interviewsController = {
       sendSuccess(res, { interview: iv });
     } catch {
       sendError(res, 404, 'NOT_FOUND', 'Interview not found');
+    }
+  },
+
+  /** POST /interviews/:id/feedback-submit — workflow-aware feedback submission */
+  async submitFeedbackWorkflow(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { rating, recommendation, notes } = req.body as {
+        rating: number; recommendation: string; notes: string;
+      };
+      if (!rating || !recommendation) {
+        sendError(res, 400, 'INVALID_BODY', 'rating and recommendation are required');
+        return;
+      }
+      await feedbackWorkflowService.submitFeedback(
+        req.params.id,
+        req.user!.userId,
+        { rating: Number(rating), recommendation: recommendation as Recommendation, notes: notes ?? '' },
+      );
+      void createAuditLog({ actorId: req.user?.userId, actorEmail: req.user?.email, actorRole: req.user?.role, action: AUDIT_ACTIONS.FEEDBACK_CREATED, resourceType: 'interview', resourceId: req.params.id, metadata: { rating, recommendation }, ...extractRequestMeta(req) });
+      sendSuccess(res, { submitted: true });
+    } catch (err) {
+      const coded = err as Error & { code?: string };
+      if (coded.code === 'ALREADY_SUBMITTED') {
+        sendError(res, 409, 'ALREADY_SUBMITTED', coded.message);
+        return;
+      }
+      sendError(res, 500, 'SERVER_ERROR', 'Failed to submit feedback');
+    }
+  },
+
+  /** GET /interviews/:id/feedback-status */
+  async getFeedbackStatus(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const result = await feedbackWorkflowService.getFeedbackStatus(
+        req.params.id,
+        req.user!.userId,
+        req.user!.role as 'ADMIN' | 'HR' | 'MANAGER' | 'INTERVIEWER',
+      );
+      sendSuccess(res, result);
+    } catch {
+      sendError(res, 500, 'SERVER_ERROR', 'Failed to load feedback status');
     }
   },
 };

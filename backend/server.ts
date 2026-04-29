@@ -17,6 +17,7 @@ import routes from './src/routes';
 import { errorHandler, notFound } from './src/middleware/error.middleware';
 import { env } from './src/utils/env';
 import { prisma } from './src/lib/prisma';
+import { startFeedbackReminderJob } from './src/jobs/feedbackReminder.job';
 
 const app = express();
 
@@ -74,6 +75,7 @@ app.listen(env.PORT, () => {
   console.log(`\n🚀 TeamTalent API  →  http://localhost:${env.PORT}`);
   console.log(`   Environment      →  ${env.NODE_ENV}`);
   console.log(`   Frontend origin  →  ${env.FRONTEND_URL}\n`);
+  startFeedbackReminderJob();
 });
 
 export default app;

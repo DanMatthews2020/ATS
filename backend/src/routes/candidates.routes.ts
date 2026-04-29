@@ -47,6 +47,7 @@ router.delete('/:id/notes/:noteId', authenticate, candidatesController.deleteNot
 router.patch('/:id/tags',     authenticate, candidatesController.updateTags);
 router.get('/:id/feedback',   authenticate, candidatesController.getFeedback);
 router.get('/:id/emails',     authenticate, candidatesController.getEmails);
+router.get('/:id/timeline',   authenticate, candidatesController.getTimeline);
 
 // ── Comments (nested, with job-access middleware) ─────────────────────────────
 router.use('/:candidateId/comments', commentRoutes);

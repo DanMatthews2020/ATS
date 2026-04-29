@@ -12,11 +12,13 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/hooks/useAuth';
 import {
   interviewsApi, candidatesApi,
   type InterviewDto, type InterviewType, type Recommendation,
   type InterviewerDto, type CandidateListDto,
 } from '@/lib/api';
+import { FeedbackStatusBar } from '@/components/interviews/FeedbackStatusBar';
 import type { BadgeVariant } from '@/types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -122,6 +124,21 @@ function ConfirmModal({ open, title, description, onConfirm, onCancel, loading }
 }
 
 // ─── Detail / reschedule modal ────────────────────────────────────────────────
+
+function FeedbackStatusSection({ interviewId }: { interviewId: string }) {
+  const { user } = useAuth();
+  if (!user) return null;
+  return (
+    <div>
+      <p className="text-xs font-medium text-[var(--color-text-muted)] mb-2">Feedback Status</p>
+      <FeedbackStatusBar
+        interviewId={interviewId}
+        currentUserRole={user.role ?? ''}
+        currentUserId={user.id ?? ''}
+      />
+    </div>
+  );
+}
 
 function DetailModal({ interview, onClose, onCancelled, onFeedbackSubmitted }: {
   interview: InterviewDto;
@@ -240,6 +257,9 @@ function DetailModal({ interview, onClose, onCancelled, onFeedbackSubmitted }: {
               </div>
             </div>
           )}
+
+          {/* Feedback Status */}
+          <FeedbackStatusSection interviewId={interview.id} />
 
           {/* Notes */}
           {interview.notes && (
