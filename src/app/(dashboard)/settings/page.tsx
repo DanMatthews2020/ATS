@@ -15,10 +15,10 @@ import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  settingsApi, teamApi,
+  settingsApi, teamApi, invitationsApi,
   type UserProfileDto, type TeamMemberDto, type IntegrationDto,
   type NotificationSettingsDto, type BillingInfoDto, type SecurityDto,
-  type TeamRole, type NotifKey,
+  type TeamRole, type NotifKey, type InvitationDto,
 } from '@/lib/api';
 
 // ─── Section nav config ────────────────────────────────────────────────────────
@@ -407,9 +407,12 @@ function TeamSection() {
   const [inviteErrors, setInviteErrors] = useState<Record<string, string>>({});
   const [inviting, setInviting]       = useState(false);
   const [roleLoading, setRoleLoading] = useState<string | null>(null);
+  const [invitations, setInvitations] = useState<InvitationDto[]>([]);
+  const [cancelling, setCancelling]   = useState<string | null>(null);
 
   useEffect(() => {
     teamApi.getAll().then(({ members: m }) => setMembers(m)).catch(() => {}).finally(() => setLoading(false));
+    invitationsApi.list().then(({ invitations: inv }) => setInvitations(inv)).catch(() => {});
   }, []);
 
   async function handleInvite() {
@@ -620,6 +623,53 @@ function TeamSection() {
         onConfirm={handleRemove}
         onCancel={() => setRemoveTarget(null)}
       />
+
+      {/* Pending invitations */}
+      {invitations.filter((i) => i.status === 'pending').length > 0 && (
+        <>
+          <div className="mt-8 mb-3">
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Pending Invitations</h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Invitations waiting to be accepted.</p>
+          </div>
+          <Card>
+            <div className="divide-y divide-[var(--color-border)]">
+              {invitations.filter((i) => i.status === 'pending').map((inv) => (
+                <div key={inv.id} className="flex items-center justify-between px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center">
+                      <Mail size={14} className="text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{inv.email}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        Invited as {inv.role} · Expires {fmtDateShort(inv.expiresAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    disabled={cancelling === inv.id}
+                    onClick={async () => {
+                      setCancelling(inv.id);
+                      try {
+                        await invitationsApi.cancel(inv.id);
+                        setInvitations((p) => p.filter((i) => i.id !== inv.id));
+                        showToast('Invitation cancelled');
+                      } catch {
+                        showToast('Failed to cancel invitation', 'error');
+                      } finally {
+                        setCancelling(null);
+                      }
+                    }}
+                    className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {cancelling === inv.id ? 'Cancelling…' : 'Cancel'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

@@ -186,6 +186,10 @@ export const authApi = {
     api.post<{ message: string }>('/auth/logout'),
   getMe: () =>
     api.get<{ user: ApiUser }>('/auth/me'),
+  getGoogleUrl: (state?: string) =>
+    api.get<{ url: string }>(`/auth/google/url${state ? `?state=${encodeURIComponent(state)}` : ''}`),
+  getGoogleStatus: () =>
+    api.get<{ configured: boolean }>('/auth/google/status'),
 };
 
 // Dashboard
@@ -2056,5 +2060,31 @@ export const commentsApi = {
 
   delete: (candidateId: string, commentId: string) =>
     api.delete<{ deleted: boolean }>(`/candidates/${candidateId}/comments/${commentId}`),
+};
+
+// Invitations
+export interface InvitationDto {
+  id: string;
+  email: string;
+  role: string;
+  token: string;
+  jobIds: string[];
+  status: 'pending' | 'accepted' | 'expired';
+  expiresAt: string;
+  createdAt: string;
+  acceptedAt: string | null;
+}
+
+export const invitationsApi = {
+  create: (email: string, role: string, jobIds?: string[]) =>
+    api.post<{ invitation: InvitationDto }>('/invitations', { email, role, jobIds }),
+  list: () =>
+    api.get<{ invitations: InvitationDto[] }>('/invitations'),
+  validate: (token: string) =>
+    api.get<{ invitation: InvitationDto }>(`/invitations/${token}`),
+  accept: (token: string) =>
+    api.post<{ invitation: InvitationDto }>(`/invitations/${token}/accept`),
+  cancel: (id: string) =>
+    api.delete<{ deleted: boolean }>(`/invitations/${id}`),
 };
 

@@ -28,10 +28,14 @@ import gdprRoutes from './gdpr.routes';
 import feedRoutes from './feed.routes';
 import calendarRoutes from './calendar.routes';
 import schedulingRoutes from './scheduling.routes';
+import googleAuthRoutes from './googleAuth.routes';
+import invitationRoutes from './invitation.routes';
 
 const router = Router();
 
 router.use('/auth',          authRoutes);
+router.use('/auth/google',   googleAuthRoutes);
+router.use('/invitations',   invitationRoutes);
 router.use('/dashboard',     dashboardRoutes);
 router.use('/jobs',          jobsRoutes);
 router.use('/candidates',    candidatesRoutes);
