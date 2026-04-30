@@ -151,6 +151,17 @@ enum FeedbackStatus {
   OVERDUE
 }
 
+enum ScopeRequestStatus {
+  PENDING
+  GRANTED
+  DENIED
+}
+
+enum GmailDirection {
+  INBOUND
+  OUTBOUND
+}
+
 enum TimelineEventType {
   SCHEDULING_LINK_SENT
   INTERVIEW_SCHEDULED
@@ -204,6 +215,9 @@ model User {
   feedbackRequests       FeedbackRequest[]      @relation("FeedbackRequestUser")
   schedulingLinksCreated SchedulingLink[]        @relation("SchedulingLinkCreatedBy")
   timelineActions        TimelineEvent[]         @relation("TimelineActor")
+  googleWorkspaceConnection GoogleWorkspaceConnection?
+  scopeRequests          GoogleWorkspaceScopeRequest[]
+  sentInvitations        UserInvitation[]        @relation("InvitedBy")
 }
 
 model RefreshToken {
@@ -297,6 +311,7 @@ model Candidate {
   rightsRequests      CandidateRightsRequest[]
   comments            CandidateComment[]     // queries must always filter candidate.deletedAt: null
   timelineEvents      TimelineEvent[]        // queries must always filter candidate.deletedAt: null
+  gmailThreads        GmailThread[]
 }
 
 model Application {
@@ -1008,6 +1023,87 @@ model FeedbackRequest {
   updatedAt      DateTime       @updatedAt
 
   @@unique([interviewId, userId])
+}
+
+// ─── Google Workspace Foundation ──────────────────────────────────────────────
+
+model GoogleWorkspaceConnection {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  googleEmail     String
+  googleUserId    String    @unique
+  displayName     String
+  avatarUrl       String?
+  accessToken     String    // AES-256-GCM encrypted
+  refreshToken    String    // AES-256-GCM encrypted
+  tokenExpiry     DateTime
+  grantedScopes   String[]
+  isActive        Boolean   @default(true)
+  connectedAt     DateTime  @default(now())
+  lastRefreshedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model GoogleWorkspaceScopeRequest {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scopesRequested String[]
+  scopesGranted   String[]
+  reason          String             // human-readable: "Calendar sync", "Gmail", etc
+  requestedAt     DateTime           @default(now())
+  completedAt     DateTime?
+  status          ScopeRequestStatus @default(PENDING)
+}
+
+model GmailThread {
+  id              String         @id @default(cuid())
+  candidateId     String
+  candidate       Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  gmailThreadId   String         @unique
+  subject         String
+  snippet         String
+  lastMessageAt   DateTime
+  lastSyncedAt    DateTime
+  messageCount    Int            @default(0)
+  hasUnread       Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  messages GmailMessage[]
+}
+
+model GmailMessage {
+  id              String         @id @default(cuid())
+  threadId        String
+  thread          GmailThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  gmailMessageId  String         @unique
+  from            String
+  to              String
+  subject         String
+  snippet         String
+  bodyHtml        String?
+  bodyText        String?
+  receivedAt      DateTime
+  direction       GmailDirection
+  isRead          Boolean        @default(false)
+  gmailLabelIds   String[]
+  createdAt       DateTime       @default(now())
+}
+
+model UserInvitation {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  role        UserRole
+  token       String    @unique @default(cuid())
+  invitedById String
+  invitedBy   User      @relation("InvitedBy", fields: [invitedById], references: [id])
+  jobIds      String[]
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
 }
 
 // Queries on TimelineEvent must always filter candidate.deletedAt: null
