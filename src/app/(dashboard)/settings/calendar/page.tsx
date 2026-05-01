@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Calendar, CheckCircle2, Unlink, Loader2, AlertCircle } from 'lucide-react';
+import { Calendar, CheckCircle2, Unlink, Loader2, AlertCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -163,17 +163,23 @@ function CalendarSettingsContent() {
             {status?.connected ? (
               <>
                 <p className="text-sm text-[var(--color-text-muted)] mb-1">
-                  Synced with <span className="font-medium text-[var(--color-text-primary)]">{status.email}</span>
+                  Connected via Google Workspace — <span className="font-medium text-[var(--color-text-primary)]">{status.email}</span>
                 </p>
                 {status.calendarId && status.calendarId !== status.email && (
                   <p className="text-xs text-[var(--color-text-muted)]">
                     Calendar: {status.calendarId}
                   </p>
                 )}
+                <div className="flex items-center gap-1.5 mt-2">
+                  <Video size={13} className="text-blue-600" />
+                  <span className="text-xs text-[var(--color-text-muted)]">
+                    Google Meet — auto-generated for all interviews
+                  </span>
+                </div>
               </>
             ) : (
               <p className="text-sm text-[var(--color-text-muted)]">
-                Connect your calendar to automatically check availability and create interview events.
+                Connect your calendar to automatically check availability, create interview events, and generate Google Meet links.
               </p>
             )}
           </div>

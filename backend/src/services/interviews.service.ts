@@ -55,8 +55,9 @@ function toDto(db: NonNullable<DbRow>) {
           submittedAt:    db.updatedAt.toISOString(),
         }
       : null,
-    notes:     db.notes     ?? '',
-    createdAt: db.createdAt.toISOString(),
+    notes:           db.notes     ?? '',
+    calendarEventId: db.calendarMapping?.externalEventId ?? null,
+    createdAt:       db.createdAt.toISOString(),
   };
 }
 

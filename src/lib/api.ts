@@ -850,11 +850,12 @@ export interface InterviewDto {
   status:        InterviewStatus;
   scheduledAt:   string;
   duration:      number;
-  meetingLink:   string | null;
-  location:      string | null;
-  feedback:      FeedbackEntryDto | null;
-  notes:         string;
-  createdAt:     string;
+  meetingLink:      string | null;
+  location:         string | null;
+  feedback:         FeedbackEntryDto | null;
+  notes:            string;
+  calendarEventId:  string | null;
+  createdAt:        string;
 }
 
 export const interviewsApi = {
@@ -1872,12 +1873,30 @@ export interface BusyIntervalDto {
 export const calendarApi = {
   getAuthUrl: () =>
     api.get<{ url: string }>('/calendar/auth-url').then((d) => d.url),
+  getConnectUrl: () =>
+    api.get<{ url: string }>('/calendar/connect').then((d) => d.url),
   getStatus: () =>
     api.get<CalendarStatusDto>('/calendar/status'),
   disconnect: () =>
     api.delete<{ disconnected: boolean }>('/calendar/disconnect'),
-  getFreeBusy: (params: { userIds: string[]; timeMin: string; timeMax: string }) =>
-    api.post<{ freeBusy: Record<string, BusyIntervalDto[]> }>('/calendar/free-busy', params).then((d) => d.freeBusy),
+  getFreeBusy: (params: { userIds: string[]; timeMin: string; timeMax: string; timezone?: string }) =>
+    api.post<{ busySlots: Record<string, BusyIntervalDto[]>; warnings: string[] }>('/calendar/free-busy', params),
+  createEvent: (params: {
+    interviewId: string;
+    attendeeEmails?: string[];
+    startTime: string;
+    endTime: string;
+    timezone?: string;
+    addMeetLink?: boolean;
+  }) => api.post<{ eventId: string; meetLink?: string }>('/calendar/events', params),
+  updateEvent: (eventId: string, params: {
+    startTime?: string;
+    endTime?: string;
+    title?: string;
+    description?: string;
+  }) => api.put<{ updated: boolean }>(`/calendar/events/${eventId}`, params),
+  cancelEvent: (eventId: string) =>
+    api.delete<{ cancelled: boolean }>(`/calendar/events/${eventId}`),
 };
 
 // ── Scheduling ────────────────────────────────────────────────────────────────

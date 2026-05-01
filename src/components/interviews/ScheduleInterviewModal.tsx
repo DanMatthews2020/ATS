@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import {
-  interviewsApi, jobsApi,
+  interviewsApi, jobsApi, calendarApi,
   type InterviewType, type InterviewDto, type JobListingDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -126,6 +126,22 @@ export default function ScheduleInterviewModal({
           : { location: locationOrLink || undefined }),
         notes: notes || undefined,
       });
+
+      // Auto-create Google Calendar event with Meet link (best-effort)
+      try {
+        const endTime = new Date(new Date(scheduledAt).getTime() + duration * 60 * 1000);
+        const calResult = await calendarApi.createEvent({
+          interviewId: result.interview.id,
+          startTime: new Date(scheduledAt).toISOString(),
+          endTime: endTime.toISOString(),
+          addMeetLink: type === 'Video',
+        });
+        if (calResult.meetLink) {
+          result.interview.meetingLink = calResult.meetLink;
+        }
+      } catch {
+        // Calendar event creation is non-critical
+      }
 
       const formatted = new Date(scheduledAt).toLocaleDateString('en-US', {
         weekday: 'long', month: 'long', day: 'numeric',

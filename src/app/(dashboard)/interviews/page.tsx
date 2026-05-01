@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  interviewsApi, candidatesApi,
+  interviewsApi, candidatesApi, calendarApi,
   type InterviewDto, type InterviewType, type Recommendation,
   type InterviewerDto, type CandidateListDto,
 } from '@/lib/api';
@@ -160,6 +160,10 @@ function DetailModal({ interview, onClose, onCancelled, onFeedbackSubmitted }: {
     setCancelling(true);
     try {
       await interviewsApi.cancel(interview.id);
+      // Sync: cancel Google Calendar event if mapped
+      if (interview.calendarEventId) {
+        calendarApi.cancelEvent(interview.calendarEventId).catch(() => {});
+      }
       onCancelled(interview.id);
       showToast('Interview cancelled');
       onClose();
@@ -171,7 +175,13 @@ function DetailModal({ interview, onClose, onCancelled, onFeedbackSubmitted }: {
     if (!newDateTime) return;
     setRescheduling(true);
     try {
-      await interviewsApi.update(interview.id, { scheduledAt: new Date(newDateTime).toISOString() });
+      const newStart = new Date(newDateTime).toISOString();
+      await interviewsApi.update(interview.id, { scheduledAt: newStart });
+      // Sync: update Google Calendar event if mapped
+      if (interview.calendarEventId) {
+        const endTime = new Date(new Date(newDateTime).getTime() + interview.duration * 60 * 1000).toISOString();
+        calendarApi.updateEvent(interview.calendarEventId, { startTime: newStart, endTime }).catch(() => {});
+      }
       showToast('Interview rescheduled');
       onClose();
     } catch { showToast('Failed to reschedule', 'error'); }

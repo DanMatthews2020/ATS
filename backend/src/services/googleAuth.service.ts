@@ -134,6 +134,11 @@ export const googleAuthService = {
     // Issue JWT session cookies — exact same pattern as auth.controller
     issueSessionCookies(res, user);
 
+    // Auto-connect calendar if scopes are granted (non-blocking)
+    import('./calendar.service').then(({ calendarService }) => {
+      calendarService.autoConnectCalendarOnLogin(user.id).catch(() => {});
+    }).catch(() => {});
+
     return { user: safeUser(user) };
   },
 

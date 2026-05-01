@@ -11,6 +11,7 @@ const INCLUDE = {
   interviewers: {
     include: { user: { select: { id: true, firstName: true, lastName: true, role: true } } },
   },
+  calendarMapping: { select: { externalEventId: true } },
 } as const;
 
 export const interviewsRepository = {
