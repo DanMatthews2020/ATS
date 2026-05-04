@@ -1263,7 +1263,7 @@ export const candidatePanelApi = {
   updateTags:  (id: string, tags: string[]) =>
     api.patch<{ tags: string[] }>(`/candidates/${id}/tags`, { tags }),
   getFeedback: (id: string) => api.get<{ feedback: CandidateFeedbackDto[]; hiddenCount?: number }>(`/candidates/${id}/feedback`),
-  getEmails:   (id: string) => api.get<{ emails: unknown[] }>(`/candidates/${id}/emails`),
+  getEmails:   (id: string) => api.get<{ threads: GmailThreadDto[] }>(`/candidates/${id}/emails`),
 };
 
 // ── Follow-ups ────────────────────────────────────────────────────────────────
@@ -2105,5 +2105,63 @@ export const invitationsApi = {
     api.post<{ invitation: InvitationDto }>(`/invitations/${token}/accept`),
   cancel: (id: string) =>
     api.delete<{ deleted: boolean }>(`/invitations/${id}`),
+};
+
+// ── Gmail ─────────────────────────────────────────────────────────────────────
+
+export interface GmailMessageDto {
+  id: string;
+  gmailMessageId: string;
+  from: string;
+  to: string;
+  subject: string;
+  snippet: string;
+  bodyHtml: string | null;
+  bodyText: string | null;
+  receivedAt: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface GmailThreadDto {
+  id: string;
+  gmailThreadId: string;
+  subject: string;
+  snippet: string;
+  lastMessageAt: string;
+  messageCount: number;
+  hasUnread: boolean;
+  messages: GmailMessageDto[];
+}
+
+export interface GmailStatusDto {
+  connected: boolean;
+  googleEmail?: string;
+  lastSyncedAt?: string;
+}
+
+export interface GmailSyncResult {
+  threadsFound: number;
+  messagesFound: number;
+  syncedAt: string;
+}
+
+export const gmailApi = {
+  list: (candidateId: string) =>
+    api.get<{ threads: GmailThreadDto[] }>(`/candidates/${candidateId}/emails`),
+  sync: (candidateId: string) =>
+    api.post<GmailSyncResult>(`/candidates/${candidateId}/emails/sync`),
+  send: (candidateId: string, data: {
+    subject: string;
+    bodyHtml: string;
+    bodyText: string;
+    replyToThreadId?: string;
+    templateId?: string;
+  }) => api.post<{ message: GmailMessageDto }>(`/candidates/${candidateId}/emails/send`, data),
+  getStatus: () =>
+    api.get<GmailStatusDto>('/gmail/status'),
+  getConnectUrl: () =>
+    api.get<{ url: string }>('/gmail/connect').then((d) => d.url),
 };
 

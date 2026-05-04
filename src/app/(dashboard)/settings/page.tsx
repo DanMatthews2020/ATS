@@ -15,10 +15,11 @@ import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  settingsApi, teamApi, invitationsApi,
+  settingsApi, teamApi, invitationsApi, gmailApi,
   type UserProfileDto, type TeamMemberDto, type IntegrationDto,
   type NotificationSettingsDto, type BillingInfoDto, type SecurityDto,
   type TeamRole, type NotifKey, type InvitationDto,
+  type GmailStatusDto,
 } from '@/lib/api';
 
 // ─── Section nav config ────────────────────────────────────────────────────────
@@ -675,6 +676,63 @@ function TeamSection() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// REUSABLE INTEGRATION CARD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function IntegrationCard({ icon, iconBg, name, description, connected, connectedEmail, lastSync, connectLabel, connecting, onConnect }: {
+  icon: React.ReactNode;
+  iconBg: string;
+  name: string;
+  description: string;
+  connected: boolean;
+  connectedEmail?: string;
+  lastSync?: string;
+  connectLabel: string;
+  connecting?: boolean;
+  onConnect: () => void;
+}) {
+  return (
+    <Card className="p-5">
+      <div className="flex items-center gap-4">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${iconBg}`}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-[var(--color-text-primary)]">{name}</p>
+            {connected && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Connected
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{description}</p>
+          {connected && connectedEmail && (
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-1">{connectedEmail}</p>
+          )}
+          {connected && lastSync && (
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Last sync: {fmtDate(lastSync)}</p>
+          )}
+        </div>
+        <Button
+          variant={connected ? 'secondary' : 'primary'}
+          size="sm"
+          isLoading={connecting}
+          onClick={onConnect}
+        >
+          {connected ? (
+            <><RefreshCw size={12} /> Disconnect</>
+          ) : (
+            <><Zap size={12} /> {connectLabel}</>
+          )}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // INTEGRATIONS SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -684,9 +742,12 @@ function IntegrationsSection() {
   const [toggling, setToggling]         = useState<string | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<IntegrationDto | null>(null);
   const [confirming, setConfirming]     = useState(false);
+  const [gmailStatus, setGmailStatus]   = useState<GmailStatusDto | null>(null);
+  const [gmailConnecting, setGmailConnecting] = useState(false);
 
   useEffect(() => {
     settingsApi.getIntegrations().then(({ integrations: i }) => setIntegrations(i)).catch(() => {});
+    gmailApi.getStatus().then(setGmailStatus).catch(() => {});
   }, []);
 
   async function handleToggle(integ: IntegrationDto) {
@@ -725,9 +786,40 @@ function IntegrationsSection() {
   const seen = new Set<string>();
   const categories = integrations.map((i) => i.category).filter((c) => { if (seen.has(c)) return false; seen.add(c); return true; });
 
+  async function handleGmailConnect() {
+    setGmailConnecting(true);
+    try {
+      const url = await gmailApi.getConnectUrl();
+      window.location.href = url;
+    } catch {
+      showToast('Failed to start Gmail connection', 'error');
+      setGmailConnecting(false);
+    }
+  }
+
   return (
     <div>
       <SectionHeading title="Integrations" description="Connect your favourite tools to streamline your hiring workflow." />
+
+      {/* Gmail integration card */}
+      {gmailStatus && (
+        <div className="mb-8">
+          <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Email</h3>
+          <IntegrationCard
+            icon={<Mail size={18} />}
+            iconBg="bg-red-500"
+            name="Gmail"
+            description="Two-way email sync — send from TeamTalent, receive replies in candidate profiles."
+            connected={gmailStatus.connected}
+            connectedEmail={gmailStatus.googleEmail}
+            lastSync={gmailStatus.lastSyncedAt}
+            connectLabel="Connect Gmail"
+            connecting={gmailConnecting}
+            onConnect={handleGmailConnect}
+          />
+        </div>
+      )}
+
       {categories.map((cat) => (
         <div key={cat} className="mb-8">
           <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">{cat}</h3>

@@ -175,6 +175,8 @@ enum TimelineEventType {
   APPLICATION_STAGE_CHANGED
   OFFER_SENT
   CANDIDATE_CREATED
+  EMAIL_SENT
+  EMAIL_RECEIVED
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────

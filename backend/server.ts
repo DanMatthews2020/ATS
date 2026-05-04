@@ -18,6 +18,7 @@ import { errorHandler, notFound } from './src/middleware/error.middleware';
 import { env } from './src/utils/env';
 import { prisma } from './src/lib/prisma';
 import { startFeedbackReminderJob } from './src/jobs/feedbackReminder.job';
+import { startGmailSyncJob } from './src/jobs/gmailSync.job';
 
 const app = express();
 
@@ -76,6 +77,7 @@ app.listen(env.PORT, () => {
   console.log(`   Environment      →  ${env.NODE_ENV}`);
   console.log(`   Frontend origin  →  ${env.FRONTEND_URL}\n`);
   startFeedbackReminderJob();
+  startGmailSyncJob();
 });
 
 export default app;

@@ -28,6 +28,7 @@ import { getActionLabel } from '@/lib/auditLabels';
 import ScheduleInterviewModal from '@/components/interviews/ScheduleInterviewModal';
 import ScorecardModal from '@/components/ScorecardModal';
 import { CandidateComments } from '@/components/candidates/CandidateComments';
+import CandidateEmails from '@/components/candidates/CandidateEmails';
 import { CandidateTimeline } from '@/components/candidates/CandidateTimeline';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -374,44 +375,7 @@ function NotesTab({ candidateId }: { candidateId: string }) {
 
 // ─── Emails Tab ───────────────────────────────────────────────────────────────
 
-function EmailsTab({ candidateId }: { candidateId: string }) {
-  const [emails, setEmails] = useState<unknown[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    candidatePanelApi.getEmails(candidateId)
-      .then((d) => setEmails(d.emails))
-      .catch(() => setEmails([]))
-      .finally(() => setLoading(false));
-  }, [candidateId]);
-
-  if (loading) {
-    return (
-      <Card padding="lg">
-        <div className="flex justify-center py-10">
-          <Loader2 size={20} className="animate-spin text-[var(--color-text-muted)]" />
-        </div>
-      </Card>
-    );
-  }
-
-  if (emails.length === 0) {
-    return (
-      <Card padding="lg">
-        <div className="flex flex-col items-center py-12 gap-3 text-[var(--color-text-muted)]">
-          <Mail size={28} />
-          <p className="text-sm">No emails yet.</p>
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <Card padding="lg">
-      <p className="text-sm text-[var(--color-text-muted)]">{emails.length} email{emails.length !== 1 ? 's' : ''}</p>
-    </Card>
-  );
-}
+// EmailsTab is now CandidateEmails from @/components/candidates/CandidateEmails
 
 // ─── Interviews Tab ───────────────────────────────────────────────────────────
 
@@ -2048,7 +2012,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
           {activeTab === 'feed'         && <FeedTab key={feedKey} candidateId={id} />}
           {activeTab === 'notes'        && <NotesTab candidateId={id} />}
           {activeTab === 'comments'     && <CandidateComments candidateId={id} applicationId={currentApplicationId} currentUserRole={authUser?.role ?? ''} currentUserId={authUser?.id ?? ''} />}
-          {activeTab === 'emails'       && <EmailsTab candidateId={id} />}
+          {activeTab === 'emails'       && <CandidateEmails candidateId={id} candidateEmail={candidate.email} currentUserRole={authUser?.role ?? ''} />}
           {activeTab === 'interviews'   && <InterviewsTab candidate={candidate} extraInterviews={extraInterviews} />}
           {activeTab === 'feedback'     && <FeedbackTab key={feedbackRefreshKey} candidateId={id} onAddEvaluation={scorecardJobId ? () => setScorecardOpen(true) : undefined} />}
           {activeTab === 'applications' && <ApplicationsTab candidate={candidate} />}
