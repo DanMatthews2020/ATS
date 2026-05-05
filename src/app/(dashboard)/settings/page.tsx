@@ -15,12 +15,13 @@ import { Input } from '@/components/ui/Input';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  settingsApi, teamApi, invitationsApi, gmailApi,
+  settingsApi, teamApi, invitationsApi, gmailApi, calendarApi, integrationsApi,
   type UserProfileDto, type TeamMemberDto, type IntegrationDto,
   type NotificationSettingsDto, type BillingInfoDto, type SecurityDto,
   type TeamRole, type NotifKey, type InvitationDto,
-  type GmailStatusDto,
+  type GmailStatusDto, type IntegrationsStatusDto,
 } from '@/lib/api';
+import { IntegrationCard } from '@/components/settings/IntegrationCard';
 
 // ─── Section nav config ────────────────────────────────────────────────────────
 
@@ -676,206 +677,180 @@ function TeamSection() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// REUSABLE INTEGRATION CARD
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function IntegrationCard({ icon, iconBg, name, description, connected, connectedEmail, lastSync, connectLabel, connecting, onConnect }: {
-  icon: React.ReactNode;
-  iconBg: string;
-  name: string;
-  description: string;
-  connected: boolean;
-  connectedEmail?: string;
-  lastSync?: string;
-  connectLabel: string;
-  connecting?: boolean;
-  onConnect: () => void;
-}) {
-  return (
-    <Card className="p-5">
-      <div className="flex items-center gap-4">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${iconBg}`}>
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-[var(--color-text-primary)]">{name}</p>
-            {connected && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                Connected
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{description}</p>
-          {connected && connectedEmail && (
-            <p className="text-[11px] text-[var(--color-text-muted)] mt-1">{connectedEmail}</p>
-          )}
-          {connected && lastSync && (
-            <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Last sync: {fmtDate(lastSync)}</p>
-          )}
-        </div>
-        <Button
-          variant={connected ? 'secondary' : 'primary'}
-          size="sm"
-          isLoading={connecting}
-          onClick={onConnect}
-        >
-          {connected ? (
-            <><RefreshCw size={12} /> Disconnect</>
-          ) : (
-            <><Zap size={12} /> {connectLabel}</>
-          )}
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // INTEGRATIONS SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function IntegrationsSection() {
   const { showToast } = useToast();
-  const [integrations, setIntegrations] = useState<IntegrationDto[]>([]);
-  const [toggling, setToggling]         = useState<string | null>(null);
-  const [disconnectTarget, setDisconnectTarget] = useState<IntegrationDto | null>(null);
-  const [confirming, setConfirming]     = useState(false);
-  const [gmailStatus, setGmailStatus]   = useState<GmailStatusDto | null>(null);
-  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [status, setStatus] = useState<IntegrationsStatusDto | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    settingsApi.getIntegrations().then(({ integrations: i }) => setIntegrations(i)).catch(() => {});
-    gmailApi.getStatus().then(setGmailStatus).catch(() => {});
+    let cancelled = false;
+    integrationsApi.getStatus()
+      .then((data) => { if (!cancelled) setStatus(data); })
+      .catch(() => { if (!cancelled) showToast('Failed to load integration status', 'error'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
-  async function handleToggle(integ: IntegrationDto) {
-    if (integ.connected) {
-      setDisconnectTarget(integ);
-      return;
-    }
-    // Connect immediately
-    setToggling(integ.key);
-    try {
-      const { integration } = await settingsApi.toggleIntegration(integ.key);
-      setIntegrations((p) => p.map((i) => i.key === integ.key ? integration : i));
-      showToast(`${integ.name} connected successfully`);
-    } catch {
-      showToast(`Failed to connect ${integ.name}`, 'error');
-    } finally {
-      setToggling(null);
-    }
+  function reload() {
+    integrationsApi.getStatus().then(setStatus).catch(() => {});
   }
 
-  async function handleDisconnect() {
-    if (!disconnectTarget) return;
-    setConfirming(true);
+  async function connectViaOAuth(getUrl: () => Promise<string>, serviceName: string) {
     try {
-      const { integration } = await settingsApi.toggleIntegration(disconnectTarget.key);
-      setIntegrations((p) => p.map((i) => i.key === disconnectTarget.key ? integration : i));
-      showToast(`${disconnectTarget.name} disconnected`);
-      setDisconnectTarget(null);
-    } catch {
-      showToast(`Failed to disconnect`, 'error');
-    } finally {
-      setConfirming(false);
-    }
-  }
-
-  const seen = new Set<string>();
-  const categories = integrations.map((i) => i.category).filter((c) => { if (seen.has(c)) return false; seen.add(c); return true; });
-
-  async function handleGmailConnect() {
-    setGmailConnecting(true);
-    try {
-      const url = await gmailApi.getConnectUrl();
+      const url = await getUrl();
       window.location.href = url;
     } catch {
-      showToast('Failed to start Gmail connection', 'error');
-      setGmailConnecting(false);
+      showToast(`Failed to start ${serviceName} connection`, 'error');
     }
   }
+
+  async function handleWorkspaceDisconnect() {
+    try {
+      await integrationsApi.disconnectWorkspace();
+      showToast('Google Workspace disconnected');
+      reload();
+    } catch {
+      showToast('Failed to disconnect Google Workspace', 'error');
+    }
+  }
+
+  async function handleCalendarDisconnect() {
+    try {
+      await calendarApi.disconnect();
+      showToast('Google Calendar disconnected');
+      reload();
+    } catch {
+      showToast('Failed to disconnect Calendar', 'error');
+    }
+  }
+
+  async function handleGmailDisconnect() {
+    try {
+      await integrationsApi.disconnectWorkspace();
+      showToast('Gmail disconnected');
+      reload();
+    } catch {
+      showToast('Failed to disconnect Gmail', 'error');
+    }
+  }
+
+  // Derive statuses
+  const ws = status?.workspace;
+  const cal = status?.calendar;
+  const gm = status?.gmail;
+
+  const wsStatus = loading ? 'loading' as const
+    : !ws?.connected ? 'disconnected' as const
+    : (ws.features.calendar && ws.features.gmail) ? 'connected' as const
+    : 'partial' as const;
+
+  const calStatus = loading ? 'loading' as const
+    : cal?.connected ? 'connected' as const
+    : 'disconnected' as const;
+
+  const gmStatus = loading ? 'loading' as const
+    : gm?.connected ? 'connected' as const
+    : 'disconnected' as const;
 
   return (
     <div>
       <SectionHeading title="Integrations" description="Connect your favourite tools to streamline your hiring workflow." />
 
-      {/* Gmail integration card */}
-      {gmailStatus && (
-        <div className="mb-8">
-          <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Email</h3>
+      {/* Google Workspace — master connection */}
+      <div className="mb-8">
+        <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+          Google Workspace
+        </h3>
+        <div className="grid grid-cols-1 gap-3">
           <IntegrationCard
-            icon={<Mail size={18} />}
-            iconBg="bg-red-500"
-            name="Gmail"
-            description="Two-way email sync — send from TeamTalent, receive replies in candidate profiles."
-            connected={gmailStatus.connected}
-            connectedEmail={gmailStatus.googleEmail}
-            lastSync={gmailStatus.lastSyncedAt}
-            connectLabel="Connect Gmail"
-            connecting={gmailConnecting}
-            onConnect={handleGmailConnect}
+            icon={<Globe size={18} />}
+            iconBg="bg-blue-600"
+            name="Google Workspace"
+            description="Master connection for all Google integrations — Calendar, Gmail, Drive, and more."
+            status={wsStatus}
+            connectedEmail={ws?.googleEmail}
+            connectedAt={ws?.connectedAt}
+            features={ws?.connected ? [
+              { label: 'Calendar', enabled: ws.features.calendar },
+              { label: 'Gmail', enabled: ws.features.gmail },
+              { label: 'Directory', enabled: ws.features.directory },
+              { label: 'Drive', enabled: ws.features.drive },
+            ] : undefined}
+            connectLabel="Connect Google"
+            disconnectWarning="This will disconnect all Google integrations including Calendar and Gmail. Any active syncs will stop. You can reconnect at any time."
+            onConnect={() => connectViaOAuth(() => integrationsApi.getWorkspaceConnectUrl(), 'Google')}
+            onDisconnect={handleWorkspaceDisconnect}
           />
         </div>
-      )}
+      </div>
 
-      {categories.map((cat) => (
-        <div key={cat} className="mb-8">
-          <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">{cat}</h3>
-          <div className="grid grid-cols-1 gap-3">
-            {integrations.filter((i) => i.category === cat).map((integ) => (
-              <Card key={integ.key} className="p-5">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${INTEGRATION_COLORS[integ.key] ?? 'bg-neutral-400'}`}>
-                    {INTEGRATION_ICONS[integ.key] ?? integ.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-[var(--color-text-primary)]">{integ.name}</p>
-                      {integ.connected && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                          Connected
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{integ.description}</p>
-                    {integ.connected && integ.lastSync && (
-                      <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
-                        Last sync: {fmtDate(integ.lastSync)}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    variant={integ.connected ? 'secondary' : 'primary'}
-                    size="sm"
-                    isLoading={toggling === integ.key}
-                    onClick={() => handleToggle(integ)}
-                  >
-                    {integ.connected ? (
-                      <><RefreshCw size={12} /> Disconnect</>
-                    ) : (
-                      <><Zap size={12} /> Connect</>
-                    )}
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+      {/* Individual services */}
+      <div className="mb-8">
+        <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+          Connected Services
+        </h3>
+        <div className="grid grid-cols-1 gap-3">
+          <IntegrationCard
+            icon={<Calendar size={18} />}
+            iconBg="bg-red-500"
+            name="Google Calendar"
+            description="Schedule interviews, check availability, and auto-create Google Meet links."
+            status={calStatus}
+            connectedEmail={cal?.connected ? cal.email : undefined}
+            connectLabel="Connect Calendar"
+            disconnectWarning="This will disconnect Calendar sync. Existing calendar events will remain but new interviews won't create calendar events."
+            onConnect={() => connectViaOAuth(() => calendarApi.getConnectUrl(), 'Calendar')}
+            onDisconnect={handleCalendarDisconnect}
+          />
+
+          <IntegrationCard
+            icon={<Mail size={18} />}
+            iconBg="bg-red-600"
+            name="Gmail"
+            description="Two-way email sync — send from TeamTalent, receive replies in candidate profiles."
+            status={gmStatus}
+            connectedEmail={gm?.connected ? gm.googleEmail : undefined}
+            lastSync={gm?.lastSyncedAt}
+            connectLabel="Connect Gmail"
+            disconnectWarning="This will stop email sync. Existing email threads will remain in candidate profiles but no new messages will be synced. You may lose draft messages."
+            onConnect={() => connectViaOAuth(() => gmailApi.getConnectUrl(), 'Gmail')}
+            onDisconnect={handleGmailDisconnect}
+          />
         </div>
-      ))}
+      </div>
 
-      <ConfirmModal
-        open={!!disconnectTarget}
-        title={`Disconnect ${disconnectTarget?.name}`}
-        description={`This will remove the ${disconnectTarget?.name} integration. Any active syncs will stop. You can reconnect at any time.`}
-        confirmLabel="Disconnect"
-        danger
-        loading={confirming}
-        onConfirm={handleDisconnect}
-        onCancel={() => setDisconnectTarget(null)}
-      />
+      {/* Coming soon */}
+      <div className="mb-8">
+        <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+          Coming Soon
+        </h3>
+        <div className="grid grid-cols-1 gap-3">
+          <IntegrationCard
+            icon={<FileText size={18} />}
+            iconBg="bg-green-600"
+            name="Google Drive"
+            description="Store and share candidate documents, offer letters, and signed contracts."
+            status="coming-soon"
+          />
+          <IntegrationCard
+            icon={<MessageSquare size={18} />}
+            iconBg="bg-emerald-600"
+            name="Google Chat"
+            description="Send hiring notifications and interview reminders to Google Chat spaces."
+            status="coming-soon"
+          />
+          <IntegrationCard
+            icon={<FileText size={18} />}
+            iconBg="bg-blue-500"
+            name="Google Docs"
+            description="Create interview feedback documents and collaborative hiring briefs."
+            status="coming-soon"
+          />
+        </div>
+      </div>
     </div>
   );
 }

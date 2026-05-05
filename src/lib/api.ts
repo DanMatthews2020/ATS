@@ -2218,3 +2218,35 @@ export const managerDashboardApi = {
   get: () => api.get<ManagerDashboardDto>('/manager-dashboard'),
 };
 
+// ── Integrations Status ──────────────────────────────────────────────────────
+
+export interface WorkspaceConnectionDto {
+  connected: boolean;
+  googleEmail?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+  grantedScopes: string[];
+  connectedAt?: string;
+  features: {
+    calendar: boolean;
+    gmail: boolean;
+    directory: boolean;
+    drive: boolean;
+  };
+}
+
+export interface IntegrationsStatusDto {
+  workspace: WorkspaceConnectionDto;
+  calendar: CalendarStatusDto;
+  gmail: GmailStatusDto;
+}
+
+export const integrationsApi = {
+  getStatus: () =>
+    api.get<IntegrationsStatusDto>('/integrations/status'),
+  disconnectWorkspace: () =>
+    api.delete<{ disconnected: boolean }>('/calendar/disconnect'),
+  getWorkspaceConnectUrl: () =>
+    api.get<{ url: string }>('/calendar/connect').then((d) => d.url),
+};
+
