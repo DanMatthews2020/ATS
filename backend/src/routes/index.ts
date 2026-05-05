@@ -31,6 +31,7 @@ import schedulingRoutes from './scheduling.routes';
 import googleAuthRoutes from './googleAuth.routes';
 import invitationRoutes from './invitation.routes';
 import gmailRoutes from './gmail.routes';
+import managerDashboardRoutes from './managerDashboard.routes';
 
 const router = Router();
 
@@ -66,5 +67,6 @@ router.use('/feed',             feedRoutes);
 router.use('/calendar',         calendarRoutes);
 router.use('/scheduling',      schedulingRoutes);
 router.use('/',                gmailRoutes);
+router.use('/manager-dashboard', managerDashboardRoutes);
 
 export default router;

@@ -1780,6 +1780,7 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
   const { showToast } = useToast();
   const { user: authUser } = useAuth();
   const canReadPII = !['INTERVIEWER'].includes(authUser?.role ?? '');
+  const canManagePipeline = authUser?.role === 'ADMIN' || authUser?.role === 'HR';
 
   const [candidate, setCandidate]   = useState<CandidateDetailDto | null>(null);
   const [isLoading, setIsLoading]   = useState(true);
@@ -1848,12 +1849,12 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
     : candidate.applications.find((a) => a.status !== 'rejected');
   const currentApplicationId = currentApplication?.id;
   const currentRejection = candidate.applications.find((a) => a.rejection)?.rejection;
-  // Show reject button when there's an active application, not already rejected/hired, and user is not INTERVIEWER
+  // Show reject button when there's an active application, not already rejected/hired, and user is ADMIN/HR
   const canReject = currentApplicationId
     && !currentApplication?.rejection
     && currentApplication?.status !== 'rejected'
     && latestApp?.status !== 'hired'
-    && authUser?.role !== 'INTERVIEWER';
+    && canManagePipeline;
 
   function handleDeleted() {
     router.push('/candidates');
@@ -1927,23 +1928,39 @@ export default function CandidateProfilePage({ params }: { params: { id: string 
                     <XCircle size={13} className="mr-1" /> Reject
                   </Button>
                 )}
-                <FollowUpDropdown candidateId={id} onChanged={() => {}} />
+                {canManagePipeline && <FollowUpDropdown candidateId={id} onChanged={() => {}} />}
 
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={candidate.doNotContact}
-                  onClick={() => setEmailOpen(true)}
-                >
-                  <Mail size={13} /> Email
-                </Button>
+                {canManagePipeline && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={candidate.doNotContact}
+                    onClick={() => setEmailOpen(true)}
+                  >
+                    <Mail size={13} /> Email
+                  </Button>
+                )}
 
-                <MoreDropdown
-                  onScheduleInterview={() => setScheduleInterviewOpen(true)}
-                  onSubmitFeedback={() => { if (scorecardJobId) setScorecardOpen(true); else showToast('No job linked to this candidate', 'error'); }}
-                  onDeleteProfile={() => setDeleteOpen(true)}
-                  onDoNotContact={() => setDncOpen(true)}
-                />
+                {/* MANAGER/INTERVIEWER: show schedule & feedback but not admin actions */}
+                {!canManagePipeline && (
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setScheduleInterviewOpen(true)}>
+                      <Calendar size={13} /> Schedule Interview
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => { if (scorecardJobId) setScorecardOpen(true); else showToast('No job linked to this candidate', 'error'); }}>
+                      <Star size={13} /> Submit Feedback
+                    </Button>
+                  </div>
+                )}
+
+                {canManagePipeline && (
+                  <MoreDropdown
+                    onScheduleInterview={() => setScheduleInterviewOpen(true)}
+                    onSubmitFeedback={() => { if (scorecardJobId) setScorecardOpen(true); else showToast('No job linked to this candidate', 'error'); }}
+                    onDeleteProfile={() => setDeleteOpen(true)}
+                    onDoNotContact={() => setDncOpen(true)}
+                  />
+                )}
               </div>
             </div>
 

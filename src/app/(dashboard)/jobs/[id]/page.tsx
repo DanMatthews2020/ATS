@@ -24,6 +24,7 @@ import {
   type CandidateListDto,
 } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/hooks/useAuth';
 import type { BadgeVariant } from '@/types';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -83,6 +84,8 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const router  = useRouter();
   const { showToast } = useToast();
+  const { user: authUser } = useAuth();
+  const isManagerReadOnly = authUser?.role === 'MANAGER' || authUser?.role === 'INTERVIEWER';
 
   const [job,          setJob]          = useState<JobDetailDto | null>(null);
   const [stages,       setStages]       = useState<WorkflowStageDto[]>([]);
@@ -389,7 +392,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
 
         {/* ── Tab content ────────────────────────────────────────────────── */}
         <div className="px-8 pb-12">
-          {activeTab === 'pipeline' && <JobKanbanBoard jobId={id} jobTitle={job.title} stages={stages} />}
+          {activeTab === 'pipeline' && <JobKanbanBoard jobId={id} jobTitle={job.title} stages={stages} readOnly={isManagerReadOnly} />}
           {activeTab === 'list'     && <JobCandidateList jobId={id} stages={stages} />}
           {activeTab === 'details'  && <DetailsTab job={job} salary={salary} />}
           {activeTab === 'team'     && (

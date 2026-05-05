@@ -58,7 +58,7 @@ function DraggableCard({
 // ─── DroppableColumn ──────────────────────────────────────────────────────────
 
 function DroppableColumn({
-  stageName, dotClass, requiresScorecard, apps, onCardClick, onAddClick,
+  stageName, dotClass, requiresScorecard, apps, onCardClick, onAddClick, readOnly = false,
 }: {
   stageName: string;
   dotClass: string;
@@ -66,6 +66,7 @@ function DroppableColumn({
   apps: PipelineApplicationDto[];
   onCardClick: (app: PipelineApplicationDto) => void;
   onAddClick: () => void;
+  readOnly?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stageName });
 
@@ -80,13 +81,15 @@ function DroppableColumn({
             {apps.length}
           </span>
         </div>
-        <button
-          onClick={onAddClick}
-          className="w-5 h-5 rounded-md border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-primary)] transition-colors"
-          title={`Add candidate to ${stageName}`}
-        >
-          <Plus size={11} />
-        </button>
+        {!readOnly && (
+          <button
+            onClick={onAddClick}
+            className="w-5 h-5 rounded-md border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-primary)] transition-colors"
+            title={`Add candidate to ${stageName}`}
+          >
+            <Plus size={11} />
+          </button>
+        )}
       </div>
 
       {/* Drop zone */}
@@ -100,12 +103,23 @@ function DroppableColumn({
         ].join(' ')}
       >
         {apps.map((app) => (
-          <DraggableCard
-            key={app.id}
-            app={app}
-            stageScorecardRequired={requiresScorecard}
-            onClick={() => onCardClick(app)}
-          />
+          readOnly ? (
+            <div key={app.id} className="cursor-pointer">
+              <PipelineCandidateCard
+                app={app}
+                stageScorecardRequired={requiresScorecard}
+                onClick={() => onCardClick(app)}
+                onSkillClick={() => {}}
+              />
+            </div>
+          ) : (
+            <DraggableCard
+              key={app.id}
+              app={app}
+              stageScorecardRequired={requiresScorecard}
+              onClick={() => onCardClick(app)}
+            />
+          )
         ))}
         {apps.length === 0 && (
           <p className="text-[10px] text-[var(--color-text-muted)] text-center pt-4">Drop here</p>
@@ -462,11 +476,12 @@ function AddCandidateModal({
 // ─── JobKanbanBoard ───────────────────────────────────────────────────────────
 
 export function JobKanbanBoard({
-  jobId, jobTitle, stages,
+  jobId, jobTitle, stages, readOnly = false,
 }: {
   jobId: string;
   jobTitle: string;
   stages: WorkflowStageDto[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -641,12 +656,7 @@ export function JobKanbanBoard({
         </Button>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
+      {readOnly ? (
         <div className="overflow-x-auto">
           <div className="flex gap-4 min-w-max pb-4">
             {stages.map((stage, i) => (
@@ -659,20 +669,46 @@ export function JobKanbanBoard({
                 onCardClick={(app) => router.push(
                   `/candidates/${app.candidateId}?fromJob=${jobId}&fromJobTitle=${encodeURIComponent(jobTitle)}`
                 )}
-                onAddClick={() => setAddModal({ stageName: stage.stageName })}
+                onAddClick={() => {}}
+                readOnly
               />
             ))}
           </div>
         </div>
-
-        <DragOverlay dropAnimation={null}>
-          {dragActiveApp ? (
-            <div className="w-[240px] rotate-2 shadow-2xl">
-              <PipelineCandidateCard app={dragActiveApp} isDragging onClick={() => {}} onSkillClick={() => {}} stageScorecardRequired={false} />
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="overflow-x-auto">
+            <div className="flex gap-4 min-w-max pb-4">
+              {stages.map((stage, i) => (
+                <DroppableColumn
+                  key={stage.id}
+                  stageName={stage.stageName}
+                  dotClass={DOT_CLASSES[i % DOT_CLASSES.length]}
+                  requiresScorecard={stage.requiresScorecard}
+                  apps={columns[stage.stageName] ?? []}
+                  onCardClick={(app) => router.push(
+                    `/candidates/${app.candidateId}?fromJob=${jobId}&fromJobTitle=${encodeURIComponent(jobTitle)}`
+                  )}
+                  onAddClick={() => setAddModal({ stageName: stage.stageName })}
+                />
+              ))}
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          </div>
+
+          <DragOverlay dropAnimation={null}>
+            {dragActiveApp ? (
+              <div className="w-[240px] rotate-2 shadow-2xl">
+                <PipelineCandidateCard app={dragActiveApp} isDragging onClick={() => {}} onSkillClick={() => {}} stageScorecardRequired={false} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       {openPanelApp && (
         <CandidatePanel

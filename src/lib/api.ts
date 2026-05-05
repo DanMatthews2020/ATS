@@ -2165,3 +2165,56 @@ export const gmailApi = {
     api.get<{ url: string }>('/gmail/connect').then((d) => d.url),
 };
 
+// ── Manager Dashboard ────────────────────────────────────────────────────────
+
+export interface ManagerJobDto {
+  id: string;
+  title: string;
+  department: string | null;
+  location: string | null;
+  status: string;
+  applicantCount: number;
+}
+
+export interface ManagerPendingFeedbackDto {
+  interviewId: string;
+  candidateName: string;
+  jobTitle: string;
+  scheduledAt: string;
+  type: string;
+}
+
+export interface ManagerUpcomingInterviewDto {
+  id: string;
+  candidateName: string;
+  jobTitle: string;
+  scheduledAt: string;
+  duration: number;
+  type: string;
+  meetingLink: string | null;
+}
+
+export interface ManagerActivityDto {
+  id: string;
+  type: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface ManagerDashboardDto {
+  myJobs: ManagerJobDto[];
+  pendingFeedback: ManagerPendingFeedbackDto[];
+  upcomingInterviews: ManagerUpcomingInterviewDto[];
+  recentActivity: ManagerActivityDto[];
+  stats: {
+    totalJobs: number;
+    totalCandidates: number;
+    pendingFeedbackCount: number;
+    upcomingInterviewCount: number;
+  };
+}
+
+export const managerDashboardApi = {
+  get: () => api.get<ManagerDashboardDto>('/manager-dashboard'),
+};
+

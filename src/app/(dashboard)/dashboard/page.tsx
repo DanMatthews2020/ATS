@@ -7,6 +7,7 @@ import { dashboardApi, jobsApi, candidatesApi, rightsRequestsApi, retentionApi, 
 import type { DashboardStats, JobListingDto, CandidateTrackingDto } from '@/lib/api';
 import { JobListingCard } from '@/components/dashboard/JobListingCard';
 import { CandidateCard } from '@/components/dashboard/CandidateCard';
+import ManagerDashboard from '@/components/dashboard/ManagerDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import type { Job, Candidate } from '@/types';
 
@@ -141,6 +142,7 @@ function ComplianceBanner() {
 export default function DashboardPage() {
   const { user } = useAuth();
   const isComplianceUser = user?.role === 'ADMIN' || user?.role === 'HR';
+  const isManager = user?.role === 'MANAGER';
 
   const [stats, setStats]           = useState<DashboardStats | null>(null);
   const [jobs, setJobs]             = useState<JobListingDto[]>([]);
@@ -191,10 +193,28 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    if (isManager) return;
     fetchStats();
     fetchJobs();
     fetchCandidates();
-  }, []);
+  }, [isManager]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // MANAGER gets a dedicated scoped dashboard
+  if (isManager) {
+    return (
+      <div className="p-8 space-y-8 flex-1">
+        <header>
+          <h1 className="text-2xl font-semibold text-[var(--color-primary)] tracking-tight">
+            My Dashboard
+          </h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
+            Here&apos;s what&apos;s happening across your assigned jobs.
+          </p>
+        </header>
+        <ManagerDashboard />
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 space-y-8 flex-1">
